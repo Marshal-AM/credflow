@@ -16,6 +16,8 @@
     "base-sepolia:activity": "hardhat run scripts/base-sepolia-activity.js --network baseSepolia",
     "base-sepolia:aave:check": "set BASE_SEPOLIA_AAVE_CHECK_ONLY=1&& hardhat run scripts/base-sepolia-aave.js --network baseSepolia",
     "base-sepolia:aave": "hardhat run scripts/base-sepolia-aave.js --network baseSepolia",
+    "arbitrum-sepolia:aave:check": "set ARBITRUM_SEPOLIA_AAVE_CHECK_ONLY=1&& hardhat run scripts/arbitrum-sepolia-aave.js --network arbitrumSepolia",
+    "arbitrum-sepolia:aave": "hardhat run scripts/arbitrum-sepolia-aave.js --network arbitrumSepolia",
     "ml:train": "credflow-env\\Scripts\\python.exe scripts/train_ml.py",
     "ml:serve": "credflow-env\\Scripts\\python.exe -m ml.scoring_api",
     "ml:test": "credflow-env\\Scripts\\python.exe -m pytest tests/ -v"

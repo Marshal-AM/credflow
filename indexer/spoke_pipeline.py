@@ -7,7 +7,7 @@ from datetime import datetime
 import requests
 from web3 import Web3
 
-from indexer.chains import chain_rpc_url, spoke_chains
+from indexer.chains import chain_alchemy_rpc_url, chain_rpc_url, spoke_chains
 from indexer.scoring_metrics import compute_aave_metrics
 
 logger = logging.getLogger(__name__)
@@ -31,7 +31,18 @@ AAVE_POOL_ABI = [
 ]
 
 SPOKE_AAVE_POOLS = {
+    "arbitrum_sepolia": "0xBfC91D59fdAA134A4ED45f7B584cAf96D7792Eff",
     "base_sepolia": "0x8bAB6d1b75f19e9eD9fCe8b9BD338844fF79aE27",
+}
+
+# Known reserve assets per spoke (bgd-labs/aave-address-book)
+SPOKE_AAVE_ASSETS = {
+    # Base Sepolia
+    "0x4200000000000000000000000000000000000006": "weth",
+    "0x036cbd53842c5426634e7929541ec2318f3dcf7e": "usdc",
+    # Arbitrum Sepolia
+    "0x1df462e2712496373a347f8ad10802a5e95f053d": "weth",
+    "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d": "usdc",
 }
 
 # Aave V3 Pool event topic0 → action (mirrors scripts/aavefetch.js)
@@ -59,12 +70,26 @@ def _use_mock_data() -> bool:
     return os.environ.get("USE_MOCK_DATA", "0") == "1"
 
 
+def _direct_rpc_url(chain) -> str:
+    return os.environ.get(chain.rpc_env, "").strip()
+
+
 def _web3_for_chain(chain) -> Web3 | None:
-    rpc = os.environ.get(chain.rpc_env, "").strip() or chain_rpc_url(chain)
+    """Prefer chain-native RPC for receipts/logs; fall back to Alchemy."""
+    rpc = _direct_rpc_url(chain) or chain_alchemy_rpc_url(chain) or chain_rpc_url(chain)
     if not rpc:
         return None
     w3 = Web3(Web3.HTTPProvider(rpc, request_kwargs={"timeout": 60}))
     return w3 if w3.is_connected() else None
+
+
+def _resolve_aave_asset(transfer: dict) -> str:
+    raw = (transfer.get("rawContract") or {}).get("address") or transfer.get("asset") or ""
+    if isinstance(raw, str) and raw.lower().startswith("0x"):
+        return SPOKE_AAVE_ASSETS.get(raw.lower(), raw.lower())
+    if isinstance(raw, str) and raw:
+        return raw.lower()
+    return "unknown"
 
 
 def _alchemy_rpc(method: str, params: list, rpc_url: str):
@@ -154,6 +179,7 @@ def _parse_aave_activity(
     w3: Web3,
     transfers: list[dict],
     pool_address: str,
+    chain_key: str,
 ) -> list[dict]:
     """Fetch receipts for pool txs and classify Supply/Borrow/Repay/Liquidation."""
     pool_lower = pool_address.lower()
@@ -173,11 +199,7 @@ def _parse_aave_activity(
         ]
         action = _action_from_logs(pool_logs, pool_lower) or _action_from_input(tx.get("input"))
         transfer = next((t for t in transfers if t.get("hash") == tx_hash), {})
-        asset = (
-            (transfer.get("rawContract") or {}).get("address")
-            or transfer.get("asset")
-            or "unknown"
-        )
+        asset = _resolve_aave_asset(transfer)
         meta = transfer.get("metadata") or {}
         block_num = receipt.get("blockNumber", 0)
         block_ts = None
@@ -197,7 +219,8 @@ def _parse_aave_activity(
                 "action": action,
                 "block": block_num,
                 "timestamp": block_ts,
-                "asset": str(asset).lower() if asset else "unknown",
+                "asset": asset,
+                "chain": chain_key,
             }
         )
 
@@ -279,8 +302,8 @@ def fetch_spoke_wallet_features(chain, wallet_address: str) -> dict:
         if tx_count == 0:
             return {}
 
-        rpc = chain_rpc_url(chain)
-        transfers = _alchemy_transfers(rpc, wallet_address)
+        alchemy_rpc = chain_alchemy_rpc_url(chain)
+        transfers = _alchemy_transfers(alchemy_rpc, wallet_address) if alchemy_rpc else []
         unique_to = {
             t.get("to").lower()
             for t in transfers
@@ -366,11 +389,15 @@ def fetch_aave_spoke_features(wallet_address: str) -> list[dict]:
 
         w3 = _web3_for_chain(chain)
         if not w3:
+            logger.warning("Aave %s: no RPC connection", chain.key)
             continue
 
-        rpc = chain_rpc_url(chain)
-        if "alchemy.com" not in rpc:
-            logger.warning("Aave %s requires Alchemy RPC for transfer-based fetch", chain.key)
+        alchemy_rpc = chain_alchemy_rpc_url(chain)
+        if not alchemy_rpc:
+            logger.warning(
+                "Aave %s: set ALCHEMY_API_KEY for indexed transfer fetch (see scripts/arbitrum-sepolia-aave.js)",
+                chain.key,
+            )
             continue
 
         try:
@@ -379,14 +406,24 @@ def fetch_aave_spoke_features(wallet_address: str) -> list[dict]:
                 abi=AAVE_POOL_ABI,
             )
             position = _current_aave_position(pool, wallet_address)
-            transfers = _fetch_wallet_pool_transfers(rpc, wallet_address, pool_addr)
+            transfers = _fetch_wallet_pool_transfers(alchemy_rpc, wallet_address, pool_addr)
 
             if not transfers and not position.get("has_active_position"):
                 logger.info("Aave %s: no pool txs and no active position", chain.key)
                 continue
 
-            rows = _parse_aave_activity(w3, transfers, pool_addr) if transfers else []
+            rows = (
+                _parse_aave_activity(w3, transfers, pool_addr, chain.key) if transfers else []
+            )
             per_chain.append(_activity_to_borrow_features(rows, position, pool_addr, chain.key))
+            logger.info(
+                "Aave %s: supply=%s borrow=%s repay=%s rows=%s",
+                chain.key,
+                sum(1 for r in rows if r.get("action") == "Supply"),
+                sum(1 for r in rows if r.get("action") == "Borrow"),
+                sum(1 for r in rows if r.get("action") == "Repay"),
+                len(rows),
+            )
         except Exception as exc:
             logger.warning("Aave fetch failed on %s for %s: %s", chain.key, wallet_address, exc)
 
