@@ -63,3 +63,8 @@ dist/
 build/
 tmp/
 temp/
+
+# ML artifacts
+ml/*.pkl
+ml/*.pt
+ml/data/

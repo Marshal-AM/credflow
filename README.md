@@ -69,7 +69,24 @@ python -m venv credflow-env
 # Windows: credflow-env\Scripts\activate
 # Unix: source credflow-env/bin/activate
 pip install -r requirements.txt
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+pip install torch-geometric
 ```
+
+## ML pipeline (Phase 2)
+
+```bash
+# Train XGBoost + Sybil models (uses credflow-env on Windows)
+npm run ml:train
+
+# Run scoring API on http://localhost:8000
+npm run ml:serve
+
+# Python tests
+npm run ml:test
+```
+
+Set `DUNE_API_KEY` and `ALCHEMY_API_KEY` in `.env` for live data. Use `USE_MOCK_DATA=1` for offline dev/tests.
 
 ## Project structure
 

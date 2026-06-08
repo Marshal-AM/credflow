@@ -11,7 +11,10 @@
     "lz:status": "node scripts/lz-status.js",
     "lz:set-peers": "hardhat run scripts/set-peers.js --network robinhoodTestnet",
     "oracle:wire": "hardhat run scripts/wire-oracle.js --network robinhoodTestnet",
-    "smoke:borrow": "hardhat run scripts/smoke-borrow.js --network robinhoodTestnet"
+    "smoke:borrow": "hardhat run scripts/smoke-borrow.js --network robinhoodTestnet",
+    "ml:train": "credflow-env\\Scripts\\python.exe scripts/train_ml.py",
+    "ml:serve": "credflow-env\\Scripts\\python.exe -m ml.scoring_api",
+    "ml:test": "credflow-env\\Scripts\\python.exe -m pytest tests/ -v"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.8",
