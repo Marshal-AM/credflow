@@ -7,8 +7,19 @@ from indexer.scoring_metrics import (
     active_months_last_6,
     aave_only_wallet_flag,
     burst_activity_flag,
+    compute_aave_metrics,
     days_since_last_active,
     longest_inactive_gap_days,
+    zero_repays_multiple_borrows_flag,
+)
+
+_PROTOCOL_PREFIXES = ("credflow", "aave", "morpho")
+_PROTOCOL_COUNT_SUFFIXES = (
+    "supply_count",
+    "withdraw_count",
+    "borrow_count",
+    "repay_count",
+    "liquidation_count",
 )
 
 
@@ -36,7 +47,6 @@ def merge_wallet_features(per_chain: Iterable[dict]) -> dict:
     for row in rows:
         unique_contracts.update(row.get("unique_contract_addresses") or [])
         if not row.get("unique_contract_addresses"):
-            # fallback: per-chain count proxy
             n = int(row.get("unique_protocols", 0) or 0)
             if n:
                 unique_contracts.update(f"{row.get('chain', 'unknown')}:{i}" for i in range(n))
@@ -76,73 +86,75 @@ def merge_wallet_features(per_chain: Iterable[dict]) -> dict:
     return merged
 
 
-_AAVE_SUM_KEYS = [
-    "aave_supply_count",
-    "aave_withdraw_count",
-    "aave_borrow_count",
-    "aave_repay_count",
-    "aave_liquidation_count",
-    "collateral_withdraw_before_borrow_count",
-    "net_collateral_position",
-    "partial_repay_count",
-    "borrow_then_transfer_out_count",
-    "total_borrows",
-    "on_time_repayments",
-    "liquidation_count",
-    "has_been_liquidated",
-    "zero_repays_multiple_borrows_flag",
-    "borrow_then_transfer_out_flag",
-]
-
-_AAVE_MAX_KEYS = ["borrow_diversity", "collateral_diversity", "partial_repay_ratio"]
+def _multi_protocol_borrow_flag(protocol_counts: dict[str, int]) -> int:
+    protocols_with_borrows = sum(1 for count in protocol_counts.values() if count > 0)
+    return int(protocols_with_borrows >= 2)
 
 
 def merge_borrow_features(per_chain: Iterable[dict]) -> dict:
-    """Combine Aave / CredFlow borrow history across chains."""
+    """Combine CredFlow hub + Aave spokes + Morpho (Base Sepolia) borrow history."""
     rows = [row for row in per_chain if row]
     if not rows:
         return {}
 
-    merged: dict = {k: 0 for k in _AAVE_SUM_KEYS}
-    for row in rows:
-        for key in _AAVE_SUM_KEYS:
-            merged[key] += int(row.get(key, 0) or 0)
-        for key in _AAVE_MAX_KEYS:
-            merged[key] = max(int(merged.get(key, 0) or 0), int(row.get(key, 0) or 0))
+    merged: dict = {}
+    protocol_borrow_totals: dict[str, int] = {}
 
-    borrow_count = merged["aave_borrow_count"] or merged["total_borrows"]
-    repay_count = merged["aave_repay_count"] or merged["on_time_repayments"]
-    merged["repay_ratio"] = repay_count / borrow_count if borrow_count > 0 else 0.5
+    for prefix in _PROTOCOL_PREFIXES:
+        protocol_borrow_totals[prefix] = 0
+        for suffix in _PROTOCOL_COUNT_SUFFIXES:
+            key = f"{prefix}_{suffix}"
+            merged[key] = sum(int(row.get(key, 0) or 0) for row in rows)
+        protocol_borrow_totals[prefix] = int(merged.get(f"{prefix}_borrow_count", 0) or 0)
 
-    block_gaps = [float(row["avg_blocks_to_repay"]) for row in rows if row.get("avg_blocks_to_repay")]
-    merged["avg_blocks_to_repay"] = sum(block_gaps) / len(block_gaps) if block_gaps else 0.0
-
-    durations = [float(row["avg_loan_duration"]) for row in rows if row.get("avg_loan_duration")]
-    merged["avg_loan_duration"] = sum(durations) / len(durations) if durations else 0.0
-
-    merged["max_borrow_usd"] = max(
-        [float(row.get("max_borrow_usd", 0) or 0) for row in rows],
-        default=0.0,
+    total_borrow = sum(protocol_borrow_totals.values())
+    total_repay = sum(int(merged.get(f"{prefix}_repay_count", 0) or 0) for prefix in _PROTOCOL_PREFIXES)
+    total_liquidations = sum(
+        int(merged.get(f"{prefix}_liquidation_count", 0) or 0) for prefix in _PROTOCOL_PREFIXES
     )
-    merged["chains_with_borrows"] = [
-        row.get("chain") for row in rows if row.get("aave_borrow_count") or row.get("total_borrows")
-    ]
-    merged["has_been_liquidated"] = int(merged["aave_liquidation_count"] > 0)
-    merged["activity_rows"] = sorted(
+
+    activity_rows = sorted(
         (row for chain in rows for row in (chain.get("activity_rows") or [])),
         key=lambda row: int(row.get("block", 0) or 0),
     )
-    borrow_n = merged["aave_borrow_count"] or merged["total_borrows"]
-    repay_n = merged["aave_repay_count"] or merged["on_time_repayments"]
-    if not merged.get("zero_repays_multiple_borrows_flag"):
-        from indexer.scoring_metrics import zero_repays_multiple_borrows_flag
+    aggregate = compute_aave_metrics(activity_rows)
 
-        merged["zero_repays_multiple_borrows_flag"] = zero_repays_multiple_borrows_flag(
-            borrow_n, repay_n
-        )
-    merged["partial_repay_ratio"] = (
-        merged.get("partial_repay_ratio", 0)
-        if merged.get("partial_repay_ratio")
-        else (merged["partial_repay_count"] / borrow_n if borrow_n else 0.0)
+    merged.update(
+        {
+            "total_borrow_count": total_borrow,
+            "total_repay_count": total_repay,
+            "total_borrows": total_borrow,
+            "on_time_repayments": total_repay,
+            "repay_ratio": total_repay / total_borrow if total_borrow > 0 else 0.5,
+            "avg_blocks_to_repay": aggregate["avg_blocks_to_repay"],
+            "avg_loan_duration": aggregate["avg_loan_duration"],
+            "collateral_withdraw_before_borrow_count": aggregate["collateral_withdraw_before_borrow_count"],
+            "net_collateral_position": aggregate["net_collateral_position"],
+            "borrow_diversity": aggregate["borrow_diversity"],
+            "collateral_diversity": aggregate["collateral_diversity"],
+            "partial_repay_count": aggregate["partial_repay_count"],
+            "partial_repay_ratio": aggregate["partial_repay_ratio"],
+            "has_been_liquidated": int(total_liquidations > 0),
+            "liquidation_count": total_liquidations,
+            "multi_protocol_borrow_flag": _multi_protocol_borrow_flag(protocol_borrow_totals),
+            "zero_repays_multiple_borrows_flag": zero_repays_multiple_borrows_flag(
+                total_borrow, total_repay
+            ),
+            "activity_rows": activity_rows,
+            "chains_with_borrows": [
+                row.get("chain")
+                for row in rows
+                if row.get("credflow_borrow_count")
+                or row.get("aave_borrow_count")
+                or row.get("morpho_borrow_count")
+            ],
+            "protocols_with_borrows": [
+                prefix for prefix, count in protocol_borrow_totals.items() if count > 0
+            ],
+            "max_borrow_usd": max(
+                [float(row.get("max_borrow_usd", 0) or 0) for row in rows],
+                default=0.0,
+            ),
+        }
     )
     return merged

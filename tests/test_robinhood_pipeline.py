@@ -53,10 +53,8 @@ def test_merge_borrow_features_includes_hub_activity_rows():
         [
             {
                 "chain": "robinhood_testnet",
-                "aave_borrow_count": 1,
-                "aave_repay_count": 0,
-                "total_borrows": 1,
-                "on_time_repayments": 0,
+                "credflow_borrow_count": 1,
+                "credflow_repay_count": 0,
                 "activity_rows": [
                     {
                         "chain": "robinhood_testnet",
@@ -70,8 +68,6 @@ def test_merge_borrow_features_includes_hub_activity_rows():
                 "chain": "base_sepolia",
                 "aave_borrow_count": 1,
                 "aave_repay_count": 1,
-                "total_borrows": 1,
-                "on_time_repayments": 1,
                 "activity_rows": [
                     {
                         "chain": "base_sepolia",
@@ -83,6 +79,9 @@ def test_merge_borrow_features_includes_hub_activity_rows():
             },
         ]
     )
+    assert merged["total_borrow_count"] == 2
+    assert merged["credflow_borrow_count"] == 1
+    assert merged["aave_borrow_count"] == 1
     assert len(merged["activity_rows"]) == 2
     assert merged["activity_rows"][0]["chain"] == "robinhood_testnet"
     assert merged["activity_rows"][1]["chain"] == "base_sepolia"

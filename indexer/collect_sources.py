@@ -6,12 +6,13 @@ import logging
 import os
 from typing import Any
 
-from indexer.chains import hub_chain, spoke_chains
+from indexer.chains import MORPHO_SPOKE_KEYS, hub_chain, spoke_chains
 from indexer.sanitize import sanitize_source_payload
 from indexer.robinhood_pipeline import (
     fetch_credflow_lending_features,
     fetch_robinhood_wallet_features,
 )
+from indexer.morpho_pipeline import fetch_morpho_spoke_features
 from indexer.spoke_pipeline import (
     SPOKE_AAVE_POOLS,
     fetch_aave_spoke_features,
@@ -125,6 +126,27 @@ def collect_all_sources(wallet_address: str, borrow_features: dict | None = None
                 chain=chain.key,
                 backend=row.get("backend", "alchemy_transfers+receipt_logs"),
                 data=row,
+            )
+
+    morpho_spoke_rows = fetch_morpho_spoke_features(wallet_address)
+    morpho_by_chain = {row.get("chain"): row for row in morpho_spoke_rows}
+    for chain in spoke_chains():
+        if chain.key in MORPHO_SPOKE_KEYS:
+            row = morpho_by_chain.get(chain.key, {})
+            sources[f"{chain.key}_morpho_rpc"] = _source_entry(
+                source_id=f"{chain.key}_morpho_rpc",
+                chain=chain.key,
+                backend=row.get("backend", "etherscan_v2_event_logs"),
+                data=row,
+            )
+        else:
+            sources[f"{chain.key}_morpho_rpc"] = _source_entry(
+                source_id=f"{chain.key}_morpho_rpc",
+                chain=chain.key,
+                backend="rpc_events",
+                data={},
+                skipped=True,
+                skip_reason="Morpho Blue is not deployed on this testnet",
             )
 
     from indexer.alchemy_pipeline import fetch_chain_state

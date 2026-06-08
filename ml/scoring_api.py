@@ -38,6 +38,7 @@ def _configure_indexer_loggers() -> None:
     """Ensure indexer modules log to the same terminal as the API."""
     for name in (
         "indexer.spoke_pipeline",
+        "indexer.morpho_pipeline",
         "indexer.robinhood_pipeline",
         "indexer.features_pipeline",
         "indexer.alchemy_pipeline",
@@ -71,7 +72,7 @@ def _score_sync(wallet_address: str) -> dict:
     logger.info("=== SCORE START wallet=%s ===", wallet_address)
     step("imports loaded")
 
-    t = step("fetch_borrow_features (CredFlow hub + spoke Aave RPC)")
+    t = step("fetch_borrow_features (CredFlow hub + Aave spokes + Morpho Base Sepolia)")
     borrow_features = fetch_borrow_features(wallet_address)
     logger.info(
         "  borrow: total_borrows=%s chains=%s",

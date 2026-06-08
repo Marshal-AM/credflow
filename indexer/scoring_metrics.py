@@ -53,9 +53,11 @@ def burst_activity_flag(timestamps: list[float], threshold: float = 0.5, window_
 
 
 def known_lending_contracts() -> set[str]:
+    from indexer.morpho_pipeline import MORPHO_BLUE
     from indexer.spoke_pipeline import SPOKE_AAVE_POOLS
 
     contracts = {v.lower() for v in SPOKE_AAVE_POOLS.values()}
+    contracts.add(MORPHO_BLUE.lower())
     lending = os.environ.get("CREDFLOW_LENDING_ADDRESS") or load_hub_addresses().get("lending", "")
     if lending:
         contracts.add(str(lending).lower())
@@ -171,15 +173,27 @@ def compute_aave_metrics(rows: list[dict]) -> dict:
     }
 
 
+def compute_protocol_metrics(rows: list[dict], prefix: str) -> dict:
+    """Map activity rows to protocol-prefixed lending counts (credflow_, aave_, morpho_)."""
+    base = compute_aave_metrics(rows)
+    return {
+        f"{prefix}_supply_count": base["aave_supply_count"],
+        f"{prefix}_withdraw_count": base["aave_withdraw_count"],
+        f"{prefix}_borrow_count": base["aave_borrow_count"],
+        f"{prefix}_repay_count": base["aave_repay_count"],
+        f"{prefix}_liquidation_count": base["aave_liquidation_count"],
+    }
+
+
 def hub_lending_metrics(created: int, repaid: int, liquidated: int, avg_duration: float) -> dict:
-    """Map CredFlow hub LoanCreated/Repaid events into the same metric schema."""
+    """Map CredFlow hub LoanCreated/Repaid events into credflow_* counts."""
     rows = (
         [{"action": "Borrow"}] * created
         + [{"action": "Repay"}] * repaid
         + [{"action": "Liquidation"}] * liquidated
     )
-    metrics = compute_aave_metrics(rows)
-    if avg_duration and not metrics["avg_loan_duration"]:
+    metrics = compute_protocol_metrics(rows, "credflow")
+    if avg_duration:
         metrics["avg_loan_duration"] = avg_duration
     return metrics
 
@@ -223,8 +237,12 @@ def enrich_scoring_features(
     borrow["borrow_then_transfer_out_count"] = borrow_then_transfer_out_count(activity_rows, transfers)
     borrow["borrow_then_transfer_out_flag"] = int(borrow["borrow_then_transfer_out_count"] > 0)
 
-    borrow_count = int(borrow.get("aave_borrow_count", borrow.get("total_borrows", 0)) or 0)
-    repay_count = int(borrow.get("aave_repay_count", borrow.get("on_time_repayments", 0)) or 0)
+    borrow_count = int(
+        borrow.get("total_borrow_count", borrow.get("total_borrows", borrow.get("aave_borrow_count", 0))) or 0
+    )
+    repay_count = int(
+        borrow.get("total_repay_count", borrow.get("on_time_repayments", borrow.get("aave_repay_count", 0))) or 0
+    )
     borrow["zero_repays_multiple_borrows_flag"] = zero_repays_multiple_borrows_flag(
         borrow_count, repay_count
     )

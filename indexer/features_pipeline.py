@@ -11,6 +11,7 @@ from indexer.robinhood_pipeline import (
     fetch_credflow_lending_features,
     fetch_robinhood_wallet_features,
 )
+from indexer.morpho_pipeline import fetch_morpho_spoke_features
 from indexer.spoke_pipeline import fetch_aave_spoke_features, fetch_spoke_wallet_features
 from indexer.chains import spoke_chains
 
@@ -49,7 +50,7 @@ def fetch_wallet_features(wallet_address: str) -> dict:
 
 
 def fetch_borrow_features(wallet_address: str) -> dict:
-    """Borrow history: CredFlow hub lending + Aave spoke pools."""
+    """Borrow history: CredFlow hub lending + Aave spokes + Morpho (Base Sepolia only)."""
     if _use_mock_data():
         from indexer.mock_data import mock_borrow_features
 
@@ -58,4 +59,5 @@ def fetch_borrow_features(wallet_address: str) -> dict:
     _normalize_wallet(wallet_address)
     per_chain = [fetch_credflow_lending_features(wallet_address)]
     per_chain.extend(fetch_aave_spoke_features(wallet_address))
+    per_chain.extend(fetch_morpho_spoke_features(wallet_address))
     return merge_borrow_features(per_chain)

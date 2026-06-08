@@ -17,7 +17,7 @@ def test_health():
     data = response.json()
     assert data["status"] == "ok"
     assert data["model_loaded"] is True
-    assert data["feature_count"] == 27
+    assert data["feature_count"] == 37
 
 
 def test_score_endpoint(monkeypatch):
@@ -41,8 +41,11 @@ def test_score_endpoint(monkeypatch):
     assert "borrow_history_merged" in data["source_data"]["sources"]
     assert "model_breakdown" in data
     assert data["model_breakdown"]["formula"]["computed"]["cred_score"] == data["cred_score"]
-    assert len(data["model_breakdown"]["feature_vector"]) == 27
+    assert len(data["model_breakdown"]["feature_vector"]) == 37
     assert "aave_borrow_count" in data["features_used"]
+    assert "morpho_borrow_count" in data["features_used"]
+    assert "credflow_borrow_count" in data["features_used"]
+    assert "morpho_base_sepolia" in data["model_breakdown"]["feature_groups"]
     assert "wallet_age_flag" in data["features_used"]
     assert "burst_activity_flag" in data["features_used"]
     assert "borrow_then_transfer_out_flag" in data["features_used"]

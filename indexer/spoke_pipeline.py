@@ -8,7 +8,7 @@ import requests
 from web3 import Web3
 
 from indexer.chains import chain_alchemy_rpc_url, chain_rpc_url, spoke_chains
-from indexer.scoring_metrics import compute_aave_metrics
+from indexer.scoring_metrics import compute_protocol_metrics
 
 logger = logging.getLogger(__name__)
 
@@ -342,26 +342,25 @@ def fetch_spoke_wallet_features(chain, wallet_address: str) -> dict:
 
 
 def _activity_to_borrow_features(rows: list[dict], position: dict, pool_addr: str, chain_key: str) -> dict:
-    """Map parsed Aave actions → scoring borrow features (docs/factors.md)."""
+    """Map parsed Aave actions → aave_* protocol features (docs/factors.md)."""
     has_position = position.get("has_active_position", False)
-    metrics = compute_aave_metrics(rows)
+    protocol_metrics = compute_protocol_metrics(rows, "aave")
 
-    if not metrics["aave_borrow_count"] and has_position:
-        metrics["aave_borrow_count"] = 1
-        metrics["total_borrows"] = 1
-    if not metrics["aave_repay_count"] and has_position and position.get("total_debt_base", 0) == 0:
-        metrics["aave_repay_count"] = 1
-        metrics["on_time_repayments"] = 1
-        if metrics["aave_borrow_count"]:
-            metrics["repay_ratio"] = 1.0
-    if not metrics["avg_loan_duration"] and metrics["aave_borrow_count"]:
-        metrics["avg_loan_duration"] = 30.0
+    if not protocol_metrics["aave_borrow_count"] and has_position:
+        protocol_metrics["aave_borrow_count"] = 1
+    if (
+        not protocol_metrics["aave_repay_count"]
+        and has_position
+        and position.get("total_debt_base", 0) == 0
+    ):
+        protocol_metrics["aave_repay_count"] = 1
 
     return {
         "chain": chain_key,
         "pool": pool_addr,
-        **metrics,
-        "max_borrow_usd": float(metrics["aave_borrow_count"] or 0),
+        "protocol": "aave",
+        **protocol_metrics,
+        "max_borrow_usd": float(protocol_metrics["aave_borrow_count"] or 0),
         "current_position": position,
         "activity_rows": rows,
         "backend": "alchemy_transfers+receipt_logs",

@@ -56,6 +56,14 @@ def spoke_chains() -> List[ChainConfig]:
     return [c for c in CREDFLOW_CHAINS if c.role == "spoke"]
 
 
+# Morpho Blue is deployed on Base Sepolia only (not Arbitrum Sepolia).
+MORPHO_SPOKE_KEYS = frozenset({"base_sepolia"})
+
+
+def morpho_spoke_chains() -> List[ChainConfig]:
+    return [c for c in spoke_chains() if c.key in MORPHO_SPOKE_KEYS]
+
+
 def active_rpc_chains() -> List[ChainConfig]:
     """All chains queried via RPC/Alchemy for wallet state."""
     return list(CREDFLOW_CHAINS)

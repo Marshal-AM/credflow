@@ -1,35 +1,85 @@
 """Compute human-readable sub-scores from raw indexer data (not SHAP)."""
 
+_PROTOCOL_PREFIXES = ("credflow", "aave", "morpho")
 
-def compute_borrow_sub_score(borrow_features: dict) -> int:
-    borrow_count = float(borrow_features.get("aave_borrow_count", borrow_features.get("total_borrows", 0)) or 0)
+
+def _repay_ratio(borrow_features: dict) -> tuple[float, float]:
+    borrow_count = float(
+        borrow_features.get("total_borrow_count", borrow_features.get("total_borrows", 0)) or 0
+    )
     repay_ratio = float(borrow_features.get("repay_ratio", 0) or 0)
     if repay_ratio == 0 and borrow_count > 0:
-        repay_count = float(borrow_features.get("aave_repay_count", borrow_features.get("on_time_repayments", 0)) or 0)
+        repay_count = float(
+            borrow_features.get("total_repay_count", borrow_features.get("on_time_repayments", 0)) or 0
+        )
         repay_ratio = repay_count / borrow_count
     elif borrow_count == 0:
         repay_ratio = 0.5
+    return borrow_count, repay_ratio
 
-    liquidations = float(
-        borrow_features.get("aave_liquidation_count", borrow_features.get("liquidation_count", 0)) or 0
-    )
+
+def borrow_sub_score_parts(borrow_features: dict) -> dict:
+    """Break down borrow sub-score components for API transparency."""
+    borrow_count, repay_ratio = _repay_ratio(borrow_features)
+
+    liquidations = float(borrow_features.get("liquidation_count", 0) or 0)
+    if not liquidations:
+        liquidations = float(borrow_features.get("credflow_liquidation_count", 0) or 0) + float(
+            borrow_features.get("aave_liquidation_count", 0) or 0
+        )
     avg_duration = float(borrow_features.get("avg_loan_duration", 0) or 0)
     has_liquidated = int(borrow_features.get("has_been_liquidated", 0) or liquidations > 0)
 
-    score = 40.0
     if repay_ratio >= 0.8:
-        score += 20
-    if borrow_count > 0:
-        score += 15
-    score -= liquidations * 20
-    score -= has_liquidated * 15
-    score += min(15, avg_duration / 4)
-    if float(borrow_features.get("collateral_withdraw_before_borrow_count", 0) or 0) > 0:
-        score -= 10
-    if int(borrow_features.get("zero_repays_multiple_borrows_flag", 0) or 0):
-        score -= 20
-    if int(borrow_features.get("borrow_then_transfer_out_flag", 0) or 0):
-        score -= 15
+        repayment_bonus = 20
+        partial_repay_bonus = 0
+    elif repay_ratio >= 0.5:
+        repayment_bonus = 0
+        partial_repay_bonus = int(10 * repay_ratio)
+    else:
+        repayment_bonus = 0
+        partial_repay_bonus = 0
+
+    credflow_borrow = float(borrow_features.get("credflow_borrow_count", 0) or 0)
+    credflow_repay = float(borrow_features.get("credflow_repay_count", 0) or 0)
+    open_credflow_penalty = -15 if credflow_borrow > credflow_repay else 0
+
+    open_protocols = 0
+    for prefix in _PROTOCOL_PREFIXES:
+        protocol_borrow = float(borrow_features.get(f"{prefix}_borrow_count", 0) or 0)
+        protocol_repay = float(borrow_features.get(f"{prefix}_repay_count", 0) or 0)
+        if protocol_borrow > protocol_repay:
+            open_protocols += 1
+    open_debt_penalty = -min(24, open_protocols * 8)
+
+    withdraw_count = float(borrow_features.get("collateral_withdraw_before_borrow_count", 0) or 0)
+    scaled_withdraw_penalty = -min(20, int(withdraw_count * 5)) if withdraw_count > 0 else 0
+
+    multi_protocol_bonus = 5 if int(borrow_features.get("multi_protocol_borrow_flag", 0) or 0) else 0
+
+    zero_repay_penalty = -20 if int(borrow_features.get("zero_repays_multiple_borrows_flag", 0) or 0) else 0
+    transfer_out_penalty = -15 if int(borrow_features.get("borrow_then_transfer_out_flag", 0) or 0) else 0
+
+    return {
+        "base": 40,
+        "repayment_bonus": repayment_bonus,
+        "partial_repay_bonus": partial_repay_bonus,
+        "has_borrows_bonus": 15 if borrow_count > 0 else 0,
+        "liquidation_penalty": int(-liquidations * 20),
+        "liquidated_flag_penalty": -15 if has_liquidated else 0,
+        "duration_bonus": min(15, int(avg_duration / 4)),
+        "open_credflow_penalty": open_credflow_penalty,
+        "open_debt_penalty": open_debt_penalty,
+        "scaled_withdraw_penalty": scaled_withdraw_penalty,
+        "multi_protocol_bonus": multi_protocol_bonus,
+        "zero_repays_penalty": zero_repay_penalty,
+        "transfer_out_penalty": transfer_out_penalty,
+    }
+
+
+def compute_borrow_sub_score(borrow_features: dict) -> int:
+    parts = borrow_sub_score_parts(borrow_features)
+    score = sum(parts.values())
     return max(0, min(100, int(round(score))))
 
 
@@ -52,7 +102,9 @@ def compute_wallet_sub_score(feature_vector: dict) -> int:
     repay_ratio = float(feature_vector.get("repay_ratio", 0.5) or 0.5)
     score += repay_ratio * 10
 
-    liquidations = float(feature_vector.get("aave_liquidation_count", feature_vector.get("defi_liquidation_count", 0)) or 0)
+    liquidations = float(
+        feature_vector.get("aave_liquidation_count", feature_vector.get("defi_liquidation_count", 0)) or 0
+    )
     score -= liquidations * 20
 
     eth_balance = float(feature_vector.get("eth_balance", 0) or 0)

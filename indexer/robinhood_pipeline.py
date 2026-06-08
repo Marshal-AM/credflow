@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from web3 import Web3
 
 from indexer.chains import chain_alchemy_rpc_url, chain_rpc_url, hub_chain, load_hub_addresses
-from indexer.scoring_metrics import compute_aave_metrics
+from indexer.scoring_metrics import compute_protocol_metrics
 
 load_dotenv()
 
@@ -291,13 +291,13 @@ def fetch_credflow_lending_features(wallet_address: str) -> dict:
                 durations.append((end_block["timestamp"] - start_block["timestamp"]) / 86400)
 
         avg_duration = sum(durations) / len(durations) if durations else 30.0
-        metrics = compute_aave_metrics(activity_rows)
-        if avg_duration and not metrics["avg_loan_duration"]:
-            metrics["avg_loan_duration"] = avg_duration
+        protocol_metrics = compute_protocol_metrics(activity_rows, "credflow")
 
         return {
             "chain": hub_chain().key,
-            **metrics,
+            "protocol": "credflow",
+            **protocol_metrics,
+            "avg_loan_duration": avg_duration,
             "activity_rows": activity_rows,
             "max_borrow_usd": max(borrow_amounts) if borrow_amounts else float(len(created)),
             "backend": "rpc_events",

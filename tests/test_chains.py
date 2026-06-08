@@ -1,7 +1,15 @@
 """Tests for multi-chain indexer configuration."""
 
 from indexer.aggregate import merge_borrow_features, merge_wallet_features
-from indexer.chains import CREDFLOW_CHAINS, chain_alchemy_rpc_url, chain_rpc_url, hub_chain, spoke_chains
+from indexer.chains import (
+    CREDFLOW_CHAINS,
+    MORPHO_SPOKE_KEYS,
+    chain_alchemy_rpc_url,
+    chain_rpc_url,
+    hub_chain,
+    morpho_spoke_chains,
+    spoke_chains,
+)
 
 
 def test_credflow_chain_topology():
@@ -10,6 +18,8 @@ def test_credflow_chain_topology():
     spoke_keys = {c.key for c in spoke_chains()}
     assert spoke_keys == {"arbitrum_sepolia", "base_sepolia"}
     assert len(CREDFLOW_CHAINS) == 3
+    assert MORPHO_SPOKE_KEYS == frozenset({"base_sepolia"})
+    assert {c.key for c in morpho_spoke_chains()} == {"base_sepolia"}
 
 
 def test_merge_wallet_features_across_chains():
@@ -54,9 +64,9 @@ def test_chain_alchemy_rpc_url_includes_robinhood_hub(monkeypatch):
 def test_merge_borrow_features_across_chains():
     merged = merge_borrow_features(
         [
-            {"chain": "robinhood_testnet", "total_borrows": 1, "on_time_repayments": 1, "liquidation_count": 0},
-            {"chain": "base_sepolia", "total_borrows": 2, "on_time_repayments": 2, "liquidation_count": 0},
+            {"chain": "robinhood_testnet", "credflow_borrow_count": 1, "credflow_repay_count": 1},
+            {"chain": "base_sepolia", "aave_borrow_count": 2, "aave_repay_count": 2},
         ]
     )
-    assert merged["total_borrows"] == 3
-    assert merged["on_time_repayments"] == 3
+    assert merged["total_borrow_count"] == 3
+    assert merged["total_repay_count"] == 3

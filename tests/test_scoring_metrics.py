@@ -6,6 +6,7 @@ from indexer.scoring_metrics import (
     borrow_then_transfer_out_count,
     burst_activity_flag,
     compute_aave_metrics,
+    compute_protocol_metrics,
     days_since_last_active,
     zero_repays_multiple_borrows_flag,
 )
@@ -25,6 +26,19 @@ def test_compute_aave_metrics_from_activity_rows():
     assert m["repay_ratio"] == 1.0
     assert m["collateral_withdraw_before_borrow_count"] == 1
     assert m["zero_repays_multiple_borrows_flag"] == 0
+
+
+def test_compute_protocol_metrics_prefixes_counts():
+    rows = [
+        {"action": "Supply", "block": 1},
+        {"action": "Borrow", "block": 2},
+        {"action": "Repay", "block": 3},
+    ]
+    morpho = compute_protocol_metrics(rows, "morpho")
+    assert morpho["morpho_supply_count"] == 1
+    assert morpho["morpho_borrow_count"] == 1
+    assert morpho["morpho_repay_count"] == 1
+    assert "aave_borrow_count" not in morpho
 
 
 def test_partial_repay_detection():

@@ -2,7 +2,16 @@
 
 from __future__ import annotations
 
-from ml.constants import AAVE_FEATURE_KEYS, FEATURE_COLUMNS, RED_FLAG_FEATURE_KEYS, WALLET_FEATURE_KEYS
+from ml.constants import (
+    AGGREGATE_BORROW_FEATURE_KEYS,
+    AAVE_FEATURE_KEYS,
+    CREDFLOW_FEATURE_KEYS,
+    FEATURE_COLUMNS,
+    MORPHO_FEATURE_KEYS,
+    RED_FLAG_FEATURE_KEYS,
+    WALLET_FEATURE_KEYS,
+)
+from ml.sub_scores import borrow_sub_score_parts
 
 
 def _feature_derivation_notes() -> dict[str, str]:
@@ -14,12 +23,22 @@ def _feature_derivation_notes() -> dict[str, str]:
         "days_since_last_active": "Days since the wallet's most recent on-chain activity",
         "longest_inactive_gap_days": "Longest gap between consecutive outbound transfers",
         "eth_balance": "Sum of native ETH balances across chains (wei / 1e18)",
-        "aave_supply_count": "Aave Supply + CredFlow collateral deposit events",
-        "aave_withdraw_count": "Aave Withdraw events",
-        "aave_borrow_count": "Aave Borrow + CredFlow loan events",
-        "aave_repay_count": "Aave Repay + CredFlow repayment events",
-        "aave_liquidation_count": "Liquidation events (hard penalty)",
-        "repay_ratio": "aave_repay_count / aave_borrow_count (0.5 if no borrows)",
+        "credflow_borrow_count": "CredFlow hub LoanCreated events (Robinhood testnet)",
+        "credflow_repay_count": "CredFlow hub LoanRepaid events",
+        "credflow_liquidation_count": "CredFlow hub LoanLiquidated events",
+        "aave_supply_count": "Aave V3 Supply events across spoke testnets",
+        "aave_withdraw_count": "Aave V3 Withdraw events",
+        "aave_borrow_count": "Aave V3 Borrow events (Arbitrum + Base Sepolia)",
+        "aave_repay_count": "Aave V3 Repay events",
+        "aave_liquidation_count": "Aave liquidation events",
+        "morpho_supply_count": "Morpho Blue SupplyCollateral (Base Sepolia only)",
+        "morpho_withdraw_count": "Morpho Blue WithdrawCollateral",
+        "morpho_borrow_count": "Morpho Blue Borrow events",
+        "morpho_repay_count": "Morpho Blue Repay events",
+        "total_borrow_count": "credflow + aave + morpho borrow counts",
+        "total_repay_count": "credflow + aave + morpho repay counts",
+        "repay_ratio": "total_repay_count / total_borrow_count (0.5 if no borrows)",
+        "multi_protocol_borrow_flag": "1 if borrows on 2+ protocols (hub, Aave, Morpho)",
         "avg_blocks_to_repay": "Mean blocks between borrow and matching repay",
         "avg_loan_duration_days": "Mean days from borrow to repay",
         "collateral_withdraw_before_borrow_count": "Withdrawals shortly before a borrow (risky pattern)",
@@ -55,23 +74,7 @@ def build_model_breakdown(
     sorted_risk = sorted(shap.items(), key=lambda x: x[1], reverse=True)
     sorted_protective = sorted(shap.items(), key=lambda x: x[1])
 
-    borrow_count = float(borrow_features.get("aave_borrow_count", borrow_features.get("total_borrows", 0)) or 0)
-    repay_ratio = float(borrow_features.get("repay_ratio", features.get("repay_ratio", 0.5)) or 0.5)
-    liquidations = float(
-        borrow_features.get("aave_liquidation_count", borrow_features.get("liquidation_count", 0)) or 0
-    )
-    avg_duration = float(borrow_features.get("avg_loan_duration", 0) or 0)
-
-    borrow_parts = {
-        "base": 40,
-        "repayment_bonus": 20 if repay_ratio >= 0.8 else 0,
-        "has_borrows_bonus": 15 if borrow_count > 0 else 0,
-        "liquidation_penalty": int(-liquidations * 20),
-        "duration_bonus": min(15, int(avg_duration / 4)),
-        "withdraw_before_borrow_penalty": -10
-        if float(borrow_features.get("collateral_withdraw_before_borrow_count", 0) or 0) > 0
-        else 0,
-    }
+    borrow_parts = borrow_sub_score_parts(borrow_features)
 
     return {
         "model_type": "XGBClassifier",
@@ -94,7 +97,10 @@ def build_model_breakdown(
         "feature_derivation": _feature_derivation_notes(),
         "feature_groups": {
             "wallet_behavior": {k: features.get(k) for k in WALLET_FEATURE_KEYS},
-            "aave_lending": {k: features.get(k) for k in AAVE_FEATURE_KEYS},
+            "credflow_hub": {k: features.get(k) for k in CREDFLOW_FEATURE_KEYS},
+            "aave_spokes": {k: features.get(k) for k in AAVE_FEATURE_KEYS},
+            "morpho_base_sepolia": {k: features.get(k) for k in MORPHO_FEATURE_KEYS},
+            "cross_protocol": {k: features.get(k) for k in AGGREGATE_BORROW_FEATURE_KEYS},
             "red_flags": {k: features.get(k) for k in RED_FLAG_FEATURE_KEYS},
         },
         "shap_contributions": shap,
@@ -111,7 +117,11 @@ def build_model_breakdown(
         "sub_scores": {
             "borrow_sub_score": {
                 "value": sub_scores.get("borrow_sub_score"),
-                "formula": "40 + repay_ratio(20) + has_borrows(15) - liquidations - withdraw_before_borrow",
+                "formula": (
+                    "40 + repayment/partial_repay bonus + has_borrows(15) + multi_protocol(5) "
+                    "- open_credflow(15) - open_debt(8/proto) - scaled_withdraw(5/count) "
+                    "- liquidations - zero_repays - transfer_out"
+                ),
                 "parts": borrow_parts,
                 "borrow_raw": borrow_features,
             },
