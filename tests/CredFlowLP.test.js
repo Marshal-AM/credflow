@@ -24,7 +24,7 @@ describe("CredFlowLP", function () {
     await pool.connect(borrower).deposit(depositAmt);
     expect(await pool.utilizationRate()).to.equal(0);
 
-    await sbt.connect(agent).mintSBT(borrower.address, 624, 71, 68, 60, "ipfs://test");
+    await sbt.connect(agent).mintSBT(borrower.address, 624, 68, 60, "ipfs://test");
 
     const collateral = ethers.parseEther("0.03");
     await wrapEth(borrower, collateral);

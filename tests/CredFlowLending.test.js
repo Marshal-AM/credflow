@@ -16,7 +16,7 @@ const COLLATERAL = ethers.parseEther("0.03");
 
 describe("CredFlowLending", function () {
   async function setupBorrower(f, score = 624) {
-    await f.sbt.connect(f.agent).mintSBT(f.borrower.address, score, 71, 68, 60, "ipfs://maya");
+    await f.sbt.connect(f.agent).mintSBT(f.borrower.address, score, 68, 60, "ipfs://maya");
     await wrapEth(f.borrower, COLLATERAL);
     const weth = new ethers.Contract(WETH, WETH_ABI, f.borrower);
     await weth.approve(await f.lending.getAddress(), COLLATERAL);
@@ -36,7 +36,7 @@ describe("CredFlowLending", function () {
 
   it("rejects borrow when LTV exceeded", async function () {
     const f = await loadFixture(credFlowFundedFixture);
-    await f.sbt.connect(f.agent).mintSBT(f.borrower.address, 624, 71, 68, 60, "ipfs://maya");
+    await f.sbt.connect(f.agent).mintSBT(f.borrower.address, 624, 68, 60, "ipfs://maya");
     const smallCollateral = ethers.parseEther("0.02");
     await wrapEth(f.borrower, smallCollateral);
     const weth = new ethers.Contract(WETH, WETH_ABI, f.borrower);

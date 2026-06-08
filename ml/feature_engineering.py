@@ -9,17 +9,15 @@ from ml.constants import FEATURE_COLUMNS
 
 def build_feature_vector(
     wallet_address: str,
-    dune_aave: dict,
-    dune_wallet: dict,
+    borrow_features: dict,
+    wallet_features: dict,
     alchemy_state: dict,
-    gmx_data: dict,
-    fhenix_attestation: dict,
 ) -> dict:
-    """Build feature dict matching training schema. Missing fields default to safe zeros."""
+    """Build feature dict matching training schema (see docs/factors.md)."""
     _ = wallet_address
     now = datetime.utcnow().timestamp()
 
-    first_seen = dune_wallet.get("wallet_first_seen")
+    first_seen = wallet_features.get("wallet_first_seen")
     wallet_age_days = 0.0
     if first_seen:
         try:
@@ -27,43 +25,60 @@ def build_feature_vector(
         except (ValueError, TypeError):
             wallet_age_days = 0.0
 
-    total_borrows = float(dune_aave.get("total_borrows", 0) or 0)
-    on_time = float(dune_aave.get("on_time_repayments", 0) or 0)
-    repayment_rate = on_time / total_borrows if total_borrows > 0 else 0.5
-    liquidation_count = float(dune_aave.get("liquidation_count", 0) or 0)
-
     eth_balance = int(alchemy_state.get("eth_balance_wei", 0) or 0) / 1e18
-    tx_count = float(alchemy_state.get("tx_count", dune_wallet.get("tx_count", 0)) or 0)
-    protocol_diversity = float(dune_wallet.get("unique_protocols", 0) or 0)
+    tx_count = float(alchemy_state.get("tx_count", wallet_features.get("tx_count", 0)) or 0)
 
-    gmx_sub_score = float(gmx_data.get("gmx_sub_score", 50) or 50)
-    gmx_liquidations = float(gmx_data.get("liquidation_count", 0) or 0)
-    gmx_avg_leverage = float(gmx_data.get("avg_leverage", 0) or 0)
-    gmx_total_positions = float(gmx_data.get("total_positions", 0) or 0)
-
-    fhenix_income_verified = bool(fhenix_attestation.get("income_above_threshold", False))
-    fhenix_balance_verified = bool(fhenix_attestation.get("balance_above_threshold", False))
-    fhenix_repayment_clean = bool(fhenix_attestation.get("repayment_history_clean", False))
-    fhenix_account_age_years = float(fhenix_attestation.get("account_age_years", 0) or 0)
+    borrow_count = float(borrow_features.get("aave_borrow_count", borrow_features.get("total_borrows", 0)) or 0)
+    repay_count = float(borrow_features.get("aave_repay_count", borrow_features.get("on_time_repayments", 0)) or 0)
+    repay_ratio = float(borrow_features.get("repay_ratio", 0) or 0)
+    if repay_ratio == 0 and borrow_count > 0:
+        repay_ratio = repay_count / borrow_count
+    elif borrow_count == 0:
+        repay_ratio = 0.5
 
     features = {
         "wallet_age_days": wallet_age_days,
         "tx_count": tx_count,
-        "protocol_diversity": protocol_diversity,
-        "total_borrows": total_borrows,
-        "repayment_rate": repayment_rate,
-        "defi_liquidation_count": liquidation_count,
-        "avg_loan_duration_days": float(dune_aave.get("avg_loan_duration", 0) or 0),
+        "unique_contracts_interacted": float(
+            wallet_features.get("unique_contracts_interacted", wallet_features.get("unique_protocols", 0)) or 0
+        ),
+        "active_months_last_6": float(wallet_features.get("active_months_last_6", 0) or 0),
+        "days_since_last_active": float(wallet_features.get("days_since_last_active", 0) or 0),
+        "longest_inactive_gap_days": float(wallet_features.get("longest_inactive_gap_days", 0) or 0),
         "eth_balance": eth_balance,
-        "gmx_sub_score": gmx_sub_score,
-        "gmx_liquidation_count": gmx_liquidations,
-        "gmx_avg_leverage": gmx_avg_leverage,
-        "gmx_total_positions": gmx_total_positions,
-        "has_gmx_history": int(bool(gmx_data.get("has_gmx_history", False))),
-        "fhenix_income_verified": int(fhenix_income_verified),
-        "fhenix_balance_verified": int(fhenix_balance_verified),
-        "fhenix_repayment_clean": int(fhenix_repayment_clean),
-        "fhenix_account_age_years": fhenix_account_age_years,
+        "aave_supply_count": float(borrow_features.get("aave_supply_count", 0) or 0),
+        "aave_withdraw_count": float(borrow_features.get("aave_withdraw_count", 0) or 0),
+        "aave_borrow_count": borrow_count,
+        "aave_repay_count": repay_count,
+        "aave_liquidation_count": float(
+            borrow_features.get("aave_liquidation_count", borrow_features.get("liquidation_count", 0)) or 0
+        ),
+        "repay_ratio": repay_ratio,
+        "avg_blocks_to_repay": float(borrow_features.get("avg_blocks_to_repay", 0) or 0),
+        "avg_loan_duration_days": float(borrow_features.get("avg_loan_duration", 0) or 0),
+        "collateral_withdraw_before_borrow_count": float(
+            borrow_features.get("collateral_withdraw_before_borrow_count", 0) or 0
+        ),
+        "net_collateral_position": float(borrow_features.get("net_collateral_position", 0) or 0),
+        "borrow_diversity": float(borrow_features.get("borrow_diversity", 0) or 0),
+        "collateral_diversity": float(borrow_features.get("collateral_diversity", 0) or 0),
+        "partial_repay_count": float(borrow_features.get("partial_repay_count", 0) or 0),
+        "partial_repay_ratio": float(borrow_features.get("partial_repay_ratio", 0) or 0),
+        "has_been_liquidated": int(
+            borrow_features.get("has_been_liquidated", 0)
+            or (borrow_features.get("aave_liquidation_count", 0) or 0) > 0
+        ),
+        "wallet_age_flag": int(wallet_age_days < 7),
+        "zero_repays_multiple_borrows_flag": int(
+            borrow_features.get("zero_repays_multiple_borrows_flag", 0)
+            or (borrow_count >= 2 and repay_count == 0)
+        ),
+        "burst_activity_flag": int(wallet_features.get("burst_activity_flag", 0) or 0),
+        "aave_only_wallet_flag": int(wallet_features.get("aave_only_wallet_flag", 0) or 0),
+        "borrow_then_transfer_out_flag": int(
+            borrow_features.get("borrow_then_transfer_out_flag", 0)
+            or (borrow_features.get("borrow_then_transfer_out_count", 0) or 0) > 0
+        ),
     }
 
     for col in FEATURE_COLUMNS:

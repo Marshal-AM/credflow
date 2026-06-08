@@ -12,8 +12,7 @@ contract CredScoreSBT is ERC721, AccessControl, Pausable, UUPSUpgradeable {
 
     struct CreditProfile {
         uint16 score;
-        uint16 gmxSubScore;
-        uint16 fhenixSubScore;
+        uint16 borrowSubScore;
         uint16 walletSubScore;
         uint8 loanStatus;
         uint8 totalLoans;
@@ -42,8 +41,7 @@ contract CredScoreSBT is ERC721, AccessControl, Pausable, UUPSUpgradeable {
     function mintSBT(
         address wallet,
         uint16 score,
-        uint16 gmxSub,
-        uint16 fhenixSub,
+        uint16 borrowSub,
         uint16 walletSub,
         string calldata shapCID
     ) external onlyRole(SCORER_ROLE) whenNotPaused {
@@ -56,8 +54,7 @@ contract CredScoreSBT is ERC721, AccessControl, Pausable, UUPSUpgradeable {
 
         profiles[wallet] = CreditProfile({
             score: score,
-            gmxSubScore: gmxSub,
-            fhenixSubScore: fhenixSub,
+            borrowSubScore: borrowSub,
             walletSubScore: walletSub,
             loanStatus: 0,
             totalLoans: 0,
@@ -74,16 +71,14 @@ contract CredScoreSBT is ERC721, AccessControl, Pausable, UUPSUpgradeable {
     function updateScore(
         address wallet,
         uint16 newScore,
-        uint16 gmxSub,
-        uint16 fhenixSub,
+        uint16 borrowSub,
         uint16 walletSub,
         string calldata shapCID
     ) external onlyRole(SCORER_ROLE) {
         require(profiles[wallet].exists, "No SBT found");
         uint16 old = profiles[wallet].score;
         profiles[wallet].score = newScore;
-        profiles[wallet].gmxSubScore = gmxSub;
-        profiles[wallet].fhenixSubScore = fhenixSub;
+        profiles[wallet].borrowSubScore = borrowSub;
         profiles[wallet].walletSubScore = walletSub;
         profiles[wallet].lastUpdated = uint32(block.timestamp);
         profiles[wallet].shapeExplanationCID = shapCID;

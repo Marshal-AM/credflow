@@ -7,7 +7,7 @@ import requests
 from dotenv import load_dotenv
 from web3 import Web3
 
-from indexer.chains import CREDFLOW_CHAINS, GMX_REPUTATION_CHAIN, chain_rpc_url
+from indexer.chains import active_rpc_chains, chain_alchemy_rpc_url, chain_rpc_url
 
 load_dotenv()
 
@@ -18,15 +18,9 @@ def _use_mock_data() -> bool:
     return os.environ.get("USE_MOCK_DATA", "0") == "1"
 
 
-def _active_chains():
-    chains = list(CREDFLOW_CHAINS)
-    if os.environ.get("INDEX_ARBITRUM_MAINNET", "1") == "1":
-        chains.append(GMX_REPUTATION_CHAIN)
-    return chains
-
-
-def _fetch_chain_state(chain, wallet_address: str) -> dict:
-    url = chain_rpc_url(chain)
+def fetch_chain_state(chain, wallet_address: str) -> dict:
+    # Prefer Alchemy when available (indexed token balances + transfers)
+    url = chain_alchemy_rpc_url(chain) or chain_rpc_url(chain)
     if not url:
         return {}
 
@@ -74,6 +68,7 @@ def _fetch_chain_state(chain, wallet_address: str) -> dict:
 
         return {
             "chain": chain.key,
+            "_rpc": url,
             "eth_balance_wei": eth_balance,
             "tx_count": tx_count,
             "token_balances": token_balances,
@@ -115,7 +110,7 @@ def get_wallet_state(wallet_address: str) -> dict:
 
         return mock_alchemy_state()
 
-    per_chain = [_fetch_chain_state(chain, wallet_address) for chain in _active_chains()]
+    per_chain = [fetch_chain_state(chain, wallet_address) for chain in active_rpc_chains()]
     return _merge_chain_states(per_chain)
 
 

@@ -13,7 +13,7 @@ Last updated: June 2026
 | Robinhood hub | `indexer/robinhood_pipeline.py` | CredFlow lending events + RPC wallet stats |
 | Alchemy pipeline | `indexer/alchemy_pipeline.py` | `get_wallet_state`, webhook stub |
 | GMX module | `indexer/gmx_module.py` | GMX v2 Subsquid GraphQL + `gmx_sub_score` |
-| Sub-scores | `ml/sub_scores.py` | GMX/Fhenix/wallet scores from source data (not SHAP) |
+| Sub-scores | `ml/sub_scores.py` | GMX/borrow/wallet scores from on-chain data (not SHAP) |
 | Pinata IPFS | `ml/ipfs_pinata.py` | `PINATA_JWT` → real `ipfs://` CID for SHAP JSON |
 | Mock data | `indexer/mock_data.py` | `USE_MOCK_DATA=1` fallbacks |
 | Feature engineering | `ml/feature_engineering.py` | `build_feature_vector()` |
@@ -73,7 +73,7 @@ Run `npm run ml:train` before starting the API.
 
 - Underwriter Agent (`agents/underwriter_agent.py`)
 - Frontend ScoreDashboard / onboarding
-- Fhenix browser FHE flow
+- Fhenix removed — on-chain-only scoring (13 features)
 
 ## Next: Phase 3
 

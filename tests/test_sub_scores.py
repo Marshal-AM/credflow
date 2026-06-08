@@ -1,33 +1,31 @@
-"""Tests for source-data sub-score computation."""
+"""Tests for sub-score computation."""
 
-from ml.sub_scores import (
-    compute_fhenix_sub_score,
-    compute_gmx_sub_score,
-    compute_wallet_sub_score,
-)
+from ml.sub_scores import compute_borrow_sub_score, compute_wallet_sub_score
 
 
-def test_gmx_sub_score_from_module():
-    assert compute_gmx_sub_score({"gmx_sub_score": 71}) == 71
-
-
-def test_fhenix_sub_score_from_attestation():
-    attestation = {
-        "income_above_threshold": True,
-        "balance_above_threshold": True,
-        "repayment_history_clean": True,
-        "account_age_years": 3,
-    }
-    assert compute_fhenix_sub_score(attestation) == 96
+def test_borrow_sub_score_from_borrow_features():
+    score = compute_borrow_sub_score(
+        {
+            "aave_borrow_count": 3,
+            "aave_repay_count": 3,
+            "repay_ratio": 1.0,
+            "aave_liquidation_count": 0,
+            "avg_loan_duration": 28.0,
+        }
+    )
+    assert score >= 70
 
 
 def test_wallet_sub_score_from_features():
-    features = {
-        "wallet_age_days": 730,
-        "tx_count": 320,
-        "protocol_diversity": 5,
-        "repayment_rate": 1.0,
-        "defi_liquidation_count": 0,
-        "eth_balance": 1.5,
-    }
-    assert compute_wallet_sub_score(features) > 0
+    score = compute_wallet_sub_score(
+        {
+            "wallet_age_days": 365,
+            "tx_count": 100,
+            "unique_contracts_interacted": 5,
+            "active_months_last_6": 4,
+            "repay_ratio": 1.0,
+            "aave_liquidation_count": 0,
+            "eth_balance": 2.0,
+        }
+    )
+    assert 50 <= score <= 100

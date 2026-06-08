@@ -1,47 +1,83 @@
 """Shared ML constants — single source for train and inference."""
 
+# Aligned with docs/factors.md (counts, ratios, time patterns — no testnet USD)
 FEATURE_COLUMNS = [
+    # Wallet-level
     "wallet_age_days",
     "tx_count",
-    "protocol_diversity",
-    "total_borrows",
-    "repayment_rate",
-    "defi_liquidation_count",
-    "avg_loan_duration_days",
+    "unique_contracts_interacted",
+    "active_months_last_6",
+    "days_since_last_active",
+    "longest_inactive_gap_days",
     "eth_balance",
-    "gmx_sub_score",
-    "gmx_liquidation_count",
-    "gmx_avg_leverage",
-    "gmx_total_positions",
-    "has_gmx_history",
-    "fhenix_income_verified",
-    "fhenix_balance_verified",
-    "fhenix_repayment_clean",
-    "fhenix_account_age_years",
-]
-
-GMX_FEATURE_KEYS = [
-    "gmx_sub_score",
-    "gmx_liquidation_count",
-    "gmx_avg_leverage",
-    "gmx_total_positions",
-]
-
-FHENIX_FEATURE_KEYS = [
-    "fhenix_income_verified",
-    "fhenix_balance_verified",
-    "fhenix_repayment_clean",
-    "fhenix_account_age_years",
+    # Aave / lending activity
+    "aave_supply_count",
+    "aave_withdraw_count",
+    "aave_borrow_count",
+    "aave_repay_count",
+    "aave_liquidation_count",
+    # Derived behaviour
+    "repay_ratio",
+    "avg_blocks_to_repay",
+    "avg_loan_duration_days",
+    "collateral_withdraw_before_borrow_count",
+    "net_collateral_position",
+    "borrow_diversity",
+    "collateral_diversity",
+    "partial_repay_count",
+    "partial_repay_ratio",
+    # Red-flag booleans (0/1)
+    "has_been_liquidated",
+    "wallet_age_flag",
+    "zero_repays_multiple_borrows_flag",
+    "burst_activity_flag",
+    "aave_only_wallet_flag",
+    "borrow_then_transfer_out_flag",
 ]
 
 WALLET_FEATURE_KEYS = [
     "wallet_age_days",
     "tx_count",
-    "protocol_diversity",
-    "total_borrows",
-    "repayment_rate",
-    "defi_liquidation_count",
+    "unique_contracts_interacted",
+    "active_months_last_6",
+    "days_since_last_active",
+    "longest_inactive_gap_days",
+    "eth_balance",
+    "wallet_age_flag",
+    "burst_activity_flag",
+    "aave_only_wallet_flag",
 ]
+
+AAVE_FEATURE_KEYS = [
+    "aave_supply_count",
+    "aave_withdraw_count",
+    "aave_borrow_count",
+    "aave_repay_count",
+    "aave_liquidation_count",
+    "repay_ratio",
+    "avg_blocks_to_repay",
+    "avg_loan_duration_days",
+    "collateral_withdraw_before_borrow_count",
+    "net_collateral_position",
+    "borrow_diversity",
+    "collateral_diversity",
+    "partial_repay_count",
+    "partial_repay_ratio",
+    "has_been_liquidated",
+    "zero_repays_multiple_borrows_flag",
+    "borrow_then_transfer_out_flag",
+]
+
+RED_FLAG_FEATURE_KEYS = [
+    "has_been_liquidated",
+    "wallet_age_flag",
+    "zero_repays_multiple_borrows_flag",
+    "burst_activity_flag",
+    "aave_only_wallet_flag",
+    "borrow_then_transfer_out_flag",
+]
+
+BORROW_FEATURE_KEYS = AAVE_FEATURE_KEYS
 
 MODEL_PATH = "ml/credflow_model.pkl"
 EXPLAINER_PATH = "ml/credflow_explainer.pkl"

@@ -13,7 +13,7 @@ describe("CredScoreSBT", function () {
 
   it("mints SBT with correct score", async function () {
     const { sbt, scorer, user } = await loadFixture(fixture);
-    await sbt.connect(scorer).mintSBT(user.address, 650, 71, 68, 60, "ipfs://test");
+    await sbt.connect(scorer).mintSBT(user.address, 650, 68, 60, "ipfs://test");
     const profile = await sbt.getProfile(user.address);
     expect(profile.score).to.equal(650);
     expect(profile.exists).to.equal(true);
@@ -22,7 +22,7 @@ describe("CredScoreSBT", function () {
 
   it("blocks SBT transfer", async function () {
     const { sbt, scorer, user } = await loadFixture(fixture);
-    await sbt.connect(scorer).mintSBT(user.address, 650, 71, 68, 60, "ipfs://test");
+    await sbt.connect(scorer).mintSBT(user.address, 650, 68, 60, "ipfs://test");
     await expect(
       sbt.connect(user).transferFrom(user.address, scorer.address, 1)
     ).to.be.revertedWith("SBT: non-transferable");
@@ -30,7 +30,7 @@ describe("CredScoreSBT", function () {
 
   it("records default and increments defaultCount", async function () {
     const { sbt, scorer, user } = await loadFixture(fixture);
-    await sbt.connect(scorer).mintSBT(user.address, 650, 71, 68, 60, "ipfs://test");
+    await sbt.connect(scorer).mintSBT(user.address, 650, 68, 60, "ipfs://test");
     const agentRole = await sbt.AGENT_ROLE();
     await sbt.grantRole(agentRole, scorer.address);
     await sbt.connect(scorer).recordDefault(user.address);
@@ -41,9 +41,9 @@ describe("CredScoreSBT", function () {
 
   it("rejects duplicate mint", async function () {
     const { sbt, scorer, user } = await loadFixture(fixture);
-    await sbt.connect(scorer).mintSBT(user.address, 650, 71, 68, 60, "ipfs://test");
+    await sbt.connect(scorer).mintSBT(user.address, 650, 68, 60, "ipfs://test");
     await expect(
-      sbt.connect(scorer).mintSBT(user.address, 700, 80, 70, 65, "ipfs://test2")
+      sbt.connect(scorer).mintSBT(user.address, 700, 70, 65, "ipfs://test2")
     ).to.be.revertedWith("SBT already exists");
   });
 });

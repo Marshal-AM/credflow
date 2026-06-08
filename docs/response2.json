@@ -1,0 +1,2806 @@
+{
+    "cred_score": 843,
+    "default_probability": 0.0124,
+    "shap_values": {
+        "wallet_age_days": 1.1505204439163208,
+        "tx_count": -1.3746131658554077,
+        "protocol_diversity": 0.2198219895362854,
+        "total_borrows": -0.1719810515642166,
+        "repayment_rate": -1.7537295818328857,
+        "defi_liquidation_count": -1.5901222229003906,
+        "avg_loan_duration_days": -0.683278501033783,
+        "eth_balance": 0.6273571848869324,
+        "gmx_sub_score": -0.8228053450584412,
+        "gmx_liquidation_count": -0.9471040368080139,
+        "gmx_avg_leverage": -0.4505062997341156,
+        "gmx_total_positions": -0.38935646414756775,
+        "has_gmx_history": -0.037132780998945236
+    },
+    "gmx_sub_score": 50,
+    "borrow_sub_score": 75,
+    "wallet_sub_score": 75,
+    "approved": true,
+    "sybil_risk": "medium",
+    "sybil_details": {
+        "sybil_risk": "medium",
+        "sybil_probs": {
+            "low": 0.0,
+            "medium": 1.0,
+            "high": 0.0
+        },
+        "method": "rgcn",
+        "defaulter_links": 0,
+        "unique_counterparties": 5
+    },
+    "shap_cid": "ipfs://QmPWDVqQeSDYCcD9rDu2BmwrVf7BM35A3EGrnNAKy3wQhv",
+    "features_used": {
+        "wallet_age_days": 0.0,
+        "tx_count": 1554.0,
+        "protocol_diversity": 21.0,
+        "total_borrows": 1.0,
+        "repayment_rate": 1.0,
+        "defi_liquidation_count": 0.0,
+        "avg_loan_duration_days": 6.944444444444444e-05,
+        "eth_balance": 0.05515338350153275,
+        "gmx_sub_score": 50.0,
+        "gmx_liquidation_count": 0.0,
+        "gmx_avg_leverage": 0.0,
+        "gmx_total_positions": 0.0,
+        "has_gmx_history": 0
+    },
+    "index_mode": "testnet",
+    "index_mainnet": false,
+    "source_data": {
+        "index_mode": "testnet",
+        "index_mainnet": false,
+        "summary": {
+            "total_sources": 16,
+            "sources_with_data": 7,
+            "sources_skipped": 7,
+            "active_source_ids": [
+                "arbitrum_sepolia_wallet_rpc",
+                "base_sepolia_wallet_rpc",
+                "base_sepolia_aave_rpc",
+                "alchemy_arbitrum_sepolia",
+                "alchemy_base_sepolia",
+                "alchemy_robinhood_testnet",
+                "borrow_history_merged"
+            ]
+        },
+        "sources": {
+            "robinhood_wallet_rpc": {
+                "source_id": "robinhood_wallet_rpc",
+                "chain": "robinhood_testnet",
+                "backend": "rpc",
+                "skipped": false,
+                "skip_reason": null,
+                "has_data": false,
+                "data": {}
+            },
+            "robinhood_credflow_lending": {
+                "source_id": "robinhood_credflow_lending",
+                "chain": "robinhood_testnet",
+                "backend": "rpc_events",
+                "skipped": false,
+                "skip_reason": null,
+                "has_data": false,
+                "data": {}
+            },
+            "arbitrum_sepolia_wallet_rpc": {
+                "source_id": "arbitrum_sepolia_wallet_rpc",
+                "chain": "arbitrum_sepolia",
+                "backend": "rpc+alchemy_transfers",
+                "skipped": false,
+                "skip_reason": null,
+                "has_data": true,
+                "data": {
+                    "chain": "arbitrum_sepolia",
+                    "tx_count": 594,
+                    "unique_protocols": 15,
+                    "wallet_last_active": "2026-06-08T07:08:42"
+                }
+            },
+            "base_sepolia_wallet_rpc": {
+                "source_id": "base_sepolia_wallet_rpc",
+                "chain": "base_sepolia",
+                "backend": "rpc+alchemy_transfers",
+                "skipped": false,
+                "skip_reason": null,
+                "has_data": true,
+                "data": {
+                    "chain": "base_sepolia",
+                    "tx_count": 960,
+                    "unique_protocols": 6,
+                    "wallet_last_active": "2026-06-08T07:08:44"
+                }
+            },
+            "arbitrum_sepolia_aave_rpc": {
+                "source_id": "arbitrum_sepolia_aave_rpc",
+                "chain": "arbitrum_sepolia",
+                "backend": "rpc_events",
+                "skipped": true,
+                "skip_reason": "No Aave pool configured for this spoke",
+                "has_data": false,
+                "data": {}
+            },
+            "base_sepolia_aave_rpc": {
+                "source_id": "base_sepolia_aave_rpc",
+                "chain": "base_sepolia",
+                "backend": "rpc_events",
+                "skipped": false,
+                "skip_reason": null,
+                "has_data": true,
+                "data": {
+                    "chain": "base_sepolia",
+                    "pool": "0x8bAB6d1b75f19e9eD9fCe8b9BD338844fF79aE27",
+                    "total_borrows": 1,
+                    "on_time_repayments": 1,
+                    "liquidation_count": 0,
+                    "avg_loan_duration": 6.944444444444444e-05,
+                    "max_borrow_usd": 1.0,
+                    "current_position": {
+                        "total_collateral_base": 1168218864,
+                        "total_debt_base": 0,
+                        "health_factor_raw": 115792089237316195423570985008687907853269984665640564039457584007913129639935,
+                        "has_active_position": true
+                    },
+                    "activity_rows": [
+                        {
+                            "hash": "0xabb07887ed46b6ec52ae8f0b104720fdecd550986ac921bef8587116bc388299",
+                            "action": "Repay",
+                            "block": 42564742,
+                            "timestamp": 1780897772.0
+                        },
+                        {
+                            "hash": "0x434f8375f4023743e9bf5e52677a4c8665e685cfa90c7b2275c2b5de99ced6ac",
+                            "action": "Borrow",
+                            "block": 42564739,
+                            "timestamp": 1780897766.0
+                        },
+                        {
+                            "hash": "0x2a4aab49db259c34323186879976bdd88e1fd36f7bb5ac036a49382403975454",
+                            "action": "Supply",
+                            "block": 42564735,
+                            "timestamp": 1780897758.0
+                        },
+                        {
+                            "hash": "0x5029b1e06e7db801ac35529c1b92bfedddb774172426831f31bbdcc8384772c2",
+                            "action": "Supply",
+                            "block": 37139335,
+                            "timestamp": 1770046958.0
+                        }
+                    ],
+                    "backend": "alchemy_transfers+receipt_logs"
+                }
+            },
+            "alchemy_arbitrum_sepolia": {
+                "source_id": "alchemy_arbitrum_sepolia",
+                "chain": "arbitrum_sepolia",
+                "backend": "alchemy",
+                "skipped": false,
+                "skip_reason": null,
+                "has_data": true,
+                "data": {
+                    "chain": "arbitrum_sepolia",
+                    "_rpc": "https://arb-sepolia.g.alchemy.com/v2/NMsHzNgJ7XUYtzNyFpEJ8yT4muQ_lkRF",
+                    "eth_balance_wei": 50239418152016317,
+                    "tx_count": 594,
+                    "token_balances": {
+                        "address": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                        "tokenBalances": [
+                            {
+                                "contractAddress": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                                "tokenBalance": "0x00000000000000000000000000000000000000000000000000000000023b7762"
+                            },
+                            {
+                                "contractAddress": "0x980b62da83eff3d4576c647993b0c1d7faf17c73",
+                                "tokenBalance": "0x0000000000000000000000000000000000000000000000000000000000000000"
+                            },
+                            {
+                                "contractAddress": "0xe3ccd4ec6e62b84aeb4db49fc50a2ce9c11d2153",
+                                "tokenBalance": "0x00000000000000000000000000000000000000000000000000038d7ea4c68001"
+                            }
+                        ]
+                    },
+                    "recent_tx_count": 50,
+                    "recent_transactions_sample": [
+                        {
+                            "blockNum": "0xafb7959",
+                            "uniqueId": "0x4995e4b5656647aad5b7ab07e484dcb1e619e25581c4b1f78e4d83e70566fac8:log:12",
+                            "hash": "0x4995e4b5656647aad5b7ab07e484dcb1e619e25581c4b1f78e4d83e70566fac8",
+                            "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                            "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                            "value": 0.102213,
+                            "erc721TokenId": null,
+                            "erc1155Metadata": [],
+                            "tokenId": null,
+                            "asset": "USDC",
+                            "category": "erc20",
+                            "rawContract": {
+                                "value": "0x18f45",
+                                "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                                "decimal": "0x6"
+                            },
+                            "metadata": null
+                        },
+                        {
+                            "blockNum": "0xafb7959",
+                            "uniqueId": "0x4995e4b5656647aad5b7ab07e484dcb1e619e25581c4b1f78e4d83e70566fac8:log:14",
+                            "hash": "0x4995e4b5656647aad5b7ab07e484dcb1e619e25581c4b1f78e4d83e70566fac8",
+                            "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                            "to": "0x5732e1bccaeb161e3b93d126010042b0f1b9cfc9",
+                            "value": 0.1,
+                            "erc721TokenId": null,
+                            "erc1155Metadata": [],
+                            "tokenId": null,
+                            "asset": "USDC",
+                            "category": "erc20",
+                            "rawContract": {
+                                "value": "0x186a0",
+                                "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                                "decimal": "0x6"
+                            },
+                            "metadata": null
+                        },
+                        {
+                            "blockNum": "0xafed70d",
+                            "uniqueId": "0xc20d3b4e9b65ed50e930948fe197f11e19dce46471b9c24694a39ba9e77dbf91:log:0",
+                            "hash": "0xc20d3b4e9b65ed50e930948fe197f11e19dce46471b9c24694a39ba9e77dbf91",
+                            "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                            "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                            "value": 0.099072,
+                            "erc721TokenId": null,
+                            "erc1155Metadata": [],
+                            "tokenId": null,
+                            "asset": "USDC",
+                            "category": "erc20",
+                            "rawContract": {
+                                "value": "0x18300",
+                                "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                                "decimal": "0x6"
+                            },
+                            "metadata": null
+                        }
+                    ]
+                }
+            },
+            "alchemy_base_sepolia": {
+                "source_id": "alchemy_base_sepolia",
+                "chain": "base_sepolia",
+                "backend": "alchemy",
+                "skipped": false,
+                "skip_reason": null,
+                "has_data": true,
+                "data": {
+                    "chain": "base_sepolia",
+                    "_rpc": "https://base-sepolia.g.alchemy.com/v2/NMsHzNgJ7XUYtzNyFpEJ8yT4muQ_lkRF",
+                    "eth_balance_wei": 4913965349516438,
+                    "tx_count": 960,
+                    "token_balances": {
+                        "address": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                        "tokenBalances": [
+                            {
+                                "contractAddress": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+                                "tokenBalance": "0x0000000000000000000000000000000000000000000000000000000001568f71"
+                            },
+                            {
+                                "contractAddress": "0x10f1a9d11cdf50041f3f8cb7191cbe2f31750acc",
+                                "tokenBalance": "0x000000000000000000000000000000000000000000000000000000000098f03d"
+                            },
+                            {
+                                "contractAddress": "0x11ffbac659cb2621c7924d55305cfabecd6bbf6e",
+                                "tokenBalance": "0x0000000000000000000000000000000000000000000000000000000000000009"
+                            },
+                            {
+                                "contractAddress": "0x2ed22aa87c87e4b0139552d50cb5b049e369c295",
+                                "tokenBalance": "0x0000000000000000000000000000000000000000000000000000000000000001"
+                            },
+                            {
+                                "contractAddress": "0x3ee98cb215700fa23f9bba4d1b1c4714051dd927",
+                                "tokenBalance": "0x0000000000000000000000000000000000000000000000000000000005f5e100"
+                            },
+                            {
+                                "contractAddress": "0x486989cd189ed5db6f519712ea794cee42d75b29",
+                                "tokenBalance": "0x0000000000000000000000000000000000000000000000000000000000000030"
+                            },
+                            {
+                                "contractAddress": "0x73a5bb60b0b0fc35710ddc0ea9c407031e31bdbb",
+                                "tokenBalance": "0x00000000000000000000000000000000000000000000000000038d7f144df8fb"
+                            },
+                            {
+                                "contractAddress": "0x8193d7a3dbe672449b873ef5d93721e6f4044e4b",
+                                "tokenBalance": "0x00000000000000000000000000000000000000000000000000000000092950fe"
+                            },
+                            {
+                                "contractAddress": "0xba50cd2a20f6da35d788639e581bca8d0b5d4d5f",
+                                "tokenBalance": "0x00000000000000000000000000000000000000000000000000000005be7fbd4a"
+                            },
+                            {
+                                "contractAddress": "0xfb3e85601b7feb3691bbb8779ef0e1069e347204",
+                                "tokenBalance": "0x0000000000000000000000000000000000000000000000000000000000000000"
+                            }
+                        ]
+                    },
+                    "recent_tx_count": 50,
+                    "recent_transactions_sample": [
+                        {
+                            "blockNum": "0x16ec95f",
+                            "uniqueId": "0x01d53ddddb5b9df90d6ef068d19487788979f89525bc4146b5206f5799974853:log:14",
+                            "hash": "0x01d53ddddb5b9df90d6ef068d19487788979f89525bc4146b5206f5799974853",
+                            "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                            "to": "0x5732e1bccaeb161e3b93d126010042b0f1b9cfc9",
+                            "value": 1e-18,
+                            "erc721TokenId": null,
+                            "erc1155Metadata": [],
+                            "tokenId": null,
+                            "asset": "FRANKY",
+                            "category": "erc20",
+                            "rawContract": {
+                                "value": "0x1",
+                                "address": "0x11ffbac659cb2621c7924d55305cfabecd6bbf6e",
+                                "decimal": "0x12"
+                            },
+                            "metadata": null
+                        },
+                        {
+                            "blockNum": "0x16ecb1a",
+                            "uniqueId": "0x8a1f34f2b8af7215756827cd29f635342333a460eb6d0bb873dab3435e625e29:log:25",
+                            "hash": "0x8a1f34f2b8af7215756827cd29f635342333a460eb6d0bb873dab3435e625e29",
+                            "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                            "to": "0x5732e1bccaeb161e3b93d126010042b0f1b9cfc9",
+                            "value": 1e-18,
+                            "erc721TokenId": null,
+                            "erc1155Metadata": [],
+                            "tokenId": null,
+                            "asset": "FRANKY",
+                            "category": "erc20",
+                            "rawContract": {
+                                "value": "0x1",
+                                "address": "0x11ffbac659cb2621c7924d55305cfabecd6bbf6e",
+                                "decimal": "0x12"
+                            },
+                            "metadata": null
+                        },
+                        {
+                            "blockNum": "0x16ecbda",
+                            "uniqueId": "0x5f5c3fa0adfbe8faa99cf228d5c2a44bb44c0f1139069ba874719fec4b53ec68:log:97",
+                            "hash": "0x5f5c3fa0adfbe8faa99cf228d5c2a44bb44c0f1139069ba874719fec4b53ec68",
+                            "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                            "to": "0x5732e1bccaeb161e3b93d126010042b0f1b9cfc9",
+                            "value": 1e-18,
+                            "erc721TokenId": null,
+                            "erc1155Metadata": [],
+                            "tokenId": null,
+                            "asset": "FRANKY",
+                            "category": "erc20",
+                            "rawContract": {
+                                "value": "0x1",
+                                "address": "0x11ffbac659cb2621c7924d55305cfabecd6bbf6e",
+                                "decimal": "0x12"
+                            },
+                            "metadata": null
+                        }
+                    ]
+                }
+            },
+            "alchemy_robinhood_testnet": {
+                "source_id": "alchemy_robinhood_testnet",
+                "chain": "robinhood_testnet",
+                "backend": "rpc",
+                "skipped": false,
+                "skip_reason": null,
+                "has_data": true,
+                "data": {
+                    "recent_tx_count": 0,
+                    "recent_transactions_sample": []
+                }
+            },
+            "alchemy_arbitrum_mainnet": {
+                "source_id": "alchemy_arbitrum_mainnet",
+                "chain": "arbitrum_mainnet",
+                "backend": "alchemy",
+                "skipped": true,
+                "skip_reason": "INDEX_MAINNET=0 (testnet-only mode)",
+                "has_data": false,
+                "data": {}
+            },
+            "dune_wallet_arbitrum_mainnet": {
+                "source_id": "dune_wallet_arbitrum_mainnet",
+                "chain": "arbitrum_mainnet",
+                "backend": "dune_sql",
+                "skipped": true,
+                "skip_reason": "INDEX_MAINNET=0 (testnet-only mode)",
+                "has_data": false,
+                "data": {}
+            },
+            "alchemy_base_mainnet": {
+                "source_id": "alchemy_base_mainnet",
+                "chain": "base_mainnet",
+                "backend": "alchemy",
+                "skipped": true,
+                "skip_reason": "INDEX_MAINNET=0 (testnet-only mode)",
+                "has_data": false,
+                "data": {}
+            },
+            "dune_wallet_base_mainnet": {
+                "source_id": "dune_wallet_base_mainnet",
+                "chain": "base_mainnet",
+                "backend": "dune_sql",
+                "skipped": true,
+                "skip_reason": "INDEX_MAINNET=0 (testnet-only mode)",
+                "has_data": false,
+                "data": {}
+            },
+            "dune_aave_mainnet": {
+                "source_id": "dune_aave_mainnet",
+                "chain": "mainnet",
+                "backend": "dune_sql",
+                "skipped": true,
+                "skip_reason": "INDEX_MAINNET=0 (testnet-only mode)",
+                "has_data": false,
+                "data": {}
+            },
+            "gmx_arbitrum_mainnet": {
+                "source_id": "gmx_arbitrum_mainnet",
+                "chain": "arbitrum_mainnet",
+                "backend": "gmx_subsquid",
+                "skipped": true,
+                "skip_reason": "INDEX_MAINNET=0 (testnet-only mode)",
+                "has_data": false,
+                "data": {
+                    "has_gmx_history": false,
+                    "gmx_sub_score": 50,
+                    "note": "skipped in testnet mode"
+                }
+            },
+            "borrow_history_merged": {
+                "source_id": "borrow_history_merged",
+                "chain": "multi",
+                "backend": "merged",
+                "skipped": false,
+                "skip_reason": null,
+                "has_data": true,
+                "data": {
+                    "total_borrows": 1,
+                    "on_time_repayments": 1,
+                    "liquidation_count": 0,
+                    "max_borrow_usd": 1.0,
+                    "avg_loan_duration": 6.944444444444444e-05,
+                    "chains_with_borrows": [
+                        "base_sepolia"
+                    ]
+                }
+            }
+        }
+    },
+    "model_breakdown": {
+        "model_type": "XGBClassifier",
+        "feature_columns": [
+            "wallet_age_days",
+            "tx_count",
+            "protocol_diversity",
+            "total_borrows",
+            "repayment_rate",
+            "defi_liquidation_count",
+            "avg_loan_duration_days",
+            "eth_balance",
+            "gmx_sub_score",
+            "gmx_liquidation_count",
+            "gmx_avg_leverage",
+            "gmx_total_positions",
+            "has_gmx_history"
+        ],
+        "formula": {
+            "step_1_default_probability": "model.predict_proba(feature_vector)[class=1]",
+            "step_2_cred_score": "clamp(300 + (1 - default_probability) * 550, 300, 850)",
+            "computed": {
+                "default_probability": 0.0124,
+                "raw_cred_score_before_clamp": 843.18,
+                "cred_score": 843
+            }
+        },
+        "shap_interpretation": "SHAP values show each feature's push toward default (positive SHAP = higher default risk, lower CredScore). Values are on the model's log-odds scale.",
+        "feature_vector": {
+            "wallet_age_days": 0.0,
+            "tx_count": 1554.0,
+            "protocol_diversity": 21.0,
+            "total_borrows": 1.0,
+            "repayment_rate": 1.0,
+            "defi_liquidation_count": 0.0,
+            "avg_loan_duration_days": 6.944444444444444e-05,
+            "eth_balance": 0.05515338350153275,
+            "gmx_sub_score": 50.0,
+            "gmx_liquidation_count": 0.0,
+            "gmx_avg_leverage": 0.0,
+            "gmx_total_positions": 0.0,
+            "has_gmx_history": 0
+        },
+        "feature_derivation": {
+            "wallet_age_days": "Days since earliest wallet_first_seen across wallet sources (Dune/RPC)",
+            "tx_count": "Sum of tx_count from Alchemy/RPC aggregate + Dune wallet rows",
+            "protocol_diversity": "Sum of unique_protocols from Dune/RPC wallet rows",
+            "total_borrows": "Sum of total_borrows from CredFlow hub + spoke Aave RPC + Dune mainnet Aave",
+            "repayment_rate": "on_time_repayments / total_borrows (0.5 if no borrows)",
+            "defi_liquidation_count": "Sum of liquidation_count from borrow sources",
+            "avg_loan_duration_days": "Weighted average loan duration from borrow sources",
+            "eth_balance": "Sum of eth_balance_wei across active RPC chains / 1e18",
+            "gmx_sub_score": "GMX subgraph score (0-100) or neutral 50 when skipped/no history",
+            "gmx_liquidation_count": "GMX liquidations from subgraph",
+            "gmx_avg_leverage": "Average GMX position leverage",
+            "gmx_total_positions": "GMX position count",
+            "has_gmx_history": "1 if GMX subgraph returned positions/trades, else 0"
+        },
+        "feature_groups": {
+            "wallet_behavior": {
+                "wallet_age_days": 0.0,
+                "tx_count": 1554.0,
+                "protocol_diversity": 21.0,
+                "eth_balance": 0.05515338350153275
+            },
+            "borrow_history": {
+                "total_borrows": 1.0,
+                "repayment_rate": 1.0,
+                "defi_liquidation_count": 0.0,
+                "avg_loan_duration_days": 6.944444444444444e-05
+            },
+            "gmx_reputation": {
+                "gmx_sub_score": 50.0,
+                "gmx_liquidation_count": 0.0,
+                "gmx_avg_leverage": 0.0,
+                "gmx_total_positions": 0.0,
+                "has_gmx_history": 0
+            }
+        },
+        "shap_contributions": {
+            "wallet_age_days": 1.1505204439163208,
+            "tx_count": -1.3746131658554077,
+            "protocol_diversity": 0.2198219895362854,
+            "total_borrows": -0.1719810515642166,
+            "repayment_rate": -1.7537295818328857,
+            "defi_liquidation_count": -1.5901222229003906,
+            "avg_loan_duration_days": -0.683278501033783,
+            "eth_balance": 0.6273571848869324,
+            "gmx_sub_score": -0.8228053450584412,
+            "gmx_liquidation_count": -0.9471040368080139,
+            "gmx_avg_leverage": -0.4505062997341156,
+            "gmx_total_positions": -0.38935646414756775,
+            "has_gmx_history": -0.037132780998945236
+        },
+        "top_risk_factors": [
+            {
+                "feature": "wallet_age_days",
+                "shap": 1.1505204439163208,
+                "feature_value": 0.0
+            },
+            {
+                "feature": "eth_balance",
+                "shap": 0.6273571848869324,
+                "feature_value": 0.05515338350153275
+            },
+            {
+                "feature": "protocol_diversity",
+                "shap": 0.2198219895362854,
+                "feature_value": 21.0
+            }
+        ],
+        "top_protective_factors": [
+            {
+                "feature": "repayment_rate",
+                "shap": -1.7537295818328857,
+                "feature_value": 1.0
+            },
+            {
+                "feature": "defi_liquidation_count",
+                "shap": -1.5901222229003906,
+                "feature_value": 0.0
+            },
+            {
+                "feature": "tx_count",
+                "shap": -1.3746131658554077,
+                "feature_value": 1554.0
+            },
+            {
+                "feature": "gmx_liquidation_count",
+                "shap": -0.9471040368080139,
+                "feature_value": 0.0
+            },
+            {
+                "feature": "gmx_sub_score",
+                "shap": -0.8228053450584412,
+                "feature_value": 50.0
+            }
+        ],
+        "sub_scores": {
+            "gmx_sub_score": {
+                "value": 50,
+                "source": "gmx_data.gmx_sub_score",
+                "gmx_raw": {
+                    "has_gmx_history": false,
+                    "liquidation_count": null,
+                    "avg_leverage": null,
+                    "total_positions": null
+                }
+            },
+            "borrow_sub_score": {
+                "value": 75,
+                "formula": "40 + repayment(20) + has_borrows(15) - liquidations*20 + duration(min 15)",
+                "parts": {
+                    "base": 40,
+                    "repayment_bonus": 20,
+                    "has_borrows_bonus": 15,
+                    "liquidation_penalty": 0,
+                    "duration_bonus": 0
+                },
+                "borrow_raw": {
+                    "total_borrows": 1,
+                    "on_time_repayments": 1,
+                    "liquidation_count": 0,
+                    "max_borrow_usd": 1.0,
+                    "avg_loan_duration": 6.944444444444444e-05,
+                    "chains_with_borrows": [
+                        "base_sepolia"
+                    ]
+                }
+            },
+            "wallet_sub_score": {
+                "value": 75,
+                "formula": "30 + age(min 20) + tx(min 15) + diversity(min 15) + repayment*15 - liquidations*20 + balance(min 10)",
+                "inputs": {
+                    "wallet_age_days": 0.0,
+                    "tx_count": 1554.0,
+                    "protocol_diversity": 21.0,
+                    "eth_balance": 0.05515338350153275
+                }
+            }
+        },
+        "sybil_gate": {
+            "sybil_risk": "medium",
+            "details": {
+                "sybil_risk": "medium",
+                "sybil_probs": {
+                    "low": 0.0,
+                    "medium": 1.0,
+                    "high": 0.0
+                },
+                "method": "rgcn",
+                "defaulter_links": 0,
+                "unique_counterparties": 5
+            },
+            "blocks_approval_when": "sybil_risk == 'high'"
+        },
+        "approval": {
+            "approved": true,
+            "rules": {
+                "min_cred_score": 500,
+                "max_sybil_risk": "high"
+            },
+            "rejection_reason": null
+        }
+    },
+    "merged_inputs": {
+        "wallet_features": {
+            "tx_count": 1554,
+            "unique_protocols": 21,
+            "chains_with_activity": [
+                "arbitrum_sepolia",
+                "base_sepolia"
+            ],
+            "wallet_last_active": "2026-06-08T01:38:34"
+        },
+        "borrow_features": {
+            "total_borrows": 1,
+            "on_time_repayments": 1,
+            "liquidation_count": 0,
+            "max_borrow_usd": 1.0,
+            "avg_loan_duration": 6.944444444444444e-05,
+            "chains_with_borrows": [
+                "base_sepolia"
+            ]
+        },
+        "alchemy_state": {
+            "eth_balance_wei": 55153383501532755,
+            "tx_count": 1554,
+            "token_balances": {
+                "arbitrum_sepolia": {
+                    "address": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "tokenBalances": [
+                        {
+                            "contractAddress": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                            "tokenBalance": "0x00000000000000000000000000000000000000000000000000000000023b7762"
+                        },
+                        {
+                            "contractAddress": "0x980b62da83eff3d4576c647993b0c1d7faf17c73",
+                            "tokenBalance": "0x0000000000000000000000000000000000000000000000000000000000000000"
+                        },
+                        {
+                            "contractAddress": "0xe3ccd4ec6e62b84aeb4db49fc50a2ce9c11d2153",
+                            "tokenBalance": "0x00000000000000000000000000000000000000000000000000038d7ea4c68001"
+                        }
+                    ]
+                },
+                "base_sepolia": {
+                    "address": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "tokenBalances": [
+                        {
+                            "contractAddress": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+                            "tokenBalance": "0x0000000000000000000000000000000000000000000000000000000001568f71"
+                        },
+                        {
+                            "contractAddress": "0x10f1a9d11cdf50041f3f8cb7191cbe2f31750acc",
+                            "tokenBalance": "0x000000000000000000000000000000000000000000000000000000000098f03d"
+                        },
+                        {
+                            "contractAddress": "0x11ffbac659cb2621c7924d55305cfabecd6bbf6e",
+                            "tokenBalance": "0x0000000000000000000000000000000000000000000000000000000000000009"
+                        },
+                        {
+                            "contractAddress": "0x2ed22aa87c87e4b0139552d50cb5b049e369c295",
+                            "tokenBalance": "0x0000000000000000000000000000000000000000000000000000000000000001"
+                        },
+                        {
+                            "contractAddress": "0x3ee98cb215700fa23f9bba4d1b1c4714051dd927",
+                            "tokenBalance": "0x0000000000000000000000000000000000000000000000000000000005f5e100"
+                        },
+                        {
+                            "contractAddress": "0x486989cd189ed5db6f519712ea794cee42d75b29",
+                            "tokenBalance": "0x0000000000000000000000000000000000000000000000000000000000000030"
+                        },
+                        {
+                            "contractAddress": "0x73a5bb60b0b0fc35710ddc0ea9c407031e31bdbb",
+                            "tokenBalance": "0x00000000000000000000000000000000000000000000000000038d7f13fa3e72"
+                        },
+                        {
+                            "contractAddress": "0x8193d7a3dbe672449b873ef5d93721e6f4044e4b",
+                            "tokenBalance": "0x00000000000000000000000000000000000000000000000000000000092950fe"
+                        },
+                        {
+                            "contractAddress": "0xba50cd2a20f6da35d788639e581bca8d0b5d4d5f",
+                            "tokenBalance": "0x00000000000000000000000000000000000000000000000000000005be7fbd4a"
+                        },
+                        {
+                            "contractAddress": "0xfb3e85601b7feb3691bbb8779ef0e1069e347204",
+                            "tokenBalance": "0x0000000000000000000000000000000000000000000000000000000000000000"
+                        }
+                    ]
+                }
+            },
+            "recent_transactions": [
+                {
+                    "blockNum": "0xafb7959",
+                    "uniqueId": "0x4995e4b5656647aad5b7ab07e484dcb1e619e25581c4b1f78e4d83e70566fac8:log:12",
+                    "hash": "0x4995e4b5656647aad5b7ab07e484dcb1e619e25581c4b1f78e4d83e70566fac8",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.102213,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x18f45",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xafb7959",
+                    "uniqueId": "0x4995e4b5656647aad5b7ab07e484dcb1e619e25581c4b1f78e4d83e70566fac8:log:14",
+                    "hash": "0x4995e4b5656647aad5b7ab07e484dcb1e619e25581c4b1f78e4d83e70566fac8",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x5732e1bccaeb161e3b93d126010042b0f1b9cfc9",
+                    "value": 0.1,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x186a0",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xafed70d",
+                    "uniqueId": "0xc20d3b4e9b65ed50e930948fe197f11e19dce46471b9c24694a39ba9e77dbf91:log:0",
+                    "hash": "0xc20d3b4e9b65ed50e930948fe197f11e19dce46471b9c24694a39ba9e77dbf91",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.099072,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x18300",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xafed72d",
+                    "uniqueId": "0xfb5a5f8ffd809642993eb1b9ab32efe7c0467b025382a9250796a46d263d049e:log:4",
+                    "hash": "0xfb5a5f8ffd809642993eb1b9ab32efe7c0467b025382a9250796a46d263d049e",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.121666,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x1db42",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xafed72d",
+                    "uniqueId": "0xfb5a5f8ffd809642993eb1b9ab32efe7c0467b025382a9250796a46d263d049e:log:6",
+                    "hash": "0xfb5a5f8ffd809642993eb1b9ab32efe7c0467b025382a9250796a46d263d049e",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0xb43db544e2c27092c107639ad201b3defabcf192",
+                    "value": 1.0,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0xf4240",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xafef1e5",
+                    "uniqueId": "0x9522884d744ab6e2e187f2015a64aea5cce0d95a05119f666cb0248006529fee:log:25",
+                    "hash": "0x9522884d744ab6e2e187f2015a64aea5cce0d95a05119f666cb0248006529fee",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.095529,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x17529",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xafef208",
+                    "uniqueId": "0x02bf9596067b85ae71190f00baa0ff788cb9d9a1c73c6e23d059a1eabfaf1cde:log:2",
+                    "hash": "0x02bf9596067b85ae71190f00baa0ff788cb9d9a1c73c6e23d059a1eabfaf1cde",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.122182,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x1dd46",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xafef208",
+                    "uniqueId": "0x02bf9596067b85ae71190f00baa0ff788cb9d9a1c73c6e23d059a1eabfaf1cde:log:4",
+                    "hash": "0x02bf9596067b85ae71190f00baa0ff788cb9d9a1c73c6e23d059a1eabfaf1cde",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0xb43db544e2c27092c107639ad201b3defabcf192",
+                    "value": 1.0,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0xf4240",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xaff9e36",
+                    "uniqueId": "0xe216e6f2ff4973abff7957e4d461a54269ccd510bf09642e4efef223e365382e:log:2",
+                    "hash": "0xe216e6f2ff4973abff7957e4d461a54269ccd510bf09642e4efef223e365382e",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.095548,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x1753c",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xaff9e5b",
+                    "uniqueId": "0x488b17b105917c3276d1f79e802a2881aa3d6c884aee03eae4aefc4a0a276426:log:1",
+                    "hash": "0x488b17b105917c3276d1f79e802a2881aa3d6c884aee03eae4aefc4a0a276426",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.122203,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x1dd5b",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xaff9e5b",
+                    "uniqueId": "0x488b17b105917c3276d1f79e802a2881aa3d6c884aee03eae4aefc4a0a276426:log:3",
+                    "hash": "0x488b17b105917c3276d1f79e802a2881aa3d6c884aee03eae4aefc4a0a276426",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0xb43db544e2c27092c107639ad201b3defabcf192",
+                    "value": 1.0,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0xf4240",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xaffa488",
+                    "uniqueId": "0x6465cb98633554ca21d21369f0e6215e4a68ca8e622ca245c918c6d3f462acdd:log:33",
+                    "hash": "0x6465cb98633554ca21d21369f0e6215e4a68ca8e622ca245c918c6d3f462acdd",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.095594,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x1756a",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xaffa4ad",
+                    "uniqueId": "0xd498c3e5739445ede84f35c388762e702cd75d555e6bf2d8a117fb6cef9791d6:log:18",
+                    "hash": "0xd498c3e5739445ede84f35c388762e702cd75d555e6bf2d8a117fb6cef9791d6",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.122252,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x1dd8c",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xaffa4ad",
+                    "uniqueId": "0xd498c3e5739445ede84f35c388762e702cd75d555e6bf2d8a117fb6cef9791d6:log:20",
+                    "hash": "0xd498c3e5739445ede84f35c388762e702cd75d555e6bf2d8a117fb6cef9791d6",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0xb43db544e2c27092c107639ad201b3defabcf192",
+                    "value": 1.0,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0xf4240",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xaffbe0d",
+                    "uniqueId": "0xfaa55ed5c3ea9e9464627211db979b9714904d666f9fc4f19471b398785a2dfa:log:1",
+                    "hash": "0xfaa55ed5c3ea9e9464627211db979b9714904d666f9fc4f19471b398785a2dfa",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.095539,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x17533",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xaffbe34",
+                    "uniqueId": "0xdb11af4894279199afbfa3e8ab7fdc3e58e284c5047a28574b9cd7db1f858b0b:log:1",
+                    "hash": "0xdb11af4894279199afbfa3e8ab7fdc3e58e284c5047a28574b9cd7db1f858b0b",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.122203,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x1dd5b",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xaffbe34",
+                    "uniqueId": "0xdb11af4894279199afbfa3e8ab7fdc3e58e284c5047a28574b9cd7db1f858b0b:log:3",
+                    "hash": "0xdb11af4894279199afbfa3e8ab7fdc3e58e284c5047a28574b9cd7db1f858b0b",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0xb43db544e2c27092c107639ad201b3defabcf192",
+                    "value": 1.0,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0xf4240",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xb006762",
+                    "uniqueId": "0xd87c335775fa127eb7ac1b491e1ba456a729ca6f6dab9ca3a1da9773a6133e0a:log:8",
+                    "hash": "0xd87c335775fa127eb7ac1b491e1ba456a729ca6f6dab9ca3a1da9773a6133e0a",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.088619,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x15a2b",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xb006779",
+                    "uniqueId": "0x15153b4978c9d87e717b308357bce003fb4d4cde7b6eb105a40b57c7e7b2e634:log:1",
+                    "hash": "0x15153b4978c9d87e717b308357bce003fb4d4cde7b6eb105a40b57c7e7b2e634",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.115284,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x1c254",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xb006779",
+                    "uniqueId": "0x15153b4978c9d87e717b308357bce003fb4d4cde7b6eb105a40b57c7e7b2e634:log:3",
+                    "hash": "0x15153b4978c9d87e717b308357bce003fb4d4cde7b6eb105a40b57c7e7b2e634",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0xb43db544e2c27092c107639ad201b3defabcf192",
+                    "value": 1.0,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0xf4240",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xb015dc9",
+                    "uniqueId": "0x8eceff922c7e012b79ff1560dde8a20d6fd58299bd27f17c674740559f9147da:log:1",
+                    "hash": "0x8eceff922c7e012b79ff1560dde8a20d6fd58299bd27f17c674740559f9147da",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.095688,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x175c8",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xb01618f",
+                    "uniqueId": "0x7ee6b79ef655416c543da5974cf2619f905e6383c005927fb042a23a638f1112:log:10",
+                    "hash": "0x7ee6b79ef655416c543da5974cf2619f905e6383c005927fb042a23a638f1112",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.095565,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x1754d",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xb0161b0",
+                    "uniqueId": "0x07c0af97b761762cdacd620a8c4afe488969b98aa1a1bc6ec6bffe329569f444:log:29",
+                    "hash": "0x07c0af97b761762cdacd620a8c4afe488969b98aa1a1bc6ec6bffe329569f444",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.122571,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x1decb",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xb0161b0",
+                    "uniqueId": "0x07c0af97b761762cdacd620a8c4afe488969b98aa1a1bc6ec6bffe329569f444:log:31",
+                    "hash": "0x07c0af97b761762cdacd620a8c4afe488969b98aa1a1bc6ec6bffe329569f444",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0xb43db544e2c27092c107639ad201b3defabcf192",
+                    "value": 1.0,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0xf4240",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xb017c63",
+                    "uniqueId": "0xf02e9843e5ced76f5d872c3f27e9ea1e38712508750fae21bc43904a2d2e1778:log:15",
+                    "hash": "0xf02e9843e5ced76f5d872c3f27e9ea1e38712508750fae21bc43904a2d2e1778",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.099633,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x18531",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xb017c83",
+                    "uniqueId": "0xdaff112e6c48c6a5b7e2658ea3317678d899c0c17eb2979529d37c98c3575d82:log:1",
+                    "hash": "0xdaff112e6c48c6a5b7e2658ea3317678d899c0c17eb2979529d37c98c3575d82",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.122651,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x1df1b",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xb017c83",
+                    "uniqueId": "0xdaff112e6c48c6a5b7e2658ea3317678d899c0c17eb2979529d37c98c3575d82:log:3",
+                    "hash": "0xdaff112e6c48c6a5b7e2658ea3317678d899c0c17eb2979529d37c98c3575d82",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0xb43db544e2c27092c107639ad201b3defabcf192",
+                    "value": 1.0,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0xf4240",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xb01919f",
+                    "uniqueId": "0xd552190b03db6597c9f60ff308f6ad35f23e51cb173a730d517fcb39959d541e:log:8",
+                    "hash": "0xd552190b03db6597c9f60ff308f6ad35f23e51cb173a730d517fcb39959d541e",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.099641,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x18539",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xb0191bb",
+                    "uniqueId": "0x97d4559f0f0ac7f0516f673211167c4d3dd08b907835173c3309c4e975f961b8:log:1",
+                    "hash": "0x97d4559f0f0ac7f0516f673211167c4d3dd08b907835173c3309c4e975f961b8",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.122656,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x1df20",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xb0191bb",
+                    "uniqueId": "0x97d4559f0f0ac7f0516f673211167c4d3dd08b907835173c3309c4e975f961b8:log:3",
+                    "hash": "0x97d4559f0f0ac7f0516f673211167c4d3dd08b907835173c3309c4e975f961b8",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0xb43db544e2c27092c107639ad201b3defabcf192",
+                    "value": 1.0,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0xf4240",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xb023437",
+                    "uniqueId": "0x778b22fa7d6fa53e4a9a987d31c47361a18baab1d8748807aa089703d7471301:log:1",
+                    "hash": "0x778b22fa7d6fa53e4a9a987d31c47361a18baab1d8748807aa089703d7471301",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.099598,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x1850e",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xb023459",
+                    "uniqueId": "0xe2024183b694c9261a77d92c8e4e248ca9bc5d0e7d40a3b4c8e2cd47e31972a8:log:2",
+                    "hash": "0xe2024183b694c9261a77d92c8e4e248ca9bc5d0e7d40a3b4c8e2cd47e31972a8",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.122607,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x1deef",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xb023459",
+                    "uniqueId": "0xe2024183b694c9261a77d92c8e4e248ca9bc5d0e7d40a3b4c8e2cd47e31972a8:log:4",
+                    "hash": "0xe2024183b694c9261a77d92c8e4e248ca9bc5d0e7d40a3b4c8e2cd47e31972a8",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0xb43db544e2c27092c107639ad201b3defabcf192",
+                    "value": 1.0,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0xf4240",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xb053a3f",
+                    "uniqueId": "0xda07ced7f2e0caecba7de82018c916a8229b3654fd014332a8ac1e250cac1a28:log:10",
+                    "hash": "0xda07ced7f2e0caecba7de82018c916a8229b3654fd014332a8ac1e250cac1a28",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.095602,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x17572",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xb053a3f",
+                    "uniqueId": "0xda07ced7f2e0caecba7de82018c916a8229b3654fd014332a8ac1e250cac1a28:log:12",
+                    "hash": "0xda07ced7f2e0caecba7de82018c916a8229b3654fd014332a8ac1e250cac1a28",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x5732e1bccaeb161e3b93d126010042b0f1b9cfc9",
+                    "value": 0.1,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x186a0",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xb053bb0",
+                    "uniqueId": "0x6cdad6bf8edad977f3769828084b7b1284a3476ef3814b76d1e3f3dd91d00910:log:1",
+                    "hash": "0x6cdad6bf8edad977f3769828084b7b1284a3476ef3814b76d1e3f3dd91d00910",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.095558,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x17546",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xb053bb0",
+                    "uniqueId": "0x6cdad6bf8edad977f3769828084b7b1284a3476ef3814b76d1e3f3dd91d00910:log:3",
+                    "hash": "0x6cdad6bf8edad977f3769828084b7b1284a3476ef3814b76d1e3f3dd91d00910",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x5732e1bccaeb161e3b93d126010042b0f1b9cfc9",
+                    "value": 0.1,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x186a0",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xb058366",
+                    "uniqueId": "0x0640c643675d1fa771573eacee1f1d5ade114bc84231cb21236a74e6225fe200:log:1",
+                    "hash": "0x0640c643675d1fa771573eacee1f1d5ade114bc84231cb21236a74e6225fe200",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.095572,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x17554",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xb058366",
+                    "uniqueId": "0x0640c643675d1fa771573eacee1f1d5ade114bc84231cb21236a74e6225fe200:log:3",
+                    "hash": "0x0640c643675d1fa771573eacee1f1d5ade114bc84231cb21236a74e6225fe200",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x5732e1bccaeb161e3b93d126010042b0f1b9cfc9",
+                    "value": 0.1,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x186a0",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xb05872a",
+                    "uniqueId": "0xed013ba939dcee123f528acf0b53afa5dd62e70673c9617c16870e24c81647a7:log:1",
+                    "hash": "0xed013ba939dcee123f528acf0b53afa5dd62e70673c9617c16870e24c81647a7",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.095591,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x17567",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xb05872a",
+                    "uniqueId": "0xed013ba939dcee123f528acf0b53afa5dd62e70673c9617c16870e24c81647a7:log:3",
+                    "hash": "0xed013ba939dcee123f528acf0b53afa5dd62e70673c9617c16870e24c81647a7",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x5732e1bccaeb161e3b93d126010042b0f1b9cfc9",
+                    "value": 0.1,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x186a0",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xb1aee79",
+                    "uniqueId": "0x2430272f303e4c4a4d7f8c092eed0001d2da1242510fc3ec168370f7a33b701f:log:21",
+                    "hash": "0x2430272f303e4c4a4d7f8c092eed0001d2da1242510fc3ec168370f7a33b701f",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.099602,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x18512",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xb1aeeb1",
+                    "uniqueId": "0x36adba3535093f2a4332e59bc5af2d3ae6928d5d83d3750c6d226beabbb13b99:log:6",
+                    "hash": "0x36adba3535093f2a4332e59bc5af2d3ae6928d5d83d3750c6d226beabbb13b99",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.122206,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x1dd5e",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xb1aeeb1",
+                    "uniqueId": "0x36adba3535093f2a4332e59bc5af2d3ae6928d5d83d3750c6d226beabbb13b99:log:8",
+                    "hash": "0x36adba3535093f2a4332e59bc5af2d3ae6928d5d83d3750c6d226beabbb13b99",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0xb43db544e2c27092c107639ad201b3defabcf192",
+                    "value": 1.0,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0xf4240",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xb1b4b0d",
+                    "uniqueId": "0x5877284df9c0dd79eff21ecf5d61647928c9c1adc677643f194d7e95f65051ab:log:15",
+                    "hash": "0x5877284df9c0dd79eff21ecf5d61647928c9c1adc677643f194d7e95f65051ab",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.095545,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x17539",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xb1b4b36",
+                    "uniqueId": "0x1ca5ed6dd6d5b20933aad47f0c92448e7955a510c09e0c9c5a40a3a374c15566:log:1",
+                    "hash": "0x1ca5ed6dd6d5b20933aad47f0c92448e7955a510c09e0c9c5a40a3a374c15566",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.122209,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x1dd61",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xb1b4b36",
+                    "uniqueId": "0x1ca5ed6dd6d5b20933aad47f0c92448e7955a510c09e0c9c5a40a3a374c15566:log:3",
+                    "hash": "0x1ca5ed6dd6d5b20933aad47f0c92448e7955a510c09e0c9c5a40a3a374c15566",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0xb43db544e2c27092c107639ad201b3defabcf192",
+                    "value": 1.0,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0xf4240",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xb1b56a5",
+                    "uniqueId": "0x78a550731be2652208328db1535019c76956f1a2842bf85500702acfa1ef6f4e:log:8",
+                    "hash": "0x78a550731be2652208328db1535019c76956f1a2842bf85500702acfa1ef6f4e",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.095557,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x17545",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xb1b56cc",
+                    "uniqueId": "0xd7afec3c915dc51eabc3dc2cb8a36282c12dd852b1fb4724042dfc2ac03315d6:log:16",
+                    "hash": "0xd7afec3c915dc51eabc3dc2cb8a36282c12dd852b1fb4724042dfc2ac03315d6",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.122223,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x1dd6f",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0xb1b56cc",
+                    "uniqueId": "0xd7afec3c915dc51eabc3dc2cb8a36282c12dd852b1fb4724042dfc2ac03315d6:log:18",
+                    "hash": "0xd7afec3c915dc51eabc3dc2cb8a36282c12dd852b1fb4724042dfc2ac03315d6",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0xb43db544e2c27092c107639ad201b3defabcf192",
+                    "value": 1.0,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0xf4240",
+                        "address": "0x75faf114eafb1bdbe2f0316df893fd58ce46aa4d",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "arbitrum_sepolia"
+                },
+                {
+                    "blockNum": "0x16ec95f",
+                    "uniqueId": "0x01d53ddddb5b9df90d6ef068d19487788979f89525bc4146b5206f5799974853:log:14",
+                    "hash": "0x01d53ddddb5b9df90d6ef068d19487788979f89525bc4146b5206f5799974853",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x5732e1bccaeb161e3b93d126010042b0f1b9cfc9",
+                    "value": 1e-18,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "FRANKY",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x1",
+                        "address": "0x11ffbac659cb2621c7924d55305cfabecd6bbf6e",
+                        "decimal": "0x12"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x16ecb1a",
+                    "uniqueId": "0x8a1f34f2b8af7215756827cd29f635342333a460eb6d0bb873dab3435e625e29:log:25",
+                    "hash": "0x8a1f34f2b8af7215756827cd29f635342333a460eb6d0bb873dab3435e625e29",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x5732e1bccaeb161e3b93d126010042b0f1b9cfc9",
+                    "value": 1e-18,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "FRANKY",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x1",
+                        "address": "0x11ffbac659cb2621c7924d55305cfabecd6bbf6e",
+                        "decimal": "0x12"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x16ecbda",
+                    "uniqueId": "0x5f5c3fa0adfbe8faa99cf228d5c2a44bb44c0f1139069ba874719fec4b53ec68:log:97",
+                    "hash": "0x5f5c3fa0adfbe8faa99cf228d5c2a44bb44c0f1139069ba874719fec4b53ec68",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x5732e1bccaeb161e3b93d126010042b0f1b9cfc9",
+                    "value": 1e-18,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "FRANKY",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x1",
+                        "address": "0x11ffbac659cb2621c7924d55305cfabecd6bbf6e",
+                        "decimal": "0x12"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x16ecc9d",
+                    "uniqueId": "0x777aa65eb6d47145e79291d5531fe705813eecd87f2638985c888d9c722d1bac:log:0",
+                    "hash": "0x777aa65eb6d47145e79291d5531fe705813eecd87f2638985c888d9c722d1bac",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x5732e1bccaeb161e3b93d126010042b0f1b9cfc9",
+                    "value": 1e-18,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "FRANKY",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x1",
+                        "address": "0x11ffbac659cb2621c7924d55305cfabecd6bbf6e",
+                        "decimal": "0x12"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x16ecd34",
+                    "uniqueId": "0x09afe3aa74979b44986cf9076895679cd0d10b8b2ee88e7a745950f5682ef126:log:19",
+                    "hash": "0x09afe3aa74979b44986cf9076895679cd0d10b8b2ee88e7a745950f5682ef126",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x5732e1bccaeb161e3b93d126010042b0f1b9cfc9",
+                    "value": 1e-18,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "FRANKY",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x1",
+                        "address": "0x11ffbac659cb2621c7924d55305cfabecd6bbf6e",
+                        "decimal": "0x12"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x16ecdb0",
+                    "uniqueId": "0x9870b8f6ae9007ab3db5e64c47d1aaf6128ff78312ecf6a4ec167928c4ac531d:log:44",
+                    "hash": "0x9870b8f6ae9007ab3db5e64c47d1aaf6128ff78312ecf6a4ec167928c4ac531d",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x5732e1bccaeb161e3b93d126010042b0f1b9cfc9",
+                    "value": 1e-18,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "FRANKY",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x1",
+                        "address": "0x11ffbac659cb2621c7924d55305cfabecd6bbf6e",
+                        "decimal": "0x12"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x16ece30",
+                    "uniqueId": "0x8116da9e1eccd11bc858695fcdce2847942375d2c5a698022d70c97837e4757c:log:55",
+                    "hash": "0x8116da9e1eccd11bc858695fcdce2847942375d2c5a698022d70c97837e4757c",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x5732e1bccaeb161e3b93d126010042b0f1b9cfc9",
+                    "value": 1e-18,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "FRANKY",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x1",
+                        "address": "0x11ffbac659cb2621c7924d55305cfabecd6bbf6e",
+                        "decimal": "0x12"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x16ece7e",
+                    "uniqueId": "0xfb8d56ce76081093333625525100bbc83c837be545537d6143259d4f754353a2:log:0",
+                    "hash": "0xfb8d56ce76081093333625525100bbc83c837be545537d6143259d4f754353a2",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x5732e1bccaeb161e3b93d126010042b0f1b9cfc9",
+                    "value": 1e-18,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "FRANKY",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x1",
+                        "address": "0x11ffbac659cb2621c7924d55305cfabecd6bbf6e",
+                        "decimal": "0x12"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x16ece98",
+                    "uniqueId": "0x86887975069451da73425d9343138a4d3b4cfd3fe3f7c6db96d7f8fa50855a45:log:336",
+                    "hash": "0x86887975069451da73425d9343138a4d3b4cfd3fe3f7c6db96d7f8fa50855a45",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x5732e1bccaeb161e3b93d126010042b0f1b9cfc9",
+                    "value": 2e-18,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "FRANKY",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x2",
+                        "address": "0x11ffbac659cb2621c7924d55305cfabecd6bbf6e",
+                        "decimal": "0x12"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x16ed026",
+                    "uniqueId": "0x7c78f128a46bea23594216890145fe17e2b0a9b8ece6113f96092f9fb84d56f2:log:148",
+                    "hash": "0x7c78f128a46bea23594216890145fe17e2b0a9b8ece6113f96092f9fb84d56f2",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x5732e1bccaeb161e3b93d126010042b0f1b9cfc9",
+                    "value": 1e-18,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "FRANKY",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x1",
+                        "address": "0x11ffbac659cb2621c7924d55305cfabecd6bbf6e",
+                        "decimal": "0x12"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x16ee8e2",
+                    "uniqueId": "0xfdf00feeffb7d2a493ee8fffc79c9e40186fc19ab04b2b88cb60a1ab5c7efe18:log:100",
+                    "hash": "0xfdf00feeffb7d2a493ee8fffc79c9e40186fc19ab04b2b88cb60a1ab5c7efe18",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x5732e1bccaeb161e3b93d126010042b0f1b9cfc9",
+                    "value": 1e-18,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "FRANKY",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x1",
+                        "address": "0x486989cd189ed5db6f519712ea794cee42d75b29",
+                        "decimal": "0x12"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x16ee936",
+                    "uniqueId": "0x7eb1bc881bf5d0bee9b59d79e85e4cf37a082444a8225da93b08fbdf8918ae19:log:131",
+                    "hash": "0x7eb1bc881bf5d0bee9b59d79e85e4cf37a082444a8225da93b08fbdf8918ae19",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x5732e1bccaeb161e3b93d126010042b0f1b9cfc9",
+                    "value": 1e-18,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "FRANKY",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x1",
+                        "address": "0x486989cd189ed5db6f519712ea794cee42d75b29",
+                        "decimal": "0x12"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x1ca70d5",
+                    "uniqueId": "0x6bd3c6f4027bf764092dbcd4d299107e70382724e9d2d599f418aec3e19b6bab:log:77",
+                    "hash": "0x6bd3c6f4027bf764092dbcd4d299107e70382724e9d2d599f418aec3e19b6bab",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.001278,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x4fe",
+                        "address": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x1ca70db",
+                    "uniqueId": "0xadddccb17136565b30f2a4cab8ee13fd12db28e9d44e80397efeb08ede1d9c8d:log:129",
+                    "hash": "0xadddccb17136565b30f2a4cab8ee13fd12db28e9d44e80397efeb08ede1d9c8d",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.001529,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x5f9",
+                        "address": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x1ca70db",
+                    "uniqueId": "0xadddccb17136565b30f2a4cab8ee13fd12db28e9d44e80397efeb08ede1d9c8d:log:131",
+                    "hash": "0xadddccb17136565b30f2a4cab8ee13fd12db28e9d44e80397efeb08ede1d9c8d",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0xb43db544e2c27092c107639ad201b3defabcf192",
+                    "value": 0.5,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x7a120",
+                        "address": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x1ca7381",
+                    "uniqueId": "0x13f292e30685cac7faceecb546b554c2b325fb61d5412ff49bd8ed0831c54297:log:218",
+                    "hash": "0x13f292e30685cac7faceecb546b554c2b325fb61d5412ff49bd8ed0831c54297",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.001195,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x4ab",
+                        "address": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x1ca739e",
+                    "uniqueId": "0x6854fecc732aaac9b8bce2a3e60d84f69a95103897e5060b11f11c7bd1af404a:log:349",
+                    "hash": "0x6854fecc732aaac9b8bce2a3e60d84f69a95103897e5060b11f11c7bd1af404a",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.001195,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x4ab",
+                        "address": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x1ca73bf",
+                    "uniqueId": "0x2b180d3b375bf7e026abc78d2dd4b5197a31ee1010cb1b08366e9b2a78e75bf2:log:25",
+                    "hash": "0x2b180d3b375bf7e026abc78d2dd4b5197a31ee1010cb1b08366e9b2a78e75bf2",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.001195,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x4ab",
+                        "address": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x1ca73c5",
+                    "uniqueId": "0x2120afcf9d21126b9e479a4f9ba9742cb6980e1aaa57d2f01ae6e51ae888e417:log:92",
+                    "hash": "0x2120afcf9d21126b9e479a4f9ba9742cb6980e1aaa57d2f01ae6e51ae888e417",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.001529,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x5f9",
+                        "address": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x1ca73c5",
+                    "uniqueId": "0x2120afcf9d21126b9e479a4f9ba9742cb6980e1aaa57d2f01ae6e51ae888e417:log:94",
+                    "hash": "0x2120afcf9d21126b9e479a4f9ba9742cb6980e1aaa57d2f01ae6e51ae888e417",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0xb43db544e2c27092c107639ad201b3defabcf192",
+                    "value": 0.3,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x493e0",
+                        "address": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x1ca73d9",
+                    "uniqueId": "0x4c5facd6969c20a5c1ed64f54e0f1e4abc544936e1abac32bd74a65eb7271a58:log:63",
+                    "hash": "0x4c5facd6969c20a5c1ed64f54e0f1e4abc544936e1abac32bd74a65eb7271a58",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.001195,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x4ab",
+                        "address": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x1ca7465",
+                    "uniqueId": "0x304fb9356dc315dcf4950fee1c507e89d5e1d729ffd53e7a245b22cbf70cfd77:log:9",
+                    "hash": "0x304fb9356dc315dcf4950fee1c507e89d5e1d729ffd53e7a245b22cbf70cfd77",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.001195,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x4ab",
+                        "address": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x1ca746b",
+                    "uniqueId": "0xe00e762af4f06af379bc820d1204f7aa5fff433d329613f73a0885ce5a978738:log:97",
+                    "hash": "0xe00e762af4f06af379bc820d1204f7aa5fff433d329613f73a0885ce5a978738",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.001528,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x5f8",
+                        "address": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x1ca746b",
+                    "uniqueId": "0xe00e762af4f06af379bc820d1204f7aa5fff433d329613f73a0885ce5a978738:log:99",
+                    "hash": "0xe00e762af4f06af379bc820d1204f7aa5fff433d329613f73a0885ce5a978738",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0xb43db544e2c27092c107639ad201b3defabcf192",
+                    "value": 1.0,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0xf4240",
+                        "address": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x1cb0e49",
+                    "uniqueId": "0x80f952839c8ce0ab25772df8a360ff67c9c6293b786d6dfbbea708bcf747bad7:log:97",
+                    "hash": "0x80f952839c8ce0ab25772df8a360ff67c9c6293b786d6dfbbea708bcf747bad7",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.001195,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x4ab",
+                        "address": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x1cb0e4e",
+                    "uniqueId": "0xff8bc84aa072fcf8343924bbe2c58b02b3e9539b0185292ed71b1e44b1d30c4a:log:107",
+                    "hash": "0xff8bc84aa072fcf8343924bbe2c58b02b3e9539b0185292ed71b1e44b1d30c4a",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.001528,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x5f8",
+                        "address": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x1cb0e4e",
+                    "uniqueId": "0xff8bc84aa072fcf8343924bbe2c58b02b3e9539b0185292ed71b1e44b1d30c4a:log:109",
+                    "hash": "0xff8bc84aa072fcf8343924bbe2c58b02b3e9539b0185292ed71b1e44b1d30c4a",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0xb43db544e2c27092c107639ad201b3defabcf192",
+                    "value": 1.0,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0xf4240",
+                        "address": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x1cb0ee7",
+                    "uniqueId": "0x8c828031f6c02b56c6509d4a6dbe70943f95a9dd96229d123f9af2f02591c25d:log:215",
+                    "hash": "0x8c828031f6c02b56c6509d4a6dbe70943f95a9dd96229d123f9af2f02591c25d",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.001195,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x4ab",
+                        "address": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x1cb0eec",
+                    "uniqueId": "0x40bde0afa090af3f205dde88cec75b6cb150b0ce17bb976c6bfb53cc02475ab8:log:55",
+                    "hash": "0x40bde0afa090af3f205dde88cec75b6cb150b0ce17bb976c6bfb53cc02475ab8",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.001528,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x5f8",
+                        "address": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x1cb0eec",
+                    "uniqueId": "0x40bde0afa090af3f205dde88cec75b6cb150b0ce17bb976c6bfb53cc02475ab8:log:57",
+                    "hash": "0x40bde0afa090af3f205dde88cec75b6cb150b0ce17bb976c6bfb53cc02475ab8",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0xb43db544e2c27092c107639ad201b3defabcf192",
+                    "value": 0.3,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x493e0",
+                        "address": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x1cb0f08",
+                    "uniqueId": "0x9014c25a824187ccaa96aa12b3831870a775df30e7578587b19572bf51ed9b43:log:1",
+                    "hash": "0x9014c25a824187ccaa96aa12b3831870a775df30e7578587b19572bf51ed9b43",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.001195,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x4ab",
+                        "address": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x1cb0f0c",
+                    "uniqueId": "0xd6949ed3444495d3cacd0ce3262f83d4a4264f5ceeeb162e80d05353d97a9b4e:log:112",
+                    "hash": "0xd6949ed3444495d3cacd0ce3262f83d4a4264f5ceeeb162e80d05353d97a9b4e",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.001528,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x5f8",
+                        "address": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x1cb0f0c",
+                    "uniqueId": "0xd6949ed3444495d3cacd0ce3262f83d4a4264f5ceeeb162e80d05353d97a9b4e:log:114",
+                    "hash": "0xd6949ed3444495d3cacd0ce3262f83d4a4264f5ceeeb162e80d05353d97a9b4e",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0xb43db544e2c27092c107639ad201b3defabcf192",
+                    "value": 0.5,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x7a120",
+                        "address": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x1cb12b2",
+                    "uniqueId": "0x6be1b462dfcc8a1f41b3544011d115c65f58d7607e06da874b23ca8fbedae7b4:log:18",
+                    "hash": "0x6be1b462dfcc8a1f41b3544011d115c65f58d7607e06da874b23ca8fbedae7b4",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.001195,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x4ab",
+                        "address": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x1cb12b8",
+                    "uniqueId": "0xb99aa9734ff13b51a7ca3d265d5a4c3a963b50fcc1aa212f8611113d282fad7c:log:4",
+                    "hash": "0xb99aa9734ff13b51a7ca3d265d5a4c3a963b50fcc1aa212f8611113d282fad7c",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.001528,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x5f8",
+                        "address": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x1cb12b8",
+                    "uniqueId": "0xb99aa9734ff13b51a7ca3d265d5a4c3a963b50fcc1aa212f8611113d282fad7c:log:6",
+                    "hash": "0xb99aa9734ff13b51a7ca3d265d5a4c3a963b50fcc1aa212f8611113d282fad7c",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0xb43db544e2c27092c107639ad201b3defabcf192",
+                    "value": 1.0,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0xf4240",
+                        "address": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x1cb2015",
+                    "uniqueId": "0x274bc885cc867881a240c610a7bce0b0f3429acec8c7d70d067b21fb0ff7ce6a:log:117",
+                    "hash": "0x274bc885cc867881a240c610a7bce0b0f3429acec8c7d70d067b21fb0ff7ce6a",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.001195,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x4ab",
+                        "address": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x1cb201a",
+                    "uniqueId": "0x4b5881bf0603a103a340f72efa6b1158169f7d2e4782986489d3048b461186f2:log:69",
+                    "hash": "0x4b5881bf0603a103a340f72efa6b1158169f7d2e4782986489d3048b461186f2",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.001528,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x5f8",
+                        "address": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x1cb201a",
+                    "uniqueId": "0x4b5881bf0603a103a340f72efa6b1158169f7d2e4782986489d3048b461186f2:log:71",
+                    "hash": "0x4b5881bf0603a103a340f72efa6b1158169f7d2e4782986489d3048b461186f2",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0xb43db544e2c27092c107639ad201b3defabcf192",
+                    "value": 2.0,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x1e8480",
+                        "address": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x1cc08ae",
+                    "uniqueId": "0xdcd7b6eacb125c29268d493e11f13e1fa4b6302a51a55200515eb9b3ab1fe6d4:log:48",
+                    "hash": "0xdcd7b6eacb125c29268d493e11f13e1fa4b6302a51a55200515eb9b3ab1fe6d4",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x209693bc6afc0c5328ba36faf03c514ef312287c",
+                    "value": 0.01,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x2710",
+                        "address": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x1cc86e9",
+                    "uniqueId": "0x4d3ca37f50279d1aa1146121e30d12137dfe9f6c50682ed6c84593f1bf95a7a4:log:80",
+                    "hash": "0x4d3ca37f50279d1aa1146121e30d12137dfe9f6c50682ed6c84593f1bf95a7a4",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.001901,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x76d",
+                        "address": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x1cc86ee",
+                    "uniqueId": "0x97da0065ac9ce03ad6c216504742279a8a14a1104aea7d6d406ef8e7b7b9d670:log:31",
+                    "hash": "0x97da0065ac9ce03ad6c216504742279a8a14a1104aea7d6d406ef8e7b7b9d670",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x3ba9a96ee3eff3a69e2b18886acf52027eff8966",
+                    "value": 0.002275,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x8e3",
+                        "address": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x1cc86ee",
+                    "uniqueId": "0x97da0065ac9ce03ad6c216504742279a8a14a1104aea7d6d406ef8e7b7b9d670:log:33",
+                    "hash": "0x97da0065ac9ce03ad6c216504742279a8a14a1104aea7d6d406ef8e7b7b9d670",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0xb43db544e2c27092c107639ad201b3defabcf192",
+                    "value": 0.5,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x7a120",
+                        "address": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x209f51c",
+                    "uniqueId": "0x6b4104609bc4f5e86a949c905e04974a12eefd0115969b2adfb8ce1d9d372b12:log:161",
+                    "hash": "0x6b4104609bc4f5e86a949c905e04974a12eefd0115969b2adfb8ce1d9d372b12",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x209693bc6afc0c5328ba36faf03c514ef312287c",
+                    "value": 0.01,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x2710",
+                        "address": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x209f716",
+                    "uniqueId": "0x7a03a185c86a24079ff900e140e1cae5333491474013922c7797ef6a8041083a:log:96",
+                    "hash": "0x7a03a185c86a24079ff900e140e1cae5333491474013922c7797ef6a8041083a",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x0d8ce3c60c17f71171c5bac1b40c05937b873711",
+                    "value": 0.01,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x2710",
+                        "address": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x20a0528",
+                    "uniqueId": "0xce0c8fa61d8377296708579d2a2f7eca13e3b28bb82dd4cbec27cb94cf8c2833:log:3",
+                    "hash": "0xce0c8fa61d8377296708579d2a2f7eca13e3b28bb82dd4cbec27cb94cf8c2833",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x0d8ce3c60c17f71171c5bac1b40c05937b873711",
+                    "value": 0.01,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x2710",
+                        "address": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x20a0528",
+                    "uniqueId": "0x73859448bbb4374c82d5854d8ddc830a192cc0f1eb4fbf67ecfd21c55ac8c430:log:269",
+                    "hash": "0x73859448bbb4374c82d5854d8ddc830a192cc0f1eb4fbf67ecfd21c55ac8c430",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x0d8ce3c60c17f71171c5bac1b40c05937b873711",
+                    "value": 0.01,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x2710",
+                        "address": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x20a06e4",
+                    "uniqueId": "0xbe1a4fdfa52b4de294ffe8a015c929343d4184d1f38842b6e2ecf6f36eb14231:log:2",
+                    "hash": "0xbe1a4fdfa52b4de294ffe8a015c929343d4184d1f38842b6e2ecf6f36eb14231",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x0d8ce3c60c17f71171c5bac1b40c05937b873711",
+                    "value": 0.01,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x2710",
+                        "address": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x20a06ed",
+                    "uniqueId": "0xcd8a6847b49bc05a8d2b77976b3cfbe2ac48cae002d8709bc9d773e8b7f7653d:log:205",
+                    "hash": "0xcd8a6847b49bc05a8d2b77976b3cfbe2ac48cae002d8709bc9d773e8b7f7653d",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x0d8ce3c60c17f71171c5bac1b40c05937b873711",
+                    "value": 0.01,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x2710",
+                        "address": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                },
+                {
+                    "blockNum": "0x20a06ee",
+                    "uniqueId": "0xb37f1742541d2aa756ca394fee05ffd29bc3423009822a4ef2b0032deb2f22ee:log:195",
+                    "hash": "0xb37f1742541d2aa756ca394fee05ffd29bc3423009822a4ef2b0032deb2f22ee",
+                    "from": "0x2514844f312c02ae3c9d4feb40db4ec8830b6844",
+                    "to": "0x0d8ce3c60c17f71171c5bac1b40c05937b873711",
+                    "value": 0.01,
+                    "erc721TokenId": null,
+                    "erc1155Metadata": [],
+                    "tokenId": null,
+                    "asset": "USDC",
+                    "category": "erc20",
+                    "rawContract": {
+                        "value": "0x2710",
+                        "address": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+                        "decimal": "0x6"
+                    },
+                    "metadata": null,
+                    "chain": "base_sepolia"
+                }
+            ],
+            "chains": [
+                "arbitrum_sepolia",
+                "base_sepolia"
+            ]
+        },
+        "gmx_data": {
+            "has_gmx_history": false,
+            "gmx_sub_score": 50,
+            "chain": "arbitrum_mainnet",
+            "skipped": true,
+            "note": "INDEX_MAINNET=0 — GMX only indexed on mainnet"
+        }
+    },
+    "chains_queried": {
+        "hub": "robinhood_testnet",
+        "spokes": [
+            "arbitrum_sepolia",
+            "base_sepolia"
+        ],
+        "mainnet_enabled": false,
+        "all_credflow_chains": [
+            "robinhood_testnet",
+            "arbitrum_sepolia",
+            "base_sepolia"
+        ]
+    },
+    "chain_activity": {
+        "wallet_chains": [
+            "arbitrum_sepolia",
+            "base_sepolia"
+        ],
+        "borrow_chains": [
+            "base_sepolia"
+        ],
+        "gmx_chain": "arbitrum_mainnet"
+    },
+    "rejection_reason": null
+}

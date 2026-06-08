@@ -28,8 +28,9 @@ def train_credflow_model(
     neg = (y == 0).sum()
     scale_pos_weight = neg / pos if pos > 0 else 1.0
 
+    stratify = y if pos >= 2 and neg >= 2 else None
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42, stratify=y
+        X, y, test_size=0.2, random_state=42, stratify=stratify
     )
 
     model = xgb.XGBClassifier(

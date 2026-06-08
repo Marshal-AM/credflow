@@ -49,7 +49,7 @@ async function main() {
   const hasProfile = await sbt.hasProfile(borrower);
   if (!hasProfile) {
     console.log("Minting SBT with score", score);
-    await (await sbt.mintSBT(borrower, score, 71, 68, 60, "ipfs://credflow-smoke-test")).wait();
+    await (await sbt.mintSBT(borrower, score, 68, 60, "ipfs://credflow-smoke-test")).wait();
   } else {
     const profile = await sbt.getProfile(borrower);
     console.log("Existing profile — score:", profile.score.toString(), "loanActive:", profile.loanActive);

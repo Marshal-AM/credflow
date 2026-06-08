@@ -86,7 +86,7 @@ npm run ml:serve
 npm run ml:test
 ```
 
-Set `DUNE_API_KEY` and `ALCHEMY_API_KEY` in `.env` for live data. Use `USE_MOCK_DATA=1` for offline dev/tests.
+Set `ALCHEMY_API_KEY` in `.env` for live spoke data (Aave transfers, token balances). Use `USE_MOCK_DATA=1` for offline dev/tests.
 
 ## Project structure
 
