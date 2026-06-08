@@ -10,5 +10,7 @@
   "layerzero": {
     "eid": 40451,
     "endpointV2": "0x3aCAAf60502791D199a5a5F0B173D78229eBFe32"
-  }
+  },
+  "wethPriceFeed": "0x6034FAcE419117Af850411CA58d83c1405F3398F",
+  "oracleFeedSource": "MockChainlinkFeed"
 }

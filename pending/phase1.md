@@ -99,7 +99,8 @@ Deployed from `0x2514844F312c02Ae3C9d4fEb40db4eC8830b6844` on Robinhood Chain te
 | CredFlowLending | `0x14d42947929F1ECf882aA6a07dd4279ADb49345d` |
 | CredFlowLP | `0x1E491de1a08843079AAb4cFA516C717597344e50` |
 | ChainlinkOracle | `0x26D215752f68bc2254186F9f6FF068b8C4BdFd37` |
-| CredFlowOApp | `0x0000000000000000000000000000000000000000` (not deployed) |
+| CredFlowOApp | `0x0866f40D55E96b2D74995203Caff032aD81c14B0` |
+| MockChainlinkFeed (WETH/USD) | `0x6034FAcE419117Af850411CA58d83c1405F3398F` ($3000) |
 
 Also saved in `docs/addresses.json` and `frontend/src/lib/addresses.json`.
 
@@ -142,13 +143,13 @@ The mock is **test-only**. It is never deployed on testnet. Your live `CredFlowL
 1. **Chainlink (production path):** Set `CHAINLINK_ETH_USD_FEED` in `.env`, then call `setPriceFeed(WETH_ROBINHOOD, feed, 18)` on the deployed oracle (you are the owner).
 2. **Mock on testnet (dev shortcut):** Deploy `MockPriceOracle` on testnet, call `setPrice(WETH, 3000e6, 18)`, then **redeploy `CredFlowLending`** with the mock address as oracle (lending has no `setOracle` admin function today).
 
-### Critical
+### Critical — completed
 
-| Item | Current state | Action |
+| Item | Status | Details |
 |---|---|---|
-| **WETH/USD price on live oracle** | `ChainlinkOracle` deployed but no feed wired | Option 1 or 2 above |
-| **Live borrow smoke test** | Not run on testnet yet | After oracle has a price: wrap ETH → WETH, `mintSBT`, `requestLoan` for a small USDG amount |
-| **CredFlowOApp deploy** | **Done** — hub OApp on Robinhood testnet | `0x0866f40D55E96b2D74995203Caff032aD81c14B0` |
+| **WETH/USD price on live oracle** | **Done** | `MockChainlinkFeed` at `0x6034FAcE…398F` wired via `setPriceFeed` ($3000/ETH). Robinhood testnet uses Chainlink Data Streams, not legacy AggregatorV3 feeds — mock is the correct testnet path. |
+| **Live borrow smoke test** | **Done** | 5 USDG borrowed against 0.005 WETH — tx `0x75592c4d43a1509c7bf3878475153986aa5428af3c4dedc1ad6cd198a152ca8f` |
+| **CredFlowOApp deploy** | **Done** | Hub OApp `0x0866f40D55E96b2D74995203Caff032aD81c14B0` |
 
 ### LayerZero — hub deployed
 
@@ -213,6 +214,10 @@ npx hardhat run scripts/deploy.js --network robinhoodTestnet
 npm run lz:status
 npm run deploy:oapp
 
+# Wire oracle + live borrow smoke test
+npm run oracle:wire
+npm run smoke:borrow
+
 # Frontend dev server (scaffold only)
 cd frontend && npm run dev
 ```
@@ -225,16 +230,14 @@ cd frontend && npm run dev
 |---|---|---|
 | Phase 0 | Repo scaffold, tooling, env, frontend skeleton | **Complete** |
 | Phase 1 | Contracts, tests, testnet deploy, ABIs | **Complete** |
-| Phase 1 post-deploy | Oracle feed, live borrow smoke test | **Pending** (OApp hub done) |
+| Phase 1 post-deploy | Oracle feed, live borrow smoke test | **Complete** |
 
-**Ready to start Phase 2** (ML pipeline) once the Chainlink feed is wired — live borrows on testnet depend on that oracle configuration.
+**Ready to start Phase 2** (ML pipeline).
 
 ---
 
 ## Next recommended steps (in order)
 
-1. Set `CHAINLINK_ETH_USD_FEED` and wire WETH price on the deployed oracle
-2. Mint a test SBT to your wallet via `mintSBT` (as `SCORER_ROLE` holder)
-3. Run a manual borrow on testnet: wrap 0.03 ETH → WETH, approve lending, `requestLoan`
-4. **Phase 6:** Deploy spoke OApps + wire peers for cross-chain score sync
-5. Begin Phase 2: Dune pipeline → feature engineering → XGBoost training → scoring API
+1. Begin Phase 2: Dune pipeline → feature engineering → XGBoost training → scoring API
+2. **Phase 6:** Deploy spoke OApps + wire peers for cross-chain score sync
+3. Optional: top up lending pool with more USDG for larger test borrows
