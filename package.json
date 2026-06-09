@@ -7,6 +7,7 @@
     "test": "hardhat test",
     "deploy:local": "hardhat run scripts/deploy.js",
     "deploy:robinhood": "hardhat run scripts/deploy.js --network robinhoodTestnet",
+    "deploy:score-engine": "hardhat run scripts/deploy-score-engine.js --network robinhoodTestnet",
     "deploy:oapp": "hardhat run scripts/deploy-oapp.js --network robinhoodTestnet",
     "lz:status": "node scripts/lz-status.js",
     "lz:set-peers": "hardhat run scripts/set-peers.js --network robinhoodTestnet",
@@ -38,7 +39,9 @@
     "arbitrum-sepolia:aave": "hardhat run scripts/arbitrum-sepolia-aave.js --network arbitrumSepolia",
     "ml:train": "credflow-env\\Scripts\\python.exe scripts/train_ml.py",
     "ml:sybil-train": "credflow-env\\Scripts\\python.exe scripts/train_sybil.py",
-    "ml:serve": "credflow-env\\Scripts\\python.exe -m ml.scoring_api",
+    "ml:serve": "node scripts/serve-with-ngrok.js",
+    "ml:serve:api-only": "credflow-env\\Scripts\\python.exe -m ml.scoring_api",
+    "ngrok:serve": "node scripts/start-ngrok-tunnel.js",
     "ml:test": "credflow-env\\Scripts\\python.exe -m pytest tests/ -v",
     "test:sybil": "credflow-env\\Scripts\\python.exe scripts/test_sybil_rgcn.py",
     "test:graph": "credflow-env\\Scripts\\python.exe scripts/test_graph_analysis.py",
@@ -66,8 +69,10 @@
     "@layerzerolabs/lz-evm-oapp-v2": "^2.3.44",
     "@layerzerolabs/lz-evm-protocol-v2": "^2.3.44",
     "@layerzerolabs/lz-v2-utilities": "^3.0.168",
+    "@ngrok/ngrok": "^1.7.0",
     "@openzeppelin/contracts": "^4.9.6",
     "@openzeppelin/contracts-upgradeable": "^4.9.6",
+    "@reclaimprotocol/js-sdk": "^5.5.0",
     "web3": "^4.16.0"
   }
 }

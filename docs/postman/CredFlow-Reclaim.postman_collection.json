@@ -1,0 +1,95 @@
+{
+  "info": {
+    "name": "CredFlow Reclaim + Scoring",
+    "description": "Full flow: bank balance via Reclaim → wallet ML scoring → on-chain score preview.\n\nPrerequisites:\n- npm run ml:serve (RECLAIM_ENABLED=1)\n- ngrok tunnel to port 8000 (RECLAIM_CALLBACK_URL in .env)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8000" },
+    { "key": "wallet", "value": "0x2514844F312c02Ae3C9d4fEb40db4eC8830b6844" },
+    { "key": "reclaim_session_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/health"
+      }
+    },
+    {
+      "name": "2. Start Reclaim (get URL)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const j = pm.response.json();",
+              "if (j.reclaim_session_id) {",
+              "  pm.collectionVariables.set('reclaim_session_id', j.reclaim_session_id);",
+              "}",
+              "if (j.reclaim_url) {",
+              "  console.log('Open on phone:', j.reclaim_url);",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"wallet_address\": \"{{wallet}}\",\n  \"require_reclaim\": true\n}"
+        },
+        "url": "{{baseUrl}}/score"
+      }
+    },
+    {
+      "name": "3. Poll Reclaim session",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/reclaim/session/{{reclaim_session_id}}"
+      }
+    },
+    {
+      "name": "4. Full score (after bank proof)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"wallet_address\": \"{{wallet}}\",\n  \"require_reclaim\": true,\n  \"reclaim_session_id\": \"{{reclaim_session_id}}\"\n}"
+        },
+        "url": "{{baseUrl}}/score"
+      }
+    },
+    {
+      "name": "4b. Full score (shortcut — no session id)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"wallet_address\": \"{{wallet}}\",\n  \"require_reclaim\": true\n}"
+        },
+        "url": "{{baseUrl}}/score"
+      }
+    },
+    {
+      "name": "Score without Reclaim",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"wallet_address\": \"{{wallet}}\",\n  \"require_reclaim\": false\n}"
+        },
+        "url": "{{baseUrl}}/score"
+      }
+    }
+  ]
+}

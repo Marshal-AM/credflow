@@ -55,9 +55,11 @@ def test_fetch_morpho_events_returns_only_labeled_actions(_mock_from_block, mock
     for name in ("SupplyCollateral", "WithdrawCollateral", "Repay"):
         evt = MagicMock()
         evt.topic = bytes.fromhex("00" * 32)
+        evt.process_log.side_effect = ValueError(f"not a {name} log")
         setattr(morpho.events, name, evt)
 
     morpho.events.Borrow = borrow_event
+    create_market_topic = "0x" + "11" * 32
     morpho.events.CreateMarket = MagicMock()
     morpho.events.CreateMarket.topic = bytes.fromhex("11" * 32)
     morpho.events.CreateMarket.process_log.return_value = {
@@ -73,13 +75,16 @@ def test_fetch_morpho_events_returns_only_labeled_actions(_mock_from_block, mock
     }
 
     def get_logs_side_effect(_chain_id, params):
-        if params.get("topic0") == _topic_hex(borrow_event.topic):
+        topic0 = params.get("topic0")
+        # Borrow queries filter wallet on topic3 (see _EVENT_TOPIC_QUERIES)
+        if topic0 == _topic_hex(borrow_event.topic) and params.get("topic3"):
             return [_borrow_log()]
-        if params.get("topic1"):
+        # CreateMarket lookup for market params resolution
+        if topic0 == create_market_topic and params.get("topic1"):
             return [
                 {
                     "address": MORPHO_BLUE,
-                    "topics": ["0x" + "11" * 32, "0x" + "ab" * 32],
+                    "topics": [create_market_topic, "0x" + "ab" * 32],
                     "data": "0x",
                     "blockNumber": "0x3039",
                     "transactionHash": "0xabc",

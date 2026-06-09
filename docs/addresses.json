@@ -12,5 +12,6 @@
     "endpointV2": "0x3aCAAf60502791D199a5a5F0B173D78229eBFe32"
   },
   "wethPriceFeed": "0x2eD432036273a3Bf2523606a6839274508793D84",
-  "oracleFeedSource": "MockChainlinkFeed"
+  "oracleFeedSource": "MockChainlinkFeed",
+  "scoreEngine": "0x69a344E56e0D0d6024a2Ad2d6d8eFA6bE76AF3B4"
 }

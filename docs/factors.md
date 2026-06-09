@@ -126,3 +126,34 @@ wallet_age_flag                → boolean, age < 7 days
 **Code:** `indexer/scoring_metrics.py` → `ml/feature_engineering.py` → `ml/train_model.py`
 
 ---
+
+## Reclaim bank balance + on-chain CredScoreEngine (optional)
+
+When `RECLAIM_ENABLED=1`, underwriting requires a Reclaim proof of bank balance (INR from IndusInd provider). Flow:
+
+1. `POST /score` with `require_reclaim: true` → returns `reclaim_url` + `reclaim_session_id`
+2. User completes Reclaim on mobile → `POST /reclaim/callback` verifies proof
+3. API re-runs XGBoost and computes **on-chain preview** via `CredScoreEngine` formula
+4. Underwriter agent calls `CredScoreEngine.mintScore()` on Robinhood testnet
+
+**INR → USD:** parsed off-chain in `ml/reclaim_service.py`; live rate from exchangerate.host with `INR_PER_USD` fallback.
+
+**On-chain capacity factor** (`balanceUsdCents`):
+
+| Verified balance (USD) | Factor (bps) | Effect on default_prob |
+|------------------------|--------------|-------------------------|
+| &lt; $100 | 10000 | none |
+| $100 – $999 | 9800 | up to ~2% reduction |
+| $1k – $4.9k | 9600 | up to ~4% reduction |
+| $5k+ | 9200 | up to ~8% reduction |
+
+**Final on-chain score:**
+
+```
+adjusted_prob = default_prob × (factor / 10000)
+cred_score = clamp(300 + (1 - adjusted_prob) × 550, 300, 850)
+```
+
+**Contracts:** `CredScoreEngine.sol` (formula + mint) → `CredScoreSBT.sol` (profile storage). Lending reads `profile.score` unchanged.
+
+---

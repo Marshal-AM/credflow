@@ -59,6 +59,15 @@ class CredFlowAgent:
             address=Web3.to_checksum_address(self.addresses["sbt"]),
             abi=_load_abi("CredScoreSBT.json"),
         )
+        self.score_engine: Contract | None = None
+        engine_addr = self.addresses.get("scoreEngine") or os.environ.get("CREDSCORE_ENGINE_ADDRESS")
+        if engine_addr and str(engine_addr) not in ("0x0", "0x0000000000000000000000000000000000000000", ""):
+            engine_abi_path = ABIS_DIR / "CredScoreEngine.json"
+            if engine_abi_path.exists():
+                self.score_engine = self.w3.eth.contract(
+                    address=Web3.to_checksum_address(engine_addr),
+                    abi=_load_abi("CredScoreEngine.json"),
+                )
         self.lending: Contract = self.w3.eth.contract(
             address=Web3.to_checksum_address(self.addresses["lending"]),
             abi=_load_abi("CredFlowLending.json"),
@@ -86,8 +95,13 @@ class CredFlowAgent:
             logger.warning("Agent wallet lacks AGENT_ROLE on hub OApp")
 
         scorer_role = self.sbt.functions.SCORER_ROLE().call()
-        if not self.sbt.functions.hasRole(scorer_role, agent).call():
-            logger.warning("Agent wallet lacks SCORER_ROLE on SBT")
+        if not self.sbt.functions.hasRole(scorer_role, agent).call() and self.score_engine is None:
+            logger.warning("Agent wallet lacks SCORER_ROLE on SBT and no CredScoreEngine configured")
+
+        if self.score_engine is not None:
+            engine_scorer = self.score_engine.functions.SCORER_ROLE().call()
+            if not self.score_engine.functions.hasRole(engine_scorer, agent).call():
+                logger.warning("Agent wallet lacks SCORER_ROLE on CredScoreEngine")
 
     def dst_chain_eids(self) -> list[int]:
         eids = []

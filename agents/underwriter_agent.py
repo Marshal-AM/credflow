@@ -1,4 +1,4 @@
-"""Underwriter agent — scoring API, hard rules, Groq borderline review."""
+"""Underwriter agent — scoring API, hard rules, Groq borderline review, on-chain CredScoreEngine."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import argparse
 import logging
 import os
 import sys
+import time
 
 import httpx
 from dotenv import load_dotenv
@@ -26,10 +27,16 @@ logger = logging.getLogger(__name__)
 SCORING_API_URL = os.environ.get("SCORING_API_URL", "http://localhost:8000")
 BORDERLINE_LOW = int(os.environ.get("UNDERWRITER_BORDERLINE_LOW", "480"))
 BORDERLINE_HIGH = int(os.environ.get("UNDERWRITER_BORDERLINE_HIGH", "520"))
+RECLAIM_POLL_SEC = int(os.environ.get("RECLAIM_POLL_SEC", "5"))
+RECLAIM_POLL_MAX = int(os.environ.get("RECLAIM_POLL_MAX", "180"))
 
 
 def _clamp_uint16(value: int) -> int:
     return max(0, min(65535, int(value)))
+
+
+def _reclaim_enabled() -> bool:
+    return os.environ.get("RECLAIM_ENABLED", "0").strip() in ("1", "true", "yes")
 
 
 def _is_borderline(cred_score: int, sybil_risk: str) -> bool:
@@ -37,6 +44,44 @@ def _is_borderline(cred_score: int, sybil_risk: str) -> bool:
     if sybil_risk == "high":
         return False
     return BORDERLINE_LOW <= cred_score <= BORDERLINE_HIGH
+
+
+def _fetch_score_data(client: httpx.Client, wallet: str, *, reclaim_session_id: str | None = None) -> dict:
+    payload = {
+        "wallet_address": wallet,
+        "require_reclaim": _reclaim_enabled(),
+    }
+    if reclaim_session_id:
+        payload["reclaim_session_id"] = reclaim_session_id
+    resp = client.post(f"{SCORING_API_URL}/score", json=payload, timeout=120.0)
+    resp.raise_for_status()
+    return resp.json()
+
+
+def _wait_for_reclaim_score(client: httpx.Client, wallet: str, initial: dict) -> dict:
+    """Poll scoring API until Reclaim proof is verified and full score is ready."""
+    session_id = initial.get("reclaim_session_id")
+    reclaim_url = initial.get("reclaim_url")
+    logger.info("Awaiting Reclaim proof — open: %s", reclaim_url)
+
+    deadline = time.time() + RECLAIM_POLL_MAX
+    while time.time() < deadline:
+        data = _fetch_score_data(client, wallet, reclaim_session_id=session_id)
+        if data.get("status") != "awaiting_reclaim":
+            return data
+        time.sleep(RECLAIM_POLL_SEC)
+
+    raise TimeoutError(
+        f"Reclaim proof not received within {RECLAIM_POLL_MAX}s. "
+        f"Complete verification at: {reclaim_url}"
+    )
+
+
+def _proof_hash_bytes(proof_hash: str | None) -> bytes:
+    if not proof_hash:
+        return b"\x00" * 32
+    h = proof_hash.removeprefix("0x")
+    return bytes.fromhex(h.zfill(64))
 
 
 def underwrite_wallet(agent: CredFlowAgent, wallet: str, rescore: bool = False) -> dict:
@@ -55,20 +100,22 @@ def underwrite_wallet(agent: CredFlowAgent, wallet: str, rescore: bool = False) 
             "score": profile[0],
         }
 
-    logger.info("Calling scoring API for %s", wallet)
+    logger.info("Calling scoring API for %s (reclaim=%s)", wallet, _reclaim_enabled())
     with httpx.Client(timeout=120.0) as client:
-        resp = client.post(f"{SCORING_API_URL}/score", json={"wallet_address": wallet})
-        resp.raise_for_status()
-        score_data = resp.json()
+        score_data = _fetch_score_data(client, wallet)
+        if score_data.get("status") == "awaiting_reclaim":
+            score_data = _wait_for_reclaim_score(client, wallet, score_data)
 
-    cred_score = int(score_data["cred_score"])
+    cred_score = int(score_data.get("on_chain_cred_score") or score_data["cred_score"])
     sybil_risk = score_data.get("sybil_risk", "low")
     approved = score_data.get("approved", False)
     borrow_sub = _clamp_uint16(score_data.get("borrow_sub_score", 0))
     wallet_sub = _clamp_uint16(score_data.get("wallet_sub_score", 0))
     shap_cid = str(score_data.get("shap_cid", ""))
+    default_prob_bps = int(score_data.get("default_prob_bps", 0))
+    balance_usd_cents = int(score_data.get("balance_usd_cents", 0))
+    reclaim_proof_hash = score_data.get("reclaim_proof_hash")
 
-    # Hard rules — Groq cannot override
     if sybil_risk == "high":
         return {
             "wallet": wallet,
@@ -98,7 +145,6 @@ def underwrite_wallet(agent: CredFlowAgent, wallet: str, rescore: bool = False) 
         )
         groq_narrative = verdict.model_dump()
         if verdict.action != "approve":
-            # Groq outage + strong score above borderline band: hard rules already passed
             groq_unavailable = verdict.confidence == 0.0 and "unavailable" in verdict.reasoning.lower()
             if groq_unavailable and cred_score > BORDERLINE_HIGH and sybil_risk != "high":
                 groq_narrative["override"] = "auto-approve: score above borderline, Groq unavailable"
@@ -120,15 +166,32 @@ def underwrite_wallet(agent: CredFlowAgent, wallet: str, rescore: bool = False) 
             "cred_score": cred_score,
         }
 
-    score_uint16 = _clamp_uint16(cred_score)
-    if has_profile or rescore:
-        fn = agent.sbt.functions.updateScore(wallet, score_uint16, borrow_sub, wallet_sub, shap_cid)
+    use_engine = agent.score_engine is not None and _reclaim_enabled()
+
+    if use_engine:
+        proof_bytes = _proof_hash_bytes(reclaim_proof_hash)
+        fn = agent.score_engine.functions.mintScore(
+            wallet,
+            default_prob_bps,
+            balance_usd_cents,
+            proof_bytes,
+            borrow_sub,
+            wallet_sub,
+            shap_cid,
+            rescore or has_profile,
+        )
         tx = agent.send_tx(fn)
-        onchain_action = "updateScore"
+        onchain_action = "mintScore"
     else:
-        fn = agent.sbt.functions.mintSBT(wallet, score_uint16, borrow_sub, wallet_sub, shap_cid)
-        tx = agent.send_tx(fn)
-        onchain_action = "mintSBT"
+        score_uint16 = _clamp_uint16(cred_score)
+        if has_profile or rescore:
+            fn = agent.sbt.functions.updateScore(wallet, score_uint16, borrow_sub, wallet_sub, shap_cid)
+            tx = agent.send_tx(fn)
+            onchain_action = "updateScore"
+        else:
+            fn = agent.sbt.functions.mintSBT(wallet, score_uint16, borrow_sub, wallet_sub, shap_cid)
+            tx = agent.send_tx(fn)
+            onchain_action = "mintSBT"
 
     return {
         "wallet": wallet,
@@ -136,10 +199,14 @@ def underwrite_wallet(agent: CredFlowAgent, wallet: str, rescore: bool = False) 
         "onchain": onchain_action,
         "tx": tx,
         "cred_score": cred_score,
+        "ml_cred_score": score_data.get("ml_cred_score"),
+        "default_prob_bps": default_prob_bps,
+        "balance_usd_cents": balance_usd_cents,
         "borrow_sub_score": borrow_sub,
         "wallet_sub_score": wallet_sub,
         "shap_cid": shap_cid,
         "sybil_risk": sybil_risk,
+        "reclaim_proof_hash": reclaim_proof_hash,
         "groq": groq_narrative,
     }
 

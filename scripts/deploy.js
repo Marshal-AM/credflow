@@ -8,6 +8,7 @@ const DEFAULT_WETH = "0x7943e237c7F95DA44E0301572D358911207852Fa";
 
 const ABIS_TO_EXPORT = [
   "CredScoreSBT",
+  "CredScoreEngine",
   "CredFlowLending",
   "CredFlowOApp",
   "CredFlowLP",
@@ -45,6 +46,12 @@ async function main() {
   const sbt = await SBT.deploy(deployer.address);
   await sbt.waitForDeployment();
   console.log("CredScoreSBT:", await sbt.getAddress());
+
+  // 2b. CredScore engine (on-chain formula + Reclaim balance capacity)
+  const Engine = await ethers.getContractFactory("CredScoreEngine");
+  const scoreEngine = await Engine.deploy(await sbt.getAddress(), deployer.address);
+  await scoreEngine.waitForDeployment();
+  console.log("CredScoreEngine:", await scoreEngine.getAddress());
 
   // 3. Liquidity pool
   const Pool = await ethers.getContractFactory("CredFlowLP");
@@ -84,6 +91,9 @@ async function main() {
   const AGENT_ROLE_SBT = await sbt.AGENT_ROLE();
   const AGENT_ROLE_LENDING = await lending.AGENT_ROLE();
 
+  const ENGINE_SCORER_ROLE = await scoreEngine.SCORER_ROLE();
+  await (await sbt.grantRole(SCORER_ROLE, await scoreEngine.getAddress())).wait();
+  await (await scoreEngine.grantRole(ENGINE_SCORER_ROLE, agentWallet)).wait();
   await (await sbt.grantRole(SCORER_ROLE, agentWallet)).wait();
   await (await sbt.grantRole(AGENT_ROLE_SBT, agentWallet)).wait();
   await (await sbt.grantRole(AGENT_ROLE_SBT, await lending.getAddress())).wait();
@@ -114,6 +124,7 @@ async function main() {
 
   const addresses = {
     sbt: await sbt.getAddress(),
+    scoreEngine: await scoreEngine.getAddress(),
     lending: await lending.getAddress(),
     pool: await pool.getAddress(),
     oapp: oappAddress,
