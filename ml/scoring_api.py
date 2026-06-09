@@ -214,12 +214,13 @@ async def startup_log_config():
 async def health():
     from pathlib import Path
 
-    from ml.constants import EXPLAINER_PATH, FEATURE_COLUMNS, MODEL_PATH
+    from ml.constants import EXPLAINER_PATH, FEATURE_COLUMNS, MODEL_PATH, SYBIL_MODEL_PATH
 
     return {
         "status": "ok",
         "model_loaded": Path(MODEL_PATH).exists(),
         "explainer_loaded": Path(EXPLAINER_PATH).exists(),
+        "sybil_model_loaded": Path(SYBIL_MODEL_PATH).exists(),
         "feature_count": len(FEATURE_COLUMNS),
     }
 

@@ -17,6 +17,8 @@ def test_health():
     data = response.json()
     assert data["status"] == "ok"
     assert data["model_loaded"] is True
+    assert data["explainer_loaded"] is True
+    assert "sybil_model_loaded" in data
     assert data["feature_count"] == 37
 
 
@@ -30,6 +32,7 @@ def test_score_endpoint(monkeypatch):
     data = response.json()
     assert 300 <= data["cred_score"] <= 850
     assert data["sybil_risk"] in ("low", "medium", "high")
+    assert data["sybil_details"]["method"] in ("rgcn", "heuristic", "defaulter_link")
     assert "shap_cid" in data
     assert data["shap_cid"].startswith("ipfs://")
     assert data["borrow_sub_score"] >= 70

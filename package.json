@@ -12,6 +12,8 @@
     "lz:set-peers": "hardhat run scripts/set-peers.js --network robinhoodTestnet",
     "oracle:wire": "hardhat run scripts/wire-oracle.js --network robinhoodTestnet",
     "smoke:borrow": "hardhat run scripts/smoke-borrow.js --network robinhoodTestnet",
+    "test:blacklist": "hardhat run scripts/test-blacklist.js --network robinhoodTestnet",
+    "unblacklist:wallet": "hardhat run scripts/unblacklist-wallet.js --network robinhoodTestnet",
     "base-sepolia:check": "set BASE_SEPOLIA_CHECK_ONLY=1&& hardhat run scripts/base-sepolia-activity.js --network baseSepolia",
     "base-sepolia:activity": "hardhat run scripts/base-sepolia-activity.js --network baseSepolia",
     "base-sepolia:aave:check": "set BASE_SEPOLIA_AAVE_CHECK_ONLY=1&& hardhat run scripts/base-sepolia-aave.js --network baseSepolia",
@@ -19,8 +21,12 @@
     "arbitrum-sepolia:aave:check": "set ARBITRUM_SEPOLIA_AAVE_CHECK_ONLY=1&& hardhat run scripts/arbitrum-sepolia-aave.js --network arbitrumSepolia",
     "arbitrum-sepolia:aave": "hardhat run scripts/arbitrum-sepolia-aave.js --network arbitrumSepolia",
     "ml:train": "credflow-env\\Scripts\\python.exe scripts/train_ml.py",
+    "ml:sybil-train": "credflow-env\\Scripts\\python.exe scripts/train_sybil.py",
     "ml:serve": "credflow-env\\Scripts\\python.exe -m ml.scoring_api",
-    "ml:test": "credflow-env\\Scripts\\python.exe -m pytest tests/ -v"
+    "ml:test": "credflow-env\\Scripts\\python.exe -m pytest tests/ -v",
+    "test:sybil": "credflow-env\\Scripts\\python.exe scripts/test_sybil_rgcn.py",
+    "test:graph": "credflow-env\\Scripts\\python.exe scripts/test_graph_analysis.py",
+    "fund:lending": "hardhat run scripts/fund-lending.js --network robinhoodTestnet"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.8",

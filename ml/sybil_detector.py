@@ -238,6 +238,10 @@ def train_sybil_model(
 ) -> str:
     """Train R-GCN on synthetic graph data."""
     samples = generate_synthetic_graphs(n_samples)
+    split = int(len(samples) * 0.8)
+    train_samples = samples[:split]
+    val_samples = samples[split:]
+
     model = RGCNSybilDetector()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
     criterion = nn.CrossEntropyLoss()
@@ -245,7 +249,7 @@ def train_sybil_model(
     model.train()
     for epoch in range(epochs):
         total_loss = 0.0
-        for sample in samples:
+        for sample in train_samples:
             optimizer.zero_grad()
             logits = model(sample["x"], sample["edge_index"])
             target = torch.tensor(sample["label"], dtype=torch.long)
@@ -254,7 +258,18 @@ def train_sybil_model(
             optimizer.step()
             total_loss += loss.item()
         if (epoch + 1) % 10 == 0:
-            print(f"Sybil epoch {epoch + 1}/{epochs} loss={total_loss / len(samples):.4f}")
+            print(f"Sybil epoch {epoch + 1}/{epochs} loss={total_loss / len(train_samples):.4f}")
+
+    model.eval()
+    correct = 0
+    with torch.no_grad():
+        for sample in val_samples:
+            logits = model(sample["x"], sample["edge_index"])
+            pred = int(torch.argmax(logits).item())
+            if pred == sample["label"]:
+                correct += 1
+    val_acc = correct / len(val_samples) if val_samples else 0.0
+    print(f"Sybil validation accuracy: {val_acc:.2%} ({correct}/{len(val_samples)})")
 
     Path(model_path).parent.mkdir(parents=True, exist_ok=True)
     torch.save(model.state_dict(), model_path)

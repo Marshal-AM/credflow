@@ -333,6 +333,38 @@
     "type": "event"
   },
   {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "wallet",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "linkedTo",
+        "type": "address"
+      }
+    ],
+    "name": "WalletBlacklisted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "wallet",
+        "type": "address"
+      }
+    ],
+    "name": "WalletUnblacklisted",
+    "type": "event"
+  },
+  {
     "inputs": [],
     "name": "AGENT_ROLE",
     "outputs": [
@@ -453,6 +485,62 @@
   {
     "inputs": [
       {
+        "internalType": "address[]",
+        "name": "wallets",
+        "type": "address[]"
+      },
+      {
+        "internalType": "address",
+        "name": "defaulter",
+        "type": "address"
+      }
+    ],
+    "name": "blacklistLinkedWallets",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "blacklisted",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "blacklistedVia",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "uint256",
         "name": "tokenId",
         "type": "uint256"
@@ -488,12 +576,7 @@
           },
           {
             "internalType": "uint16",
-            "name": "gmxSubScore",
-            "type": "uint16"
-          },
-          {
-            "internalType": "uint16",
-            "name": "fhenixSubScore",
+            "name": "borrowSubScore",
             "type": "uint16"
           },
           {
@@ -655,6 +738,25 @@
         "internalType": "address",
         "name": "wallet",
         "type": "address"
+      }
+    ],
+    "name": "isBlacklisted",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "wallet",
+        "type": "address"
       },
       {
         "internalType": "uint16",
@@ -663,12 +765,7 @@
       },
       {
         "internalType": "uint16",
-        "name": "gmxSub",
-        "type": "uint16"
-      },
-      {
-        "internalType": "uint16",
-        "name": "fhenixSub",
+        "name": "borrowSub",
         "type": "uint16"
       },
       {
@@ -749,12 +846,7 @@
       },
       {
         "internalType": "uint16",
-        "name": "gmxSubScore",
-        "type": "uint16"
-      },
-      {
-        "internalType": "uint16",
-        "name": "fhenixSubScore",
+        "name": "borrowSubScore",
         "type": "uint16"
       },
       {
@@ -823,6 +915,19 @@
       }
     ],
     "name": "recordDefault",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "wallet",
+        "type": "address"
+      }
+    ],
+    "name": "removeFromBlacklist",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -1046,12 +1151,7 @@
       },
       {
         "internalType": "uint16",
-        "name": "gmxSub",
-        "type": "uint16"
-      },
-      {
-        "internalType": "uint16",
-        "name": "fhenixSub",
+        "name": "borrowSub",
         "type": "uint16"
       },
       {

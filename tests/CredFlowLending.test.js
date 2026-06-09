@@ -102,4 +102,17 @@ describe("CredFlowLending", function () {
 
     await expect(f.lending.connect(f.agent).liquidate(1)).to.emit(f.lending, "LoanLiquidated");
   });
+
+  it("rejects borrow when wallet is blacklisted", async function () {
+    const f = await loadFixture(credFlowFundedFixture);
+    await setupBorrower(f);
+
+    const defaulter = f.owner.address;
+    await f.sbt.connect(f.agent).blacklistLinkedWallets([f.borrower.address], defaulter);
+    expect(await f.sbt.isBlacklisted(f.borrower.address)).to.equal(true);
+
+    await expect(
+      f.lending.connect(f.borrower).requestLoan(BORROW_AMOUNT, WETH, COLLATERAL, 30)
+    ).to.be.revertedWith("Wallet blacklisted");
+  });
 });

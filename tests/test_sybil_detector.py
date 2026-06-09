@@ -1,6 +1,13 @@
 """Tests for Sybil detector."""
 
-from ml.sybil_detector import build_transaction_graph, run_sybil_check
+import tempfile
+from pathlib import Path
+
+from ml.sybil_detector import (
+    build_transaction_graph,
+    run_sybil_check,
+    train_sybil_model,
+)
 
 
 def test_organic_wallet_low_risk():
@@ -26,6 +33,7 @@ def test_defaulter_link_high_risk():
     }
     result = run_sybil_check(wallet, alchemy, known_defaulters={defaulter})
     assert result["sybil_risk"] == "high"
+    assert result["method"] == "defaulter_link"
 
 
 def test_build_transaction_graph_structure():
@@ -35,3 +43,35 @@ def test_build_transaction_graph_structure():
     )
     assert graph["x"].shape[0] >= 1
     assert graph["edge_index"].shape[0] == 2
+
+
+def test_rgcn_inference_uses_model():
+    wallet = "0x" + "f" * 40
+    alchemy = {
+        "recent_transactions": [
+            {"from": wallet, "to": "0x" + "2" * 40},
+            {"from": "0x" + "3" * 40, "to": wallet},
+        ]
+    }
+    with tempfile.TemporaryDirectory() as tmp:
+        model_path = str(Path(tmp) / "sybil_test.pt")
+        train_sybil_model(n_samples=60, model_path=model_path, epochs=15)
+        result = run_sybil_check(wallet, alchemy, model_path=model_path)
+        assert result["method"] == "rgcn"
+        assert "sybil_probs" in result
+        assert set(result["sybil_probs"]) == {"low", "medium", "high"}
+
+
+def test_rgcn_high_risk_synthetic_cluster():
+    wallet = "0x" + "9" * 40
+    alchemy = {
+        "recent_transactions": [
+            {"from": wallet, "to": f"0x{hex(i)[2:].zfill(40)}"} for i in range(20)
+        ]
+    }
+    with tempfile.TemporaryDirectory() as tmp:
+        model_path = str(Path(tmp) / "sybil_test.pt")
+        train_sybil_model(n_samples=120, model_path=model_path, epochs=25)
+        result = run_sybil_check(wallet, alchemy, model_path=model_path)
+        assert result["method"] == "rgcn"
+        assert result["sybil_risk"] in ("low", "medium", "high")

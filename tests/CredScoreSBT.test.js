@@ -46,4 +46,45 @@ describe("CredScoreSBT", function () {
       sbt.connect(scorer).mintSBT(user.address, 700, 70, 65, "ipfs://test2")
     ).to.be.revertedWith("SBT already exists");
   });
+
+  it("blacklists linked wallets via AGENT_ROLE", async function () {
+    const { sbt, owner, user } = await loadFixture(fixture);
+    const linked = ethers.Wallet.createRandom().address;
+    const agentRole = await sbt.AGENT_ROLE();
+    await sbt.grantRole(agentRole, owner.address);
+
+    await expect(
+      sbt.connect(owner).blacklistLinkedWallets([linked], user.address)
+    )
+      .to.emit(sbt, "WalletBlacklisted")
+      .withArgs(linked, user.address);
+
+    expect(await sbt.isBlacklisted(linked)).to.equal(true);
+    expect(await sbt.blacklistedVia(linked)).to.equal(user.address);
+  });
+
+  it("rejects blacklistLinkedWallets without AGENT_ROLE", async function () {
+    const { sbt, scorer, user } = await loadFixture(fixture);
+    const linked = ethers.Wallet.createRandom().address;
+    await expect(
+      sbt.connect(scorer).blacklistLinkedWallets([linked], user.address)
+    ).to.be.reverted;
+  });
+
+  it("removeFromBlacklist clears blacklist state", async function () {
+    const { sbt, owner, user } = await loadFixture(fixture);
+    const linked = ethers.Wallet.createRandom().address;
+    const agentRole = await sbt.AGENT_ROLE();
+    await sbt.grantRole(agentRole, owner.address);
+
+    await sbt.connect(owner).blacklistLinkedWallets([linked], user.address);
+    expect(await sbt.isBlacklisted(linked)).to.equal(true);
+
+    await expect(sbt.connect(owner).removeFromBlacklist(linked))
+      .to.emit(sbt, "WalletUnblacklisted")
+      .withArgs(linked);
+
+    expect(await sbt.isBlacklisted(linked)).to.equal(false);
+    expect(await sbt.blacklistedVia(linked)).to.equal(ethers.ZeroAddress);
+  });
 });

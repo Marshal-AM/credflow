@@ -64,7 +64,26 @@ def fetch_chain_state(chain, wallet_address: str) -> dict:
                 },
                 timeout=30,
             )
-            recent_txs = tx_response.json().get("result", {}).get("transfers", [])
+            outbound_txs = tx_response.json().get("result", {}).get("transfers", [])
+
+            incoming_response = requests.post(
+                url,
+                json={
+                    "jsonrpc": "2.0",
+                    "method": "alchemy_getAssetTransfers",
+                    "params": [
+                        {
+                            "toAddress": checksum,
+                            "maxCount": "0x32",
+                            "category": ["external", "erc20", "erc721"],
+                        }
+                    ],
+                    "id": 2,
+                },
+                timeout=30,
+            )
+            incoming_txs = incoming_response.json().get("result", {}).get("transfers", [])
+            recent_txs = outbound_txs + incoming_txs
 
         return {
             "chain": chain.key,

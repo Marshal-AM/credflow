@@ -25,10 +25,14 @@ contract CredScoreSBT is ERC721, AccessControl, Pausable, UUPSUpgradeable {
 
     mapping(address => CreditProfile) public profiles;
     mapping(address => bytes32[]) public attestations;
+    mapping(address => bool) public blacklisted;
+    mapping(address => address) public blacklistedVia;
 
     uint256 private _tokenIdCounter;
 
     event SBTMinted(address indexed wallet, uint16 initialScore);
+    event WalletBlacklisted(address indexed wallet, address indexed linkedTo);
+    event WalletUnblacklisted(address indexed wallet);
     event ScoreUpdated(address indexed wallet, uint16 oldScore, uint16 newScore);
     event LoanStatusUpdated(address indexed wallet, uint8 status);
     event DefaultRecorded(address indexed wallet, uint32 timestamp);
@@ -116,6 +120,28 @@ contract CredScoreSBT is ERC721, AccessControl, Pausable, UUPSUpgradeable {
 
     function hasProfile(address wallet) external view returns (bool) {
         return profiles[wallet].exists;
+    }
+
+    function blacklistLinkedWallets(
+        address[] calldata wallets,
+        address defaulter
+    ) external onlyRole(AGENT_ROLE) {
+        for (uint256 i = 0; i < wallets.length; i++) {
+            blacklisted[wallets[i]] = true;
+            blacklistedVia[wallets[i]] = defaulter;
+            emit WalletBlacklisted(wallets[i], defaulter);
+        }
+    }
+
+    function isBlacklisted(address wallet) external view returns (bool) {
+        return blacklisted[wallet];
+    }
+
+    function removeFromBlacklist(address wallet) external onlyRole(AGENT_ROLE) {
+        require(blacklisted[wallet], "Not blacklisted");
+        blacklisted[wallet] = false;
+        blacklistedVia[wallet] = address(0);
+        emit WalletUnblacklisted(wallet);
     }
 
     function _beforeTokenTransfer(address from, address, uint256, uint256) internal pure override {

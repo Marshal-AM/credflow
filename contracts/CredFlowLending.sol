@@ -84,6 +84,7 @@ contract CredFlowLending is ReentrancyGuard, Pausable, AccessControl {
         uint256 durationDays
     ) external nonReentrant whenNotPaused {
         require(sbtContract.hasProfile(msg.sender), "No credit profile");
+        require(!sbtContract.isBlacklisted(msg.sender), "Wallet blacklisted");
         require(activeLoanId[msg.sender] == 0, "Existing loan active");
 
         CredScoreSBT.CreditProfile memory profile = sbtContract.getProfile(msg.sender);

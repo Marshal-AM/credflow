@@ -95,12 +95,12 @@ Deployed from `0x2514844F312c02Ae3C9d4fEb40db4eC8830b6844` on Robinhood Chain te
 
 | Contract | Address |
 |---|---|
-| CredScoreSBT | `0x3EA6D1c84481f89aac255a7ABC375fe761653cdA` |
-| CredFlowLending | `0x14d42947929F1ECf882aA6a07dd4279ADb49345d` |
-| CredFlowLP | `0x1E491de1a08843079AAb4cFA516C717597344e50` |
-| ChainlinkOracle | `0x26D215752f68bc2254186F9f6FF068b8C4BdFd37` |
-| CredFlowOApp | `0x0866f40D55E96b2D74995203Caff032aD81c14B0` |
-| MockChainlinkFeed (WETH/USD) | `0x6034FAcE419117Af850411CA58d83c1405F3398F` ($3000) |
+| CredScoreSBT | `0x4aEC5F139c5d2BFD3Fe35660698ee06b2B7D9D8E` |
+| CredFlowLending | `0x9bb2363810156f7b32b255677e8C1852AC1F95E6` |
+| CredFlowLP | `0x13a5294A34E9830A5CE3a1b2f81d545f58D1e31c` |
+| ChainlinkOracle | `0xc06035e22bF0B7C69268E9Cd2a10e3739C691B1B` |
+| CredFlowOApp | `0x57061d08986D780f5755887207e355bf8f5813D8` |
+| MockChainlinkFeed (WETH/USD) | `0x2eD432036273a3Bf2523606a6839274508793D84` ($3000) |
 
 Also saved in `docs/addresses.json` and `frontend/src/lib/addresses.json`.
 
