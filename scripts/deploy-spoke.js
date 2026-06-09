@@ -12,7 +12,7 @@ const SPOKE_KEYS = {
 };
 
 async function main() {
-  const spokeArg = (process.argv[2] || "arbitrum").toLowerCase();
+  const spokeArg = (process.env.SPOKE || "arbitrum").toLowerCase();
   const configKey = SPOKE_KEYS[spokeArg];
   if (!configKey) {
     throw new Error(`Unknown spoke '${spokeArg}'. Use: arbitrum | base`);
@@ -35,9 +35,6 @@ async function main() {
   const oappAddress = await oapp.getAddress();
   console.log("CredFlowOApp (spoke):", oappAddress);
 
-  const agentWallet = process.env.AGENT_WALLET_ADDRESS || deployer.address;
-  await (await oapp.grantRole(await oapp.AGENT_ROLE(), agentWallet)).wait();
-
   const outPath = path.join(__dirname, "..", "docs", `spoke-${spokeArg}-addresses.json`);
   const payload = {
     chain: spokeArg,
@@ -48,6 +45,19 @@ async function main() {
   };
   fs.writeFileSync(outPath, JSON.stringify(payload, null, 2));
   console.log("Saved", outPath);
+
+  const agentWallet = process.env.AGENT_WALLET_ADDRESS || deployer.address;
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    try {
+      await (await oapp.grantRole(await oapp.AGENT_ROLE(), agentWallet)).wait();
+      console.log("Granted AGENT_ROLE to", agentWallet);
+      break;
+    } catch (err) {
+      if (attempt === 5) throw err;
+      console.log(`AGENT_ROLE grant retry ${attempt}/5...`);
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+  }
   console.log(`Set ARBITRUM_OAPP_ADDRESS or BASE_OAPP_ADDRESS=${oappAddress} in .env, then run set-peers.js`);
 }
 

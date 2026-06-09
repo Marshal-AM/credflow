@@ -10,6 +10,22 @@
     "deploy:oapp": "hardhat run scripts/deploy-oapp.js --network robinhoodTestnet",
     "lz:status": "node scripts/lz-status.js",
     "lz:set-peers": "hardhat run scripts/set-peers.js --network robinhoodTestnet",
+    "deploy:spoke:arbitrum": "set SPOKE=arbitrum&& hardhat run scripts/deploy-spoke.js --network arbitrumSepolia",
+    "deploy:spoke:base": "set SPOKE=base&& hardhat run scripts/deploy-spoke.js --network baseSepolia",
+    "lz:redeploy-oapp": "hardhat run scripts/redeploy-oapp.js --network robinhoodTestnet",
+    "deploy:spoke:lending:arbitrum": "set SPOKE=arbitrum&& hardhat run scripts/deploy-spoke-lending.js --network arbitrumSepolia",
+    "deploy:spoke:lending:base": "set SPOKE=base&& hardhat run scripts/deploy-spoke-lending.js --network baseSepolia",
+    "wire:spoke:oracle:arbitrum": "set SPOKE=arbitrum&& hardhat run scripts/sync-spoke-oracle.js --network arbitrumSepolia",
+    "wire:spoke:oracle:base": "set SPOKE=base&& hardhat run scripts/sync-spoke-oracle.js --network baseSepolia",
+    "sync:spoke:oracle:arbitrum": "set SPOKE=arbitrum&& hardhat run scripts/sync-spoke-oracle.js --network arbitrumSepolia",
+    "sync:spoke:oracle:base": "set SPOKE=base&& hardhat run scripts/sync-spoke-oracle.js --network baseSepolia",
+    "fund:spoke:arbitrum": "set SPOKE=arbitrum&& hardhat run scripts/fund-spoke-lending.js --network arbitrumSepolia",
+    "fund:spoke:base": "set SPOKE=base&& hardhat run scripts/fund-spoke-lending.js --network baseSepolia",
+    "smoke:borrow:arbitrum": "set SPOKE=arbitrum&& hardhat run scripts/smoke-borrow-spoke.js --network arbitrumSepolia",
+    "smoke:borrow:base": "set SPOKE=base&& hardhat run scripts/smoke-borrow-spoke.js --network baseSepolia",
+    "lz:broadcast:loan-active": "hardhat run scripts/lz-broadcast-loan-active.js --network robinhoodTestnet",
+    "chainlink:price": "node scripts/chainlink.js",
+    "lz:wire-spokes": "npm run lz:set-peers && hardhat run scripts/set-peer-spoke.js --network arbitrumSepolia && hardhat run scripts/set-peer-spoke.js --network baseSepolia",
     "oracle:wire": "hardhat run scripts/wire-oracle.js --network robinhoodTestnet",
     "smoke:borrow": "hardhat run scripts/smoke-borrow.js --network robinhoodTestnet",
     "test:blacklist": "hardhat run scripts/test-blacklist.js --network robinhoodTestnet",
@@ -26,7 +42,14 @@
     "ml:test": "credflow-env\\Scripts\\python.exe -m pytest tests/ -v",
     "test:sybil": "credflow-env\\Scripts\\python.exe scripts/test_sybil_rgcn.py",
     "test:graph": "credflow-env\\Scripts\\python.exe scripts/test_graph_analysis.py",
-    "fund:lending": "hardhat run scripts/fund-lending.js --network robinhoodTestnet"
+    "fund:lending": "hardhat run scripts/fund-lending.js --network robinhoodTestnet",
+    "grant:agent-roles": "hardhat run scripts/grant-agent-roles.js --network robinhoodTestnet",
+    "simulate:default": "hardhat run scripts/simulate-default.js --network robinhoodTestnet",
+    "agent:underwrite": "credflow-env\\Scripts\\python.exe -m agents.underwriter_agent",
+    "agent:monitor": "credflow-env\\Scripts\\python.exe -m agents.portfolio_monitor",
+    "agent:liquidate": "credflow-env\\Scripts\\python.exe -m agents.liquidation_agent",
+    "agent:sync": "credflow-env\\Scripts\\python.exe -m agents.crosschain_sync",
+    "agent:rates": "credflow-env\\Scripts\\python.exe -m agents.rate_optimizer"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.8",
@@ -42,7 +65,9 @@
     "@layerzerolabs/lz-evm-messagelib-v2": "^2.3.44",
     "@layerzerolabs/lz-evm-oapp-v2": "^2.3.44",
     "@layerzerolabs/lz-evm-protocol-v2": "^2.3.44",
+    "@layerzerolabs/lz-v2-utilities": "^3.0.168",
     "@openzeppelin/contracts": "^4.9.6",
-    "@openzeppelin/contracts-upgradeable": "^4.9.6"
+    "@openzeppelin/contracts-upgradeable": "^4.9.6",
+    "web3": "^4.16.0"
   }
 }

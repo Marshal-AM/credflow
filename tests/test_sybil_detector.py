@@ -62,6 +62,41 @@ def test_rgcn_inference_uses_model():
         assert set(result["sybil_probs"]) == {"low", "medium", "high"}
 
 
+def test_funded_low_activity_wallet_is_low_risk():
+    """Repeated transfers from one funder should not be medium sybil."""
+    wallet = "0x5732e1bccAEB161E3B93D126010042B0F1b9CFC9"
+    funder = "0x2514844F312c02Ae3C9d4fEb40db4eC8830b6844"
+    alchemy = {
+        "tx_count": 6,
+        "recent_transactions": [
+            {"from": funder, "to": wallet, "hash": f"0x{hex(i)[2:].zfill(64)}"}
+            for i in range(32)
+        ],
+    }
+    result = run_sybil_check(wallet, alchemy)
+    assert result["sybil_risk"] == "low"
+
+
+def test_spray_pattern_medium_or_high_heuristic():
+    wallet = "0x" + "8" * 40
+    alchemy = {
+        "tx_count": 20,
+        "recent_transactions": [
+            {
+                "from": wallet,
+                "to": f"0x{hex(i)[2:].zfill(40)}",
+                "hash": f"0x{hex(i)[2:].zfill(64)}",
+            }
+            for i in range(20)
+        ],
+    }
+    with tempfile.TemporaryDirectory() as tmp:
+        model_path = str(Path(tmp) / "missing.pt")
+        result = run_sybil_check(wallet, alchemy, model_path=model_path)
+        assert result["method"] == "heuristic"
+        assert result["sybil_risk"] in ("medium", "high")
+
+
 def test_rgcn_high_risk_synthetic_cluster():
     wallet = "0x" + "9" * 40
     alchemy = {

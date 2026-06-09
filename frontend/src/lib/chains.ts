@@ -1,0 +1,62 @@
+import { defineChain } from "viem";
+
+export const robinhoodTestnet = defineChain({
+  id: Number(process.env.NEXT_PUBLIC_ROBINHOOD_CHAIN_ID || 46630),
+  name: "Robinhood Testnet",
+  nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
+  rpcUrls: {
+    default: {
+      http: [process.env.NEXT_PUBLIC_RPC_ROBINHOOD || "https://rpc.testnet.chain.robinhood.com"],
+    },
+  },
+});
+
+export const arbitrumSepolia = defineChain({
+  id: 421614,
+  name: "Arbitrum Sepolia",
+  nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
+  rpcUrls: {
+    default: {
+      http: [
+        process.env.NEXT_PUBLIC_RPC_ARBITRUM_SEPOLIA ||
+          "https://sepolia-rollup.arbitrum.io/rpc",
+      ],
+    },
+  },
+  blockExplorers: {
+    default: { name: "Arbiscan", url: "https://sepolia.arbiscan.io" },
+  },
+});
+
+export const baseSepolia = defineChain({
+  id: 84532,
+  name: "Base Sepolia",
+  nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
+  rpcUrls: {
+    default: {
+      http: [
+        process.env.NEXT_PUBLIC_RPC_BASE_SEPOLIA ||
+          "https://sepolia.base.org",
+      ],
+    },
+  },
+  blockExplorers: {
+    default: { name: "Basescan", url: "https://sepolia.basescan.org" },
+  },
+});
+
+export const supportedChains = [robinhoodTestnet, arbitrumSepolia, baseSepolia] as const;
+
+export type ChainKey = "hub" | "arbitrum" | "base";
+
+export const chainKeyById: Record<number, ChainKey> = {
+  [robinhoodTestnet.id]: "hub",
+  [arbitrumSepolia.id]: "arbitrum",
+  [baseSepolia.id]: "base",
+};
+
+export const chainIdByKey: Record<ChainKey, number> = {
+  hub: robinhoodTestnet.id,
+  arbitrum: arbitrumSepolia.id,
+  base: baseSepolia.id,
+};

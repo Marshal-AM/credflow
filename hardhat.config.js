@@ -45,7 +45,10 @@ module.exports = {
       accounts: DEPLOYER_PRIVATE_KEY ? [DEPLOYER_PRIVATE_KEY] : [],
     },
     baseSepolia: {
-      url: process.env.RPC_BASE_SEPOLIA || "https://sepolia.base.org",
+      url:
+        process.env.ALCHEMY_BASE_SEPOLIA_RPC ||
+        process.env.RPC_BASE_SEPOLIA ||
+        "https://sepolia.base.org",
       chainId: 84532,
       accounts: DEPLOYER_PRIVATE_KEY ? [DEPLOYER_PRIVATE_KEY] : [],
     },

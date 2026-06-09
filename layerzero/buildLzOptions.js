@@ -1,17 +1,12 @@
 /**
  * Encode LayerZero executor options for OApp _lzSend calls.
- * Type 3 options = executor gas limit option.
+ * Uses @layerzerolabs/lz-v2-utilities (official Options builder).
  * @param {number} gasLimit - lzReceive gas on destination (default 200000)
- * @returns {string} hex bytes
+ * @returns {string} hex bytes (no 0x prefix)
  */
 function buildLzOptions(gasLimit = 200000) {
-  const optionType = Buffer.from([0x00, 0x03]);
-  const execOption = Buffer.from([0x01]);
-  const gasBytes = Buffer.alloc(16);
-  gasBytes.writeBigUInt64BE(BigInt(gasLimit), 8);
-  const length = Buffer.alloc(2);
-  length.writeUInt16BE(execOption.length + gasBytes.length);
-  return Buffer.concat([optionType, length, execOption, gasBytes]).toString("hex");
+  const { Options } = require("@layerzerolabs/lz-v2-utilities");
+  return Options.newOptions().addExecutorLzReceiveOption(gasLimit, 0).toHex().replace(/^0x/, "");
 }
 
 module.exports = { buildLzOptions };

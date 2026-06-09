@@ -109,6 +109,44 @@
       {
         "indexed": true,
         "internalType": "address",
+        "name": "wallet",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint32",
+        "name": "srcChain",
+        "type": "uint32"
+      }
+    ],
+    "name": "LoanActiveReceived",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "wallet",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint32",
+        "name": "srcChain",
+        "type": "uint32"
+      }
+    ],
+    "name": "LoanRepaidReceived",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
         "name": "previousOwner",
         "type": "address"
       },
@@ -339,6 +377,52 @@
         "type": "address"
       },
       {
+        "internalType": "bytes",
+        "name": "options",
+        "type": "bytes"
+      }
+    ],
+    "name": "broadcastLoanActive",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint32[]",
+        "name": "dstChainIds",
+        "type": "uint32[]"
+      },
+      {
+        "internalType": "address",
+        "name": "wallet",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes",
+        "name": "options",
+        "type": "bytes"
+      }
+    ],
+    "name": "broadcastRepaid",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint32[]",
+        "name": "dstChainIds",
+        "type": "uint32[]"
+      },
+      {
+        "internalType": "address",
+        "name": "wallet",
+        "type": "address"
+      },
+      {
         "internalType": "uint16",
         "name": "score",
         "type": "uint16"
@@ -521,6 +605,44 @@
       }
     ],
     "name": "isComposeMsgSender",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "wallet",
+        "type": "address"
+      }
+    ],
+    "name": "isLoanActive",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "loanActiveMirror",
     "outputs": [
       {
         "internalType": "bool",

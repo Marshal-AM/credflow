@@ -161,15 +161,20 @@ Robinhood testnet is **officially supported** by LayerZero V2 (eid **40451**). N
 | CredFlowOApp (hub) | `0x0866f40D55E96b2D74995203Caff032aD81c14B0` |
 | Verify on-chain | `npm run lz:status` |
 
-**Phase 6 (later):** Deploy spoke OApps on Arbitrum Sepolia + Base Sepolia (`deploy-spoke.js`), wire peers (`lz:set-peers` + `set-peer-spoke.js`), fund agent wallet with ETH on each chain for `broadcastScore` / `broadcastDefault` gas.
+**Spoke OApps (Phase 3 — done):**
 
-OApp is **not required** for Phase 2 (ML pipeline) or basic testnet borrowing. It is required for cross-chain score sync (Phase 6).
+| Chain | EID | OApp |
+|---|---|---|
+| Arbitrum Sepolia | 40231 | `0x84515380cE0a9E057F4c4686E12d383BA5BBA28e` |
+| Base Sepolia | 40245 | `0x1D0Ea904c9EA40Dd1319F8802e6b12D0EaA6Ca7f` |
+
+Peers wired via `npm run lz:set-peers` + `set-peer-spoke.js`. See `pending/phase3.md`.
 
 ### Important (Phase 1 gaps carried into later phases)
 
 | Item | Notes |
 |---|---|
-| Spoke deployment (Arbitrum Sepolia, Base Sepolia) | `deploy-spoke.js` + `set-peers.js` ready but not executed — Phase 6 |
+| Spoke deployment (Arbitrum Sepolia, Base Sepolia) | **Done** — see spoke table above |
 | OApp cross-chain tests | Deferred — needs live LayerZero endpoints and funded agent wallet |
 | `PRICE_ORACLE` env var | Not set; oracle address is in `docs/addresses.json` instead |
 | More USDG in lending pool | Only 50 USDG funded; need more for larger test borrows |

@@ -33,25 +33,36 @@ def build_transaction_graph(
     defaulters = known_defaulters or KNOWN_DEFAULTERS
     wallet = wallet_address.lower()
     transfers = alchemy_state.get("recent_transactions", []) or []
+    lifetime_tx_count = int(alchemy_state.get("tx_count", 0) or 0)
 
     nodes = {wallet: 0}
-    edges = []
+    edges: list[tuple[int, int]] = []
     counterparty_counts: dict[str, int] = {}
     defaulter_links = 0
-    fresh_counterparties = 0
+    seen_tx_keys: set[tuple[str, str, str]] = set()
+    node_tx_counts: dict[str, int] = {wallet: 0}
 
     for tx in transfers:
         frm = (tx.get("from") or "").lower()
         to = (tx.get("to") or "").lower()
-        if not frm or not to:
+        if not frm or not to or frm == to:
             continue
+
+        tx_key = (
+            tx.get("hash") or tx.get("uniqueId") or f"{frm}:{to}:{tx.get('blockNum', '')}",
+            frm,
+            to,
+        )
+        if tx_key in seen_tx_keys:
+            continue
+        seen_tx_keys.add(tx_key)
 
         for addr in (frm, to):
             if addr not in nodes:
                 nodes[addr] = len(nodes)
+            node_tx_counts[addr] = node_tx_counts.get(addr, 0) + 1
 
         edges.append((nodes[frm], nodes[to]))
-        edges.append((nodes[to], nodes[frm]))
 
         counterparty = to if frm == wallet else frm if to == wallet else None
         if counterparty and counterparty != wallet:
@@ -59,8 +70,14 @@ def build_transaction_graph(
             if counterparty in defaulters:
                 defaulter_links += 1
 
-    hub_score = max(counterparty_counts.values()) if counterparty_counts else 0
     unique_counterparties = len(counterparty_counts)
+    unique_tx_count = len(seen_tx_keys)
+    hub_score = max(counterparty_counts.values()) if counterparty_counts else 0
+    spray_score = (
+        unique_counterparties
+        if unique_counterparties > 0 and hub_score <= 2
+        else 0
+    )
 
     if not edges:
         x = torch.tensor([[1.0, 0.0, 0.0, 0.0]], dtype=torch.float)
@@ -70,10 +87,15 @@ def build_transaction_graph(
         for addr, _idx in sorted(nodes.items(), key=lambda kv: kv[1]):
             is_target = 1.0 if addr == wallet else 0.0
             is_defaulter = 1.0 if addr in defaulters else 0.0
-            tx_degree = float(
-                sum(1 for e in edges if e[0] == nodes[addr] or e[1] == nodes[addr])
+            tx_degree = float(node_tx_counts.get(addr, 0))
+            node_features.append(
+                [
+                    is_target,
+                    is_defaulter,
+                    tx_degree / 20.0,
+                    float(unique_counterparties) / 30.0,
+                ]
             )
-            node_features.append([is_target, is_defaulter, tx_degree / 10.0, float(len(nodes)) / 20.0])
         x = torch.tensor(node_features, dtype=torch.float)
         edge_index = torch.tensor(edges, dtype=torch.long).t().contiguous()
 
@@ -82,8 +104,11 @@ def build_transaction_graph(
         "edge_index": edge_index,
         "num_nodes": x.shape[0],
         "unique_counterparties": unique_counterparties,
+        "unique_tx_count": unique_tx_count,
+        "lifetime_tx_count": lifetime_tx_count,
         "defaulter_links": defaulter_links,
         "hub_score": hub_score,
+        "spray_score": spray_score,
         "wallet_index": nodes.get(wallet, 0),
     }
 
@@ -115,21 +140,43 @@ class RGCNSybilDetector(nn.Module):
         return self.fc(x[wallet_idx])
 
 
+def _is_organic_low_activity(graph: dict) -> bool:
+    """Wallets with few counterparties and no defaulter links are not sybil."""
+    if graph["defaulter_links"] > 0:
+        return False
+    if graph["num_nodes"] <= 1:
+        return True
+    lifetime = int(graph.get("lifetime_tx_count", 0) or 0)
+    unique_cp = int(graph.get("unique_counterparties", 0) or 0)
+    return unique_cp <= 5 and lifetime <= 200
+
+
 def _heuristic_sybil_risk(graph: dict) -> dict:
     """Rule-based fallback when model artifact is unavailable."""
+    if _is_organic_low_activity(graph):
+        return {
+            "sybil_risk": "low",
+            "sybil_score": 0,
+            "method": "heuristic",
+            "defaulter_links": graph["defaulter_links"],
+            "unique_counterparties": graph["unique_counterparties"],
+            "reason": "organic_low_activity",
+        }
+
     score = 0
     if graph["defaulter_links"] > 0:
         score += 3
-    if graph["hub_score"] > 10:
+    # Fan-out spray: many unique counterparties, few repeat interactions each
+    if graph.get("spray_score", 0) >= 15:
         score += 2
-    if graph["unique_counterparties"] > 30 and graph["num_nodes"] < 5:
+    if graph["unique_counterparties"] >= 25 and graph.get("hub_score", 0) <= 3:
+        score += 2
+    if graph["unique_counterparties"] >= 40:
         score += 1
-    if graph["num_nodes"] <= 1:
-        score = 0
 
     if score >= 3:
         risk = "high"
-    elif score >= 1:
+    elif score >= 2:
         risk = "medium"
     else:
         risk = "low"
@@ -140,6 +187,24 @@ def _heuristic_sybil_risk(graph: dict) -> dict:
         "method": "heuristic",
         "defaulter_links": graph["defaulter_links"],
         "unique_counterparties": graph["unique_counterparties"],
+    }
+
+
+def _apply_organic_floor(result: dict, graph: dict) -> dict:
+    """Prevent low-activity organic wallets from being flagged medium/high by R-GCN."""
+    if not _is_organic_low_activity(graph):
+        return result
+    if result.get("sybil_risk") == "low":
+        return result
+    return {
+        **result,
+        "sybil_risk": "low",
+        "sybil_score": 0,
+        "method": f"{result.get('method', 'rgcn')}+organic_floor",
+        "organic_floor_reason": (
+            f"unique_counterparties={graph['unique_counterparties']}, "
+            f"lifetime_tx_count={graph.get('lifetime_tx_count', 0)}"
+        ),
     }
 
 
@@ -178,13 +243,14 @@ def run_sybil_check(
         risk_idx = int(torch.argmax(torch.tensor(probs)).item())
         risk_map = {0: "low", 1: "medium", 2: "high"}
 
-        return {
+        result = {
             "sybil_risk": risk_map[risk_idx],
             "sybil_probs": {"low": probs[0], "medium": probs[1], "high": probs[2]},
             "method": "rgcn",
             "defaulter_links": graph["defaulter_links"],
             "unique_counterparties": graph["unique_counterparties"],
         }
+        return _apply_organic_floor(result, graph)
     except Exception as exc:
         logger.warning("R-GCN inference failed, using heuristic: %s", exc)
         return _heuristic_sybil_risk(graph)
@@ -200,28 +266,41 @@ def generate_synthetic_graphs(n_samples: int = 200, seed: int = 42) -> list[dict
     for i in range(n_samples):
         label = rng.choices([0, 1, 2], weights=[0.7, 0.2, 0.1])[0]
         if label == 0:
+            wallet = f"0x{hex(i)[2:].zfill(40)}"
+            funder = f"0x{'a'*40}"
             alchemy = {
                 "recent_transactions": [
-                    {"from": f"0x{'a'*40}", "to": f"0x{hex(i)[2:].zfill(40)}"},
-                    {"from": f"0x{hex(i)[2:].zfill(40)}", "to": f"0x{'b'*40}"},
-                ]
+                    {
+                        "from": funder,
+                        "to": wallet,
+                        "hash": f"0x{hex(i + j)[2:].zfill(64)}",
+                    }
+                    for j in range(8)
+                ],
+                "tx_count": 8,
             }
-            wallet = f"0x{hex(i)[2:].zfill(40)}"
         elif label == 1:
             wallet = f"0x{hex(i)[2:].zfill(40)}"
             alchemy = {
                 "recent_transactions": [
-                    {"from": wallet, "to": f"0x{'c'*40}"} for _ in range(15)
-                ]
+                    {
+                        "from": wallet,
+                        "to": f"0x{hex(i + j + 1)[2:].zfill(40)}",
+                        "hash": f"0x{hex(i + j + 1)[2:].zfill(64)}",
+                    }
+                    for j in range(18)
+                ],
+                "tx_count": 18,
             }
         else:
             wallet = f"0x{hex(i)[2:].zfill(40)}"
             defaulter = list(KNOWN_DEFAULTERS)[0] if KNOWN_DEFAULTERS else "0x" + "d" * 40
             alchemy = {
                 "recent_transactions": [
-                    {"from": defaulter, "to": wallet},
-                    {"from": wallet, "to": defaulter},
-                ]
+                    {"from": defaulter, "to": wallet, "hash": f"0xdefin{i:064x}"},
+                    {"from": wallet, "to": defaulter, "hash": f"0xdefout{i:064x}"},
+                ],
+                "tx_count": 2,
             }
 
         graph = build_transaction_graph(wallet, alchemy)
