@@ -34,11 +34,11 @@ function HubScore({ cfg, address }: { cfg: ChainContracts; address: `0x${string}
     <div className="space-y-1 text-sm">
       <p>
         <span className="text-zinc-500">Score:</span>{" "}
-        <strong>{profile ? Number(profile[0]) : "—"}</strong>
+        <strong>{profile ? Number(profile.score) : "—"}</strong>
       </p>
       <p>
         <span className="text-zinc-500">Loan active:</span>{" "}
-        {profile ? (profile[8] ? "yes" : "no") : "—"}
+        {profile ? (profile.loanActive ? "yes" : "no") : "—"}
       </p>
     </div>
   );

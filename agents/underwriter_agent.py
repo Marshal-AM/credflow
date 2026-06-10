@@ -46,13 +46,20 @@ def _is_borderline(cred_score: int, sybil_risk: str) -> bool:
     return BORDERLINE_LOW <= cred_score <= BORDERLINE_HIGH
 
 
-def _fetch_score_data(client: httpx.Client, wallet: str, *, reclaim_session_id: str | None = None) -> dict:
+def _fetch_score_data(
+    client: httpx.Client,
+    wallet: str,
+    *,
+    reclaim_session_id: str | None = None,
+    require_reclaim: bool | None = None,
+) -> dict:
     payload = {
         "wallet_address": wallet,
-        "require_reclaim": _reclaim_enabled(),
+        "require_reclaim": require_reclaim if require_reclaim is not None else _reclaim_enabled(),
     }
     if reclaim_session_id:
         payload["reclaim_session_id"] = reclaim_session_id
+        payload["require_reclaim"] = True
     resp = client.post(f"{SCORING_API_URL}/score", json=payload, timeout=120.0)
     resp.raise_for_status()
     return resp.json()
@@ -84,7 +91,14 @@ def _proof_hash_bytes(proof_hash: str | None) -> bytes:
     return bytes.fromhex(h.zfill(64))
 
 
-def underwrite_wallet(agent: CredFlowAgent, wallet: str, rescore: bool = False) -> dict:
+def underwrite_wallet(
+    agent: CredFlowAgent,
+    wallet: str,
+    rescore: bool = False,
+    *,
+    score_data: dict | None = None,
+    reclaim_session_id: str | None = None,
+) -> dict:
     wallet = Web3.to_checksum_address(wallet)
 
     if agent.sbt.functions.isBlacklisted(wallet).call():
@@ -100,11 +114,19 @@ def underwrite_wallet(agent: CredFlowAgent, wallet: str, rescore: bool = False) 
             "score": profile[0],
         }
 
-    logger.info("Calling scoring API for %s (reclaim=%s)", wallet, _reclaim_enabled())
-    with httpx.Client(timeout=120.0) as client:
-        score_data = _fetch_score_data(client, wallet)
-        if score_data.get("status") == "awaiting_reclaim":
-            score_data = _wait_for_reclaim_score(client, wallet, score_data)
+    if score_data is None:
+        logger.info("Calling scoring API for %s (reclaim=%s)", wallet, _reclaim_enabled())
+        with httpx.Client(timeout=120.0) as client:
+            score_data = _fetch_score_data(client, wallet, reclaim_session_id=reclaim_session_id)
+            if score_data.get("status") == "awaiting_reclaim":
+                score_data = _wait_for_reclaim_score(client, wallet, score_data)
+    elif score_data.get("status") != "complete":
+        return {
+            "wallet": wallet,
+            "action": "reject",
+            "reason": "Score snapshot incomplete",
+            "score_status": score_data.get("status"),
+        }
 
     cred_score = int(score_data.get("on_chain_cred_score") or score_data["cred_score"])
     sybil_risk = score_data.get("sybil_risk", "low")

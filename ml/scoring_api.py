@@ -11,6 +11,7 @@ from typing import Optional
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 # override=False — keep live RECLAIM_CALLBACK_URL from serve-with-ngrok.js
@@ -31,11 +32,27 @@ logger = logging.getLogger("credflow.scoring")
 app = FastAPI(title="CredFlow Scoring API", version="0.5.0")
 _executor = ThreadPoolExecutor(max_workers=4)
 
+_frontend_origin = os.environ.get("FRONTEND_ORIGIN", "http://localhost:3000")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[_frontend_origin, "http://127.0.0.1:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 class ScoreRequest(BaseModel):
     wallet_address: str = Field(..., min_length=42, max_length=42)
     require_reclaim: bool = False
     reclaim_session_id: Optional[str] = None
+
+
+class UnderwriteRequest(BaseModel):
+    wallet_address: str = Field(..., min_length=42, max_length=42)
+    rescore: bool = False
+    reclaim_session_id: Optional[str] = None
+    score_snapshot: Optional[dict] = None
 
 
 def _configure_indexer_loggers() -> None:
@@ -168,63 +185,73 @@ def _score_sync(
     logger.info("=== SCORE START wallet=%s ===", wallet_address)
     step("imports loaded")
 
-    t = step("fetch_borrow_features (CredFlow hub + Aave spokes + Morpho Base Sepolia)")
-    borrow_features = fetch_borrow_features(wallet_address)
+    from concurrent.futures import as_completed
+
+    t_phase_a = time.perf_counter()
+    futures = {
+        _executor.submit(fetch_borrow_features, wallet_address): "borrow",
+        _executor.submit(fetch_wallet_features, wallet_address): "wallet",
+        _executor.submit(get_wallet_state, wallet_address): "alchemy",
+    }
+    borrow_features = {}
+    wallet_features = {}
+    alchemy_state = {}
+    for fut in as_completed(futures):
+        key = futures[fut]
+        data = fut.result()
+        if key == "borrow":
+            borrow_features = data
+        elif key == "wallet":
+            wallet_features = data
+        else:
+            alchemy_state = data
+    phase_a_ms = int((time.perf_counter() - t_phase_a) * 1000)
     logger.info(
-        "  borrow: total_borrows=%s chains=%s",
+        "  phase_a parallel fetch %sms | borrow=%s wallet_tx=%s alchemy_tx=%s",
+        phase_a_ms,
         borrow_features.get("total_borrows"),
-        borrow_features.get("chains_with_borrows"),
-    )
-
-    t = step("fetch_wallet_features (hub + spoke RPC)")
-    wallet_features = fetch_wallet_features(wallet_address)
-    logger.info(
-        "  wallet: tx_count=%s chains=%s",
         wallet_features.get("tx_count"),
-        wallet_features.get("chains_with_activity"),
-    )
-
-    t = step("get_wallet_state (Alchemy/RPC all chains)")
-    alchemy_state = get_wallet_state(wallet_address)
-    logger.info(
-        "  alchemy: tx_count=%s eth_wei=%s recent_txs=%s",
         alchemy_state.get("tx_count"),
-        alchemy_state.get("eth_balance_wei"),
-        len(alchemy_state.get("recent_transactions", [])),
     )
 
-    t = step("collect_all_sources (transparency payload)")
-    source_data = collect_all_sources(wallet_address, borrow_features=borrow_features)
-    summary = source_data.get("summary", {})
+    def _wallet_analysis_path() -> tuple[dict, dict, dict, dict, dict, dict]:
+        t_w = time.perf_counter()
+        source_data = collect_all_sources(wallet_address, borrow_features=borrow_features)
+        from indexer.scoring_metrics import enrich_scoring_features
+
+        w_feat, b_feat = enrich_scoring_features(
+            wallet_features, borrow_features, alchemy_state
+        )
+        features = build_feature_vector(
+            wallet_address=wallet_address,
+            borrow_features=b_feat,
+            wallet_features=w_feat,
+            alchemy_state=alchemy_state,
+        )
+        result = score_wallet(features)
+        ms = int((time.perf_counter() - t_w) * 1000)
+        return result, features, source_data, w_feat, b_feat, {"wallet_analysis_ms": ms}
+
+    def _sybil_path() -> tuple[dict, dict]:
+        t_s = time.perf_counter()
+        sybil = run_sybil_check(wallet_address, alchemy_state)
+        ms = int((time.perf_counter() - t_s) * 1000)
+        return sybil, {"sybil_analysis_ms": ms}
+
+    t_phase_b = time.perf_counter()
+    wallet_future = _executor.submit(_wallet_analysis_path)
+    sybil_future = _executor.submit(_sybil_path)
+    result, features, source_data, wallet_features, borrow_features, wallet_timing = wallet_future.result()
+    sybil, sybil_timing = sybil_future.result()
+    phase_b_ms = int((time.perf_counter() - t_phase_b) * 1000)
     logger.info(
-        "  sources: %s active / %s total (skipped=%s)",
-        summary.get("sources_with_data"),
-        summary.get("total_sources"),
-        summary.get("sources_skipped"),
+        "  phase_b parallel %sms | sybil_risk=%s method=%s cred_score=%s",
+        phase_b_ms,
+        sybil.get("sybil_risk"),
+        sybil.get("method"),
+        result.get("cred_score"),
     )
-
-    t = step("enrich_scoring_features (red flags + activity timing)")
-    from indexer.scoring_metrics import enrich_scoring_features
-
-    wallet_features, borrow_features = enrich_scoring_features(
-        wallet_features, borrow_features, alchemy_state
-    )
-
-    t = step("build_feature_vector")
-    features = build_feature_vector(
-        wallet_address=wallet_address,
-        borrow_features=borrow_features,
-        wallet_features=wallet_features,
-        alchemy_state=alchemy_state,
-    )
-
-    t = step("run_sybil_check")
-    sybil = run_sybil_check(wallet_address, alchemy_state)
-    logger.info("  sybil_risk=%s method=%s", sybil.get("sybil_risk"), sybil.get("method"))
-
-    t = step("score_wallet (XGBoost + SHAP)")
-    result = score_wallet(features)
-    logger.info("  cred_score=%s default_prob=%s", result.get("cred_score"), result.get("default_probability"))
+    step("wallet_analysis + sybil_check (parallel)")
 
     sub_scores = {
         "borrow_sub_score": compute_borrow_sub_score(borrow_features),
@@ -336,6 +363,13 @@ def _score_sync(
             "borrow_chains": borrow_features.get("chains_with_borrows", []),
         },
         "rejection_reason": rejection_reason,
+        "pipeline": {
+            "sybil": sybil,
+            "phase_a_fetch_ms": phase_a_ms,
+            "phase_b_parallel_ms": phase_b_ms,
+            **wallet_timing,
+            **sybil_timing,
+        },
     }
 
 
@@ -453,6 +487,52 @@ async def reclaim_error_callback(request: Request):
     raw = body.decode("utf-8", errors="replace")
     logger.error("Reclaim error callback: %s", raw[:2000])
     return Response(status_code=200)
+
+
+def _underwrite_sync(
+    wallet_address: str,
+    *,
+    rescore: bool = False,
+    reclaim_session_id: str | None = None,
+    score_snapshot: dict | None = None,
+) -> dict:
+    from agents.base import CredFlowAgent
+    from agents.underwriter_agent import underwrite_wallet
+
+    agent = CredFlowAgent()
+    return underwrite_wallet(
+        agent,
+        wallet_address,
+        rescore=rescore,
+        score_data=score_snapshot,
+        reclaim_session_id=reclaim_session_id,
+    )
+
+
+@app.post("/underwrite")
+async def underwrite_endpoint(req: UnderwriteRequest):
+    logger.info("POST /underwrite wallet=%s rescore=%s", req.wallet_address, req.rescore)
+    try:
+        loop = asyncio.get_event_loop()
+        fn = partial(
+            _underwrite_sync,
+            req.wallet_address,
+            rescore=req.rescore,
+            reclaim_session_id=req.reclaim_session_id,
+            score_snapshot=req.score_snapshot,
+        )
+        result = await loop.run_in_executor(_executor, fn)
+        logger.info("POST /underwrite result action=%s", result.get("action"))
+        if result.get("action") == "reject":
+            raise HTTPException(status_code=400, detail=result)
+        if result.get("action") == "skip":
+            result["mint_status"] = "minted"
+        return result
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Underwrite failed for wallet=%s", req.wallet_address)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @app.post("/score")

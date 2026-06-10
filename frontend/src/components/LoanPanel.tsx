@@ -56,7 +56,7 @@ export function LoanPanel({ chainKey }: Props) {
   const score =
     cfg.scoreSource === "sbt"
       ? hubProfile
-        ? Number(hubProfile[0])
+        ? Number(hubProfile.score)
         : 0
       : spokeScore !== undefined
         ? Number(spokeScore)
