@@ -50,6 +50,14 @@ class LiquidateBody(WalletBody):
     force_grace: bool = False
 
 
+class LoanIdBody(WalletBody):
+    loan_id: int
+
+
+class CrashOracleBody(WalletBody):
+    eth_price_usd: float = Field(..., gt=0)
+
+
 def _check_agent_auth(request: Request) -> None:
     secret = os.environ.get("OZ_DEFENDER_SECRET", "").strip()
     if not secret:
@@ -344,6 +352,138 @@ async def agents_optimize_rates(request: Request, body: WalletBody | None = None
         result = await loop.run_in_executor(_executor, run_once)
         run.log(f"Updated tiers: {result.get('updated', False)}")
         run.finish(success=True, summary="Rate optimization complete", result=result)
+        return {"run_id": run.run_id, **result}
+    except Exception as exc:
+        run.finish(success=False, summary=str(exc), error=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.post("/crash-oracle")
+async def agents_crash_oracle(req: CrashOracleBody, request: Request):
+    _check_agent_auth(request)
+    from agents.test_default import crash_eth_oracle
+    import asyncio
+    from ml.scoring_api import _executor
+
+    run = AgentRunLogger(
+        "portfolio_monitor",
+        wallet_address=req.wallet_address,
+        trigger_source=req.trigger_source,
+        trigger_event=req.trigger_event or "crash_oracle",
+    )
+    run.start()
+    run.log(f"Crash ETH oracle to ${req.eth_price_usd}")
+    try:
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            _executor, partial(crash_eth_oracle, req.eth_price_usd)
+        )
+        run.finish(success=True, summary=f"ETH ${req.eth_price_usd}", result=result)
+        return {"run_id": run.run_id, **result}
+    except Exception as exc:
+        run.finish(success=False, summary=str(exc), error=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.post("/health-warning")
+async def agents_health_warning(req: LoanIdBody, request: Request):
+    _check_agent_auth(request)
+    from agents.test_default import emit_health_warning
+    import asyncio
+    from ml.scoring_api import _executor
+
+    run = AgentRunLogger(
+        "portfolio_monitor",
+        wallet_address=req.wallet_address,
+        trigger_source=req.trigger_source,
+        trigger_event=req.trigger_event or "health_warning",
+    )
+    run.start()
+    try:
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            _executor, partial(emit_health_warning, req.loan_id)
+        )
+        run.log(f"Health warning loan #{req.loan_id} LTV={result.get('ltv_bps')}")
+        run.finish(success=True, summary="health_warning", result=result)
+        return {"run_id": run.run_id, **result}
+    except Exception as exc:
+        run.finish(success=False, summary=str(exc), error=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.post("/grace-start")
+async def agents_grace_start(req: LoanIdBody, request: Request):
+    _check_agent_auth(request)
+    from agents.test_default import start_covenant_grace
+    import asyncio
+    from ml.scoring_api import _executor
+
+    run = AgentRunLogger(
+        "portfolio_monitor",
+        wallet_address=req.wallet_address,
+        trigger_source=req.trigger_source,
+        trigger_event=req.trigger_event or "covenant_breach",
+    )
+    run.start()
+    try:
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            _executor, partial(start_covenant_grace, req.loan_id)
+        )
+        run.finish(success=True, summary="grace_started", result=result)
+        return {"run_id": run.run_id, **result}
+    except Exception as exc:
+        run.finish(success=False, summary=str(exc), error=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.post("/grace-expire")
+async def agents_grace_expire(req: LoanIdBody, request: Request):
+    _check_agent_auth(request)
+    from agents.test_default import force_expire_grace
+    import asyncio
+    from ml.scoring_api import _executor
+
+    run = AgentRunLogger(
+        "portfolio_monitor",
+        wallet_address=req.wallet_address,
+        trigger_source=req.trigger_source,
+        trigger_event=req.trigger_event or "grace_expire_test",
+    )
+    run.start()
+    try:
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            _executor, partial(force_expire_grace, req.loan_id)
+        )
+        run.finish(success=True, summary="grace_expired", result=result)
+        return {"run_id": run.run_id, **result}
+    except Exception as exc:
+        run.finish(success=False, summary=str(exc), error=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.post("/unblacklist")
+async def agents_unblacklist(req: WalletBody, request: Request):
+    _check_agent_auth(request)
+    from agents.test_default import unblacklist_wallet
+    import asyncio
+    from ml.scoring_api import _executor
+
+    run = AgentRunLogger(
+        "liquidation",
+        wallet_address=req.wallet_address,
+        trigger_source=req.trigger_source,
+        trigger_event=req.trigger_event or "unblacklist_test",
+    )
+    run.start()
+    try:
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            _executor, partial(unblacklist_wallet, req.wallet_address)
+        )
+        run.finish(success=True, summary=result.get("status", "done"), result=result)
         return {"run_id": run.run_id, **result}
     except Exception as exc:
         run.finish(success=False, summary=str(exc), error=str(exc))

@@ -544,6 +544,86 @@ export async function runPostRepayPipeline(params: {
   };
 }
 
+async function callTestDefaultAgent<T>(
+  path: string,
+  wallet: string,
+  body: Record<string, unknown>
+) {
+  return callAgent<T>(path, {
+    wallet_address: wallet,
+    trigger_source: "test_default_ui",
+    ...body,
+  });
+}
+
+export async function triggerCrashOracle(wallet: string, ethPriceUsd: number) {
+  return callTestDefaultAgent<{
+    eth_price_usd: number;
+    set_price_tx: string;
+    run_id?: string;
+  }>("/agents/crash-oracle", wallet, { eth_price_usd: ethPriceUsd });
+}
+
+export async function triggerHealthWarning(wallet: string, loanId: number) {
+  return callTestDefaultAgent<{
+    loan_id: number;
+    ltv_bps: number;
+    health_warning_tx: string;
+    run_id?: string;
+  }>("/agents/health-warning", wallet, { loan_id: loanId });
+}
+
+export async function triggerGraceStart(wallet: string, loanId: number) {
+  return callTestDefaultAgent<{ loan_id: number; status: string; run_id?: string }>(
+    "/agents/grace-start",
+    wallet,
+    { loan_id: loanId }
+  );
+}
+
+export async function triggerGraceExpire(wallet: string, loanId: number) {
+  return callTestDefaultAgent<{ loan_id: number; status: string; run_id?: string }>(
+    "/agents/grace-expire",
+    wallet,
+    { loan_id: loanId }
+  );
+}
+
+export async function triggerLiquidate(
+  wallet: string,
+  loanId: number,
+  options?: { forceGrace?: boolean }
+) {
+  return callTestDefaultAgent<{
+    status: string;
+    liquidate_tx?: string;
+    blacklist_tx?: string;
+    lz_broadcast_tx?: Array<{ chain_key: string; tx_hash: string }>;
+    run_id?: string;
+  }>("/agents/liquidate", wallet, {
+    loan_id: loanId,
+    chain: "hub",
+    force_grace: options?.forceGrace ?? false,
+  });
+}
+
+export async function triggerUnblacklist(wallet: string) {
+  return callTestDefaultAgent<{
+    status: string;
+    unblacklist_tx?: string;
+    is_blacklisted?: boolean;
+    run_id?: string;
+  }>("/agents/unblacklist", wallet, { trigger_event: "whitelist_wallet" });
+}
+
+export async function triggerPortfolioMonitor(wallet: string) {
+  return callAgent<{ loans: unknown[]; run_id?: string }>("/agents/monitor", {
+    wallet_address: wallet,
+    trigger_source: "test_default_ui",
+    trigger_event: "portfolio_monitor",
+  });
+}
+
 export async function triggerAgent(agentId: string, wallet?: string) {
   const body: Record<string, unknown> = {
     trigger_source: "manual",

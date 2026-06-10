@@ -34,6 +34,14 @@ def clear_grace(loan_id: int) -> None:
     _grace.pop(str(loan_id), None)
 
 
+def expire_grace_for_test(loan_id: int) -> None:
+    """Test-only: treat grace as elapsed (user story day-31 liquidation path)."""
+    _grace[str(loan_id)] = {
+        "started_at": int(time.time()) - GRACE_SECONDS - 1,
+        "breach": "covenant_overdue",
+    }
+
+
 def warnings_state() -> dict[str, Any]:
     return dict(_warnings)
 

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { YourAccountTab } from "@/components/account/YourAccountTab";
 import { LoansTab } from "@/components/loans/LoansTab";
 import { AgentsTab } from "@/components/agents/AgentsTab";
-import { PlaceholderTab } from "@/components/tabs/PlaceholderTab";
+import { TestDefaultTab } from "@/components/test-default/TestDefaultTab";
 
 export type AppTab = "account" | "loans" | "agents" | "test-default";
 
@@ -52,7 +52,7 @@ export function AppShell() {
           {tab === "account" && <YourAccountTab />}
           {tab === "loans" && <LoansTab />}
           {tab === "agents" && <AgentsTab />}
-          {tab === "test-default" && <PlaceholderTab title="Test Default" />}
+          {tab === "test-default" && <TestDefaultTab />}
         </div>
       </main>
     </div>

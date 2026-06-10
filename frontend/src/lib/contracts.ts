@@ -90,6 +90,13 @@ export const SBT_ABI = [
     inputs: [{ name: "wallet", type: "address" }],
     outputs: [{ type: "bool" }],
   },
+  {
+    name: "isBlacklisted",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "wallet", type: "address" }],
+    outputs: [{ type: "bool" }],
+  },
 ] as const;
 
 export const OAPP_ABI = [
@@ -223,6 +230,20 @@ export const LENDING_ABI = [
     type: "function",
     stateMutability: "view",
     inputs: [{ name: "score", type: "uint16" }],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    name: "getCurrentLTV",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "loanId", type: "uint256" }],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    name: "liquidationThreshold",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
     outputs: [{ type: "uint256" }],
   },
 ] as const;

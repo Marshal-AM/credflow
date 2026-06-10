@@ -55,12 +55,25 @@ class LiquidationAgent:
         ltv = lending.functions.getCurrentLTV(loan_id).call()
         threshold = lending.functions.liquidationThreshold().call()
 
-        if ltv < threshold and not force_grace:
-            return {
-                "loan_id": loan_id,
-                "status": "skip",
-                "reason": f"LTV {ltv} < threshold {threshold}",
-            }
+        oracle_crash: dict | None = None
+        if ltv < threshold:
+            if not force_grace:
+                return {
+                    "loan_id": loan_id,
+                    "status": "skip",
+                    "reason": f"LTV {ltv} < threshold {threshold}",
+                }
+            from agents.test_default import ensure_liquidatable
+
+            hub_agent = self.hub if self.spoke else self.agent
+            oracle_crash = ensure_liquidatable(loan_id, hub_agent)
+            ltv = lending.functions.getCurrentLTV(loan_id).call()
+            logger.info(
+                "Oracle crash for liquidation loan %s ltv now %s (threshold %s)",
+                loan_id,
+                ltv,
+                threshold,
+            )
 
         logger.info("Liquidating loan %s borrower %s ltv=%s", loan_id, borrower, ltv)
         liq_tx = self.agent.send_tx(lending.functions.liquidate(loan_id))
@@ -74,6 +87,7 @@ class LiquidationAgent:
                 "liquidate_tx": liq_tx,
                 "lz_broadcast_tx": lz_tx,
                 "chain": self.spoke.chain,
+                "oracle_crash": oracle_crash,
             }
 
         graph = get_transaction_counterparties(
@@ -130,6 +144,7 @@ class LiquidationAgent:
             "health_warnings": warning_txs,
             "lz_broadcast_tx": lz_tx,
             "groq": verdict.model_dump(),
+            "oracle_crash": oracle_crash,
         }
 
 
