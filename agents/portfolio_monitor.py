@@ -41,19 +41,31 @@ def _get_agent(chain: str) -> Union[CredFlowAgent, SpokeAgent]:
     chain = chain.lower()
     if chain == "hub":
         return CredFlowAgent()
+    if chain == "base":
+        rpc = os.environ.get("MONITOR_RPC_BASE")
+        if rpc:
+            return SpokeAgent("base", rpc_url=rpc)
     return SpokeAgent(chain)
 
 
 def _scan_active_loans(agent: Union[CredFlowAgent, SpokeAgent]) -> list[int]:
     lending = agent.lending
-    latest = agent.w3.eth.block_number
-    from_block = MONITOR_FROM_BLOCK or max(0, latest - BLOCK_WINDOW)
-
-    events = lending.events.LoanCreated.get_logs(from_block=from_block, to_block="latest")
-    loan_ids = {e.args.loanId for e in events}
+    try:
+        counter = int(lending.functions.loanCounter().call())
+    except Exception:
+        latest = agent.w3.eth.block_number
+        from_block = MONITOR_FROM_BLOCK or max(0, latest - BLOCK_WINDOW)
+        events = lending.events.LoanCreated.get_logs(from_block=from_block, to_block="latest")
+        loan_ids = {e.args.loanId for e in events}
+        active: list[int] = []
+        for loan_id in sorted(loan_ids):
+            loan = lending.functions.loans(loan_id).call()
+            if loan[8]:
+                active.append(loan_id)
+        return active
 
     active: list[int] = []
-    for loan_id in sorted(loan_ids):
+    for loan_id in range(1, counter + 1):
         loan = lending.functions.loans(loan_id).call()
         if loan[8]:
             active.append(loan_id)

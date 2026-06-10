@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   useAccount,
   useReadContract,
@@ -8,7 +8,7 @@ import {
   useWaitForTransactionReceipt,
   useWriteContract,
 } from "wagmi";
-import { parseEther, parseUnits, formatUnits } from "viem";
+import { formatUnits, parseEther, parseUnits } from "viem";
 import {
   contractsByChain,
   LENDING_ABI,
@@ -17,6 +17,7 @@ import {
   SBT_ABI,
   WETH_ABI,
 } from "@/lib/contracts";
+import { collateralWeiForBorrow, maxLtvPercent } from "@/lib/loan-collateral";
 import type { ChainKey } from "@/lib/chains";
 import { chainIdByKey } from "@/lib/chains";
 
@@ -24,12 +25,20 @@ type Props = {
   chainKey: ChainKey;
 };
 
+function formatCollateralEth(eth: string): string {
+  const n = Number(eth);
+  if (!Number.isFinite(n)) return eth;
+  if (n >= 0.001) return n.toFixed(4);
+  if (n >= 0.0001) return n.toFixed(6);
+  return n.toFixed(8);
+}
+
 export function LoanPanel({ chainKey }: Props) {
   const cfg = contractsByChain[chainKey];
   const { address, isConnected, chainId } = useAccount();
   const { switchChainAsync } = useSwitchChain();
   const [borrowAmount, setBorrowAmount] = useState("0.5");
-  const [collateralEth, setCollateralEth] = useState("0.005");
+  const [durationDays] = useState("30");
   const [status, setStatus] = useState<string | null>(null);
 
   const targetChainId = chainIdByKey[chainKey];
@@ -71,15 +80,29 @@ export function LoanPanel({ chainKey }: Props) {
     query: { enabled: !!cfg.lending && score > 0 },
   });
 
-  const collateral = parseEther(collateralEth || "0");
-  const { data: collateralUsd } = useReadContract({
+  const oneEth = parseEther("1");
+  const { data: ethUsd6 } = useReadContract({
     address: cfg.oracle as `0x${string}`,
     abi: ORACLE_ABI,
     functionName: "getValueUSD",
-    args: [cfg.weth as `0x${string}`, collateral],
+    args: [cfg.weth as `0x${string}`, oneEth],
     chainId: targetChainId,
-    query: { enabled: !!cfg.oracle && collateral > 0n },
+    query: { enabled: !!cfg.oracle && !!cfg.weth },
   });
+
+  const collateralEth = useMemo(() => {
+    if (!maxLtv || !ethUsd6 || score <= 0) return null;
+    try {
+      const wei = collateralWeiForBorrow({
+        borrowAmount,
+        maxLtvBps: BigInt(maxLtv as number),
+        ethUsd6: ethUsd6 as bigint,
+      });
+      return formatUnits(wei, 18);
+    } catch {
+      return null;
+    }
+  }, [borrowAmount, maxLtv, ethUsd6, score]);
 
   const { writeContractAsync, data: txHash, isPending } = useWriteContract();
   const { isLoading: confirming } = useWaitForTransactionReceipt({ hash: txHash });
@@ -93,7 +116,7 @@ export function LoanPanel({ chainKey }: Props) {
   }
 
   async function handleBorrow() {
-    if (!address || !cfg.lending) return;
+    if (!address || !cfg.lending || !collateralEth) return;
     setStatus(null);
     try {
       if (!onCorrectChain) {
@@ -130,7 +153,7 @@ export function LoanPanel({ chainKey }: Props) {
         address: cfg.lending as `0x${string}`,
         abi: LENDING_ABI,
         functionName: "requestLoan",
-        args: [borrow, cfg.weth as `0x${string}`, coll, 30n],
+        args: [borrow, cfg.weth as `0x${string}`, coll, BigInt(durationDays)],
         chainId: targetChainId,
       });
 
@@ -140,12 +163,7 @@ export function LoanPanel({ chainKey }: Props) {
     }
   }
 
-  const maxBorrow =
-    collateralUsd && maxLtv
-      ? (collateralUsd * BigInt(maxLtv as number)) / 10000n
-      : 0n;
-
-  const canBorrow = score > 0 && cfg.lending && isConnected;
+  const canBorrow = score > 0 && cfg.lending && isConnected && !!collateralEth;
 
   return (
     <div className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
@@ -159,13 +177,8 @@ export function LoanPanel({ chainKey }: Props) {
           )}
           <p>
             Score: <strong>{score || "—"}</strong>
-            {maxLtv !== undefined && <> · Max LTV: {Number(maxLtv) / 100}%</>}
+            {maxLtv !== undefined && <> · Max LTV: {maxLtvPercent(Number(maxLtv))}%</>}
           </p>
-          {maxBorrow > 0n && (
-            <p className="text-zinc-500">
-              Max borrow: {formatUnits(maxBorrow, 6)} {cfg.borrowSymbol}
-            </p>
-          )}
           <label className="flex flex-col gap-1">
             Borrow ({cfg.borrowSymbol})
             <input
@@ -174,14 +187,15 @@ export function LoanPanel({ chainKey }: Props) {
               onChange={(e) => setBorrowAmount(e.target.value)}
             />
           </label>
-          <label className="flex flex-col gap-1">
-            Collateral (WETH)
-            <input
-              className="rounded border px-2 py-1 dark:bg-zinc-900"
-              value={collateralEth}
-              onChange={(e) => setCollateralEth(e.target.value)}
-            />
-          </label>
+          <div className="rounded border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900/50">
+            <p className="text-xs text-zinc-500">Required WETH collateral</p>
+            <p className="font-semibold tabular-nums">
+              {collateralEth ? `${formatCollateralEth(collateralEth)} ETH` : "—"}
+            </p>
+            {ethUsd6 != null && (
+              <p className="text-xs text-zinc-500">ETH ≈ ${formatUnits(ethUsd6 as bigint, 6)}</p>
+            )}
+          </div>
           <button
             type="button"
             disabled={!canBorrow || isPending || confirming}

@@ -53,6 +53,7 @@
     "agent:liquidate": "credflow-env\\Scripts\\python.exe -m agents.liquidation_agent",
     "agent:sync": "credflow-env\\Scripts\\python.exe -m agents.crosschain_sync",
     "agent:rates": "credflow-env\\Scripts\\python.exe -m agents.rate_optimizer",
+    "agents:serve": "credflow-env\\Scripts\\python.exe -m agents.scheduler",
     "frontend:dev": "npm run dev --prefix frontend",
     "frontend:build": "npm run build --prefix frontend"
   },

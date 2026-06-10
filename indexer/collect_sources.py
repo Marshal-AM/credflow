@@ -12,6 +12,7 @@ from indexer.robinhood_pipeline import (
     fetch_credflow_lending_features,
     fetch_robinhood_wallet_features,
 )
+from indexer.spoke_credflow_pipeline import fetch_spoke_credflow_lending_features
 from indexer.morpho_pipeline import fetch_morpho_spoke_features
 from indexer.spoke_pipeline import (
     SPOKE_AAVE_POOLS,
@@ -97,6 +98,15 @@ def collect_all_sources(wallet_address: str, borrow_features: dict | None = None
         backend="rpc_events",
         data=fetch_credflow_lending_features(wallet_address),
     )
+
+    for chain in spoke_chains():
+        spoke_credflow = fetch_spoke_credflow_lending_features(wallet_address, chain.key)
+        sources[f"{chain.key}_credflow_lending"] = _source_entry(
+            source_id=f"{chain.key}_credflow_lending",
+            chain=chain.key,
+            backend=spoke_credflow.get("backend", "rpc_loan_counter"),
+            data=spoke_credflow,
+        )
 
     for chain in spoke_chains():
         sources[f"{chain.key}_wallet_rpc"] = _source_entry(

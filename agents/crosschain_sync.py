@@ -46,19 +46,30 @@ def _collect_score_events(agent: CredFlowAgent) -> list[dict]:
     return [{"wallet": w, "score": s} for w, s in wallets.items()]
 
 
+def _hub_loan_active(agent: CredFlowAgent, wallet: str) -> bool:
+    """Current hub lending state — do not infer from historical LoanCreated logs."""
+    loan_id = agent.lending.functions.activeLoanId(wallet).call()
+    return int(loan_id) > 0
+
+
 def _collect_loan_events(agent: CredFlowAgent) -> tuple[list[str], list[str]]:
     lending = agent.lending
     latest = agent.w3.eth.block_number
     from_block = LOAN_SYNC_FROM_BLOCK or max(0, latest - BLOCK_WINDOW)
 
+    touched: set[str] = set()
+    for ev in lending.events.LoanCreated.get_logs(from_block=from_block, to_block="latest"):
+        touched.add(Web3.to_checksum_address(ev.args.borrower))
+    for ev in lending.events.LoanRepaid.get_logs(from_block=from_block, to_block="latest"):
+        touched.add(Web3.to_checksum_address(ev.args.borrower))
+
     active_wallets: list[str] = []
     repaid_wallets: list[str] = []
-
-    for ev in lending.events.LoanCreated.get_logs(from_block=from_block, to_block="latest"):
-        active_wallets.append(Web3.to_checksum_address(ev.args.borrower))
-
-    for ev in lending.events.LoanRepaid.get_logs(from_block=from_block, to_block="latest"):
-        repaid_wallets.append(Web3.to_checksum_address(ev.args.borrower))
+    for wallet in sorted(touched):
+        if _hub_loan_active(agent, wallet):
+            active_wallets.append(wallet)
+        else:
+            repaid_wallets.append(wallet)
 
     return active_wallets, repaid_wallets
 
@@ -79,9 +90,9 @@ def run_sync_once(agent: CredFlowAgent | None = None) -> list[dict]:
 
         results = []
         for item in ordered:
-            tx = agent.broadcast_score(item["wallet"], item["score"])
-            results.append({**item, "tx": tx, "type": "score"})
-            logger.info("Synced %s score=%s tx=%s", item["wallet"], item["score"], tx)
+            txs = agent.broadcast_score(item["wallet"], item["score"])
+            results.append({**item, "hub_tx_hashes": txs, "type": "score"})
+            logger.info("Synced %s score=%s txs=%s", item["wallet"], item["score"], len(txs))
 
         save_sync_block(agent.w3.eth.block_number)
         return results
@@ -95,14 +106,14 @@ def run_loan_sync_once(agent: CredFlowAgent | None = None) -> list[dict]:
     results: list[dict] = []
 
     for wallet in active:
-        tx = agent.broadcast_loan_active(wallet)
-        results.append({"wallet": wallet, "type": "loan_active", "tx": tx})
-        logger.info("Synced loan active %s tx=%s", wallet, tx)
+        txs = agent.broadcast_loan_active(wallet)
+        results.append({"wallet": wallet, "type": "loan_active", "hub_tx_hashes": txs})
+        logger.info("Synced loan active %s txs=%s", wallet, len(txs))
 
     for wallet in repaid:
-        tx = agent.broadcast_repaid(wallet)
-        results.append({"wallet": wallet, "type": "repaid", "tx": tx})
-        logger.info("Synced repaid %s tx=%s", wallet, tx)
+        txs = agent.broadcast_repaid(wallet)
+        results.append({"wallet": wallet, "type": "repaid", "hub_tx_hashes": txs})
+        logger.info("Synced repaid %s txs=%s", wallet, len(txs))
 
     return results
 

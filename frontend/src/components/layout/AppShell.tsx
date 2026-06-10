@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { YourAccountTab } from "@/components/account/YourAccountTab";
+import { LoansTab } from "@/components/loans/LoansTab";
+import { AgentsTab } from "@/components/agents/AgentsTab";
 import { PlaceholderTab } from "@/components/tabs/PlaceholderTab";
 
 export type AppTab = "account" | "loans" | "agents" | "test-default";
@@ -48,8 +50,8 @@ export function AppShell() {
         </header>
         <div className="flex-1 overflow-auto p-8">
           {tab === "account" && <YourAccountTab />}
-          {tab === "loans" && <PlaceholderTab title="Loans" />}
-          {tab === "agents" && <PlaceholderTab title="Agents" />}
+          {tab === "loans" && <LoansTab />}
+          {tab === "agents" && <AgentsTab />}
           {tab === "test-default" && <PlaceholderTab title="Test Default" />}
         </div>
       </main>

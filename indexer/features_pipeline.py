@@ -11,6 +11,7 @@ from indexer.robinhood_pipeline import (
     fetch_credflow_lending_features,
     fetch_robinhood_wallet_features,
 )
+from indexer.spoke_credflow_pipeline import fetch_all_spoke_credflow_lending_features
 from indexer.morpho_pipeline import fetch_morpho_spoke_features
 from indexer.spoke_pipeline import fetch_aave_spoke_features, fetch_spoke_wallet_features
 from indexer.chains import spoke_chains
@@ -58,6 +59,7 @@ def fetch_borrow_features(wallet_address: str) -> dict:
 
     _normalize_wallet(wallet_address)
     per_chain = [fetch_credflow_lending_features(wallet_address)]
+    per_chain.extend(fetch_all_spoke_credflow_lending_features(wallet_address))
     per_chain.extend(fetch_aave_spoke_features(wallet_address))
     per_chain.extend(fetch_morpho_spoke_features(wallet_address))
     return merge_borrow_features(per_chain)

@@ -115,9 +115,20 @@ def underwrite_wallet(
         }
 
     if score_data is None:
-        logger.info("Calling scoring API for %s (reclaim=%s)", wallet, _reclaim_enabled())
+        require_reclaim = False if rescore else None
+        logger.info(
+            "Calling scoring API for %s (rescore=%s reclaim=%s)",
+            wallet,
+            rescore,
+            require_reclaim if require_reclaim is not None else _reclaim_enabled(),
+        )
         with httpx.Client(timeout=120.0) as client:
-            score_data = _fetch_score_data(client, wallet, reclaim_session_id=reclaim_session_id)
+            score_data = _fetch_score_data(
+                client,
+                wallet,
+                reclaim_session_id=reclaim_session_id,
+                require_reclaim=require_reclaim,
+            )
             if score_data.get("status") == "awaiting_reclaim":
                 score_data = _wait_for_reclaim_score(client, wallet, score_data)
     elif score_data.get("status") != "complete":
@@ -129,6 +140,9 @@ def underwrite_wallet(
         }
 
     cred_score = int(score_data.get("on_chain_cred_score") or score_data["cred_score"])
+    floor_cred = score_data.get("floor_cred_score")
+    if floor_cred is not None and cred_score < int(floor_cred):
+        cred_score = int(floor_cred)
     sybil_risk = score_data.get("sybil_risk", "low")
     approved = score_data.get("approved", False)
     borrow_sub = _clamp_uint16(score_data.get("borrow_sub_score", 0))
@@ -188,7 +202,34 @@ def underwrite_wallet(
             "cred_score": cred_score,
         }
 
-    use_engine = agent.score_engine is not None and _reclaim_enabled()
+    if has_profile and rescore:
+        profile = agent.sbt.functions.getProfile(wallet).call()
+        on_chain_score = int(profile[0])
+        if on_chain_score == cred_score:
+            logger.info("On-chain score already %s — skip updateScore", cred_score)
+            return {
+                "wallet": wallet,
+                "action": "skip",
+                "reason": "Score unchanged on-chain",
+                "cred_score": cred_score,
+                "onchain": None,
+                "ml_cred_score": score_data.get("ml_cred_score"),
+                "sybil_risk": sybil_risk,
+            }
+
+    use_engine = agent.score_engine is not None and _reclaim_enabled() and reclaim_proof_hash
+
+    if use_engine:
+        from ml.score_engine import compute_on_chain_cred_score
+
+        engine_score = compute_on_chain_cred_score(default_prob_bps, balance_usd_cents)
+        if cred_score > engine_score:
+            logger.info(
+                "Cred score %s above engine formula %s — using SBT updateScore",
+                cred_score,
+                engine_score,
+            )
+            use_engine = False
 
     if use_engine:
         proof_bytes = _proof_hash_bytes(reclaim_proof_hash)

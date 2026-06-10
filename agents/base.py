@@ -14,6 +14,7 @@ from web3 import Web3
 from web3.contract import Contract
 
 from agents.lz_options import build_lz_options
+from agents.tx_sender import send_contract_tx
 
 load_dotenv()
 
@@ -112,34 +113,14 @@ class CredFlowAgent:
         return eids
 
     def send_tx(self, fn, value: int = 0) -> str:
-        """Build, estimate gas (+buffer), sign and send transaction."""
-        nonce = self.w3.eth.get_transaction_count(self.account.address)
-        try:
-            estimated = fn.estimate_gas({"from": self.account.address, "value": value})
-            gas_limit = int(estimated * (100 + GAS_BUFFER_PCT) / 100)
-        except Exception as exc:
-            logger.warning("Gas estimate failed (%s), using 500k", exc)
-            gas_limit = 500_000
-
-        tx = fn.build_transaction(
-            {
-                "from": self.account.address,
-                "nonce": nonce,
-                "gas": gas_limit,
-                "value": value,
-                "chainId": self.w3.eth.chain_id,
-            }
+        """Build, estimate gas (+buffer), sign and send transaction (serialized per chain)."""
+        return send_contract_tx(
+            self.w3,
+            self.account,
+            fn,
+            value=value,
+            gas_buffer_pct=GAS_BUFFER_PCT,
         )
-        if "gasPrice" not in tx and "maxFeePerGas" not in tx:
-            tx["gasPrice"] = self.w3.eth.gas_price
-
-        signed = self.account.sign_transaction(tx)
-        tx_hash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
-        receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
-        if receipt.status != 1:
-            raise RuntimeError(f"Transaction reverted: {tx_hash.hex()}")
-        logger.info("Tx confirmed: %s", tx_hash.hex())
-        return tx_hash.hex()
 
     def lz_options(self, gas_limit: int = 200_000) -> bytes:
         return build_lz_options(gas_limit)
@@ -152,63 +133,69 @@ class CredFlowAgent:
             logger.warning("Insufficient ETH for LZ fees — tx may revert")
         return fee
 
-    def broadcast_score(self, wallet: str, score: int) -> str | None:
+    def broadcast_score(self, wallet: str, score: int) -> list[dict]:
         eids = self.dst_chain_eids()
         if not eids:
             logger.info("No spoke OApps configured — skip broadcastScore")
-            return None
+            return []
         options = self.lz_options()
-        last_tx: str | None = None
-        # Hub OApp divides msg.value across dsts but _payNative requires msg.value == fee;
-        # send one destination per transaction until the contract overrides _payNative.
+        txs: list[dict] = []
         for eid in eids:
             fee = self.lz_fee_for_broadcast(1)
             fn = self.oapp.functions.broadcastScore([eid], wallet, score, options)
-            last_tx = self.send_tx(fn, value=fee)
-            logger.info("broadcastScore eid=%s tx=%s", eid, last_tx)
-        return last_tx
+            tx_hash = self.send_tx(fn, value=fee)
+            chain_key = "arbitrum" if eid == int(os.environ.get("LZ_EID_ARBITRUM", "40231")) else "base"
+            txs.append({"chain_key": chain_key, "eid": eid, "tx_hash": tx_hash, "type": "score"})
+            logger.info("broadcastScore eid=%s tx=%s", eid, tx_hash)
+        return txs
 
-    def broadcast_default(self, wallet: str) -> str | None:
+    def broadcast_default(self, wallet: str) -> list[dict]:
         eids = self.dst_chain_eids()
         if not eids:
             logger.info("No spoke OApps configured — skip broadcastDefault")
-            return None
+            return []
         options = self.lz_options()
-        last_tx: str | None = None
+        txs: list[dict] = []
         for eid in eids:
             fee = self.lz_fee_for_broadcast(1)
             fn = self.oapp.functions.broadcastDefault([eid], wallet, options)
-            last_tx = self.send_tx(fn, value=fee)
-            logger.info("broadcastDefault eid=%s tx=%s", eid, last_tx)
-        return last_tx
+            tx_hash = self.send_tx(fn, value=fee)
+            chain_key = "arbitrum" if eid == int(os.environ.get("LZ_EID_ARBITRUM", "40231")) else "base"
+            txs.append({"chain_key": chain_key, "eid": eid, "tx_hash": tx_hash, "type": "default"})
+            logger.info("broadcastDefault eid=%s tx=%s", eid, tx_hash)
+        return txs
 
-    def broadcast_loan_active(self, wallet: str) -> str | None:
+    def broadcast_loan_active(self, wallet: str) -> list[dict]:
         eids = self.dst_chain_eids()
         if not eids:
             logger.info("No spoke OApps configured — skip broadcastLoanActive")
-            return None
+            return []
         options = self.lz_options()
-        last_tx: str | None = None
+        txs: list[dict] = []
         for eid in eids:
             fee = self.lz_fee_for_broadcast(1)
             fn = self.oapp.functions.broadcastLoanActive([eid], wallet, options)
-            last_tx = self.send_tx(fn, value=fee)
-            logger.info("broadcastLoanActive eid=%s tx=%s", eid, last_tx)
-        return last_tx
+            tx_hash = self.send_tx(fn, value=fee)
+            chain_key = "arbitrum" if eid == int(os.environ.get("LZ_EID_ARBITRUM", "40231")) else "base"
+            txs.append({"chain_key": chain_key, "eid": eid, "tx_hash": tx_hash, "type": "loan_active"})
+            logger.info("broadcastLoanActive eid=%s tx=%s", eid, tx_hash)
+        return txs
 
-    def broadcast_repaid(self, wallet: str) -> str | None:
+    def broadcast_repaid(self, wallet: str) -> list[dict]:
         eids = self.dst_chain_eids()
         if not eids:
             logger.info("No spoke OApps configured — skip broadcastRepaid")
-            return None
+            return []
         options = self.lz_options()
-        last_tx: str | None = None
+        txs: list[dict] = []
         for eid in eids:
             fee = self.lz_fee_for_broadcast(1)
             fn = self.oapp.functions.broadcastRepaid([eid], wallet, options)
-            last_tx = self.send_tx(fn, value=fee)
-            logger.info("broadcastRepaid eid=%s tx=%s", eid, last_tx)
-        return last_tx
+            tx_hash = self.send_tx(fn, value=fee)
+            chain_key = "arbitrum" if eid == int(os.environ.get("LZ_EID_ARBITRUM", "40231")) else "base"
+            txs.append({"chain_key": chain_key, "eid": eid, "tx_hash": tx_hash, "type": "repaid"})
+            logger.info("broadcastRepaid eid=%s tx=%s", eid, tx_hash)
+        return txs
 
 
 SPOKE_CONFIG: dict[str, dict[str, str]] = {
@@ -228,13 +215,13 @@ SPOKE_CONFIG: dict[str, dict[str, str]] = {
 class SpokeAgent:
     """Agent bindings for spoke-chain CredFlowSpokeLending + OApp."""
 
-    def __init__(self, chain: str = "arbitrum") -> None:
+    def __init__(self, chain: str = "arbitrum", rpc_url: str | None = None) -> None:
         chain = chain.lower()
         if chain not in SPOKE_CONFIG:
             raise ValueError(f"Unknown spoke chain '{chain}'. Use: arbitrum | base")
 
         cfg = SPOKE_CONFIG[chain]
-        rpc = os.environ.get(cfg["rpc_env"]) or os.environ.get(cfg["alchemy_env"])
+        rpc = rpc_url or os.environ.get(cfg["rpc_env"]) or os.environ.get(cfg["alchemy_env"])
         if not rpc:
             raise RuntimeError(f"{cfg['rpc_env']} not set")
 
@@ -265,7 +252,4 @@ class SpokeAgent:
         )
 
     def send_tx(self, fn, value: int = 0) -> str:
-        agent = CredFlowAgent.__new__(CredFlowAgent)
-        agent.w3 = self.w3
-        agent.account = self.account
-        return CredFlowAgent.send_tx(agent, fn, value=value)
+        return send_contract_tx(self.w3, self.account, fn, value=value, gas_buffer_pct=GAS_BUFFER_PCT)

@@ -14,6 +14,8 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from ml.agent_handlers import router as agents_router
+
 # override=False — keep live RECLAIM_CALLBACK_URL from serve-with-ngrok.js
 load_dotenv(override=False)
 
@@ -30,12 +32,13 @@ logging.basicConfig(
 logger = logging.getLogger("credflow.scoring")
 
 app = FastAPI(title="CredFlow Scoring API", version="0.5.0")
+app.include_router(agents_router)
 _executor = ThreadPoolExecutor(max_workers=4)
 
 _frontend_origin = os.environ.get("FRONTEND_ORIGIN", "http://localhost:3000")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[_frontend_origin, "http://127.0.0.1:3000"],
+    allow_origins=[_frontend_origin, "http://127.0.0.1:3000", "http://localhost:3001"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -46,6 +49,10 @@ class ScoreRequest(BaseModel):
     wallet_address: str = Field(..., min_length=42, max_length=42)
     require_reclaim: bool = False
     reclaim_session_id: Optional[str] = None
+    reuse_verified_reclaim: bool = False
+    floor_cred_score: Optional[int] = Field(None, ge=300, le=850)
+    stored_balance_usd_cents: Optional[int] = Field(None, ge=0)
+    stored_reclaim_proof_hash: Optional[str] = None
 
 
 class UnderwriteRequest(BaseModel):
@@ -86,13 +93,17 @@ def _score_sync(
     *,
     reclaim_session_id: str | None = None,
     require_reclaim: bool = False,
+    reuse_verified_reclaim: bool = False,
+    floor_cred_score: int | None = None,
+    stored_balance_usd_cents: int | None = None,
+    stored_reclaim_proof_hash: str | None = None,
 ) -> dict:
     load_dotenv(override=False)
     _configure_indexer_loggers()
 
     from ml.reclaim_service import (
-        bind_wallet_to_pending_session,
         create_session,
+        get_pending_session_for_wallet,
         get_session,
         reclaim_enabled,
         session_to_payload,
@@ -103,15 +114,44 @@ def _score_sync(
 
     if use_reclaim:
         if not reclaim_session_id:
-            verified = bind_wallet_to_pending_session(wallet_address)
-            if verified:
-                reclaim_session_id = verified.session_id
-                logger.info(
-                    "Reclaim already verified for wallet=%s session=%s — running full score",
-                    wallet_address,
-                    reclaim_session_id,
-                )
+            if reuse_verified_reclaim:
+                from ml.reclaim_service import bind_wallet_to_pending_session
+
+                verified = bind_wallet_to_pending_session(wallet_address)
+                if verified:
+                    reclaim_session_id = verified.session_id
+                    logger.info(
+                        "Reclaim reuse_verified_reclaim wallet=%s session=%s",
+                        wallet_address,
+                        reclaim_session_id,
+                    )
+                elif stored_balance_usd_cents is not None and stored_balance_usd_cents > 0:
+                    logger.info(
+                        "Reclaim reuse from stored profile balance_usd_cents=%s wallet=%s",
+                        stored_balance_usd_cents,
+                        wallet_address,
+                    )
+                else:
+                    raise ValueError(
+                        "No verified Reclaim session for this wallet — complete bank login first"
+                    )
             else:
+                pending = get_pending_session_for_wallet(wallet_address)
+                if pending:
+                    logger.info(
+                        "Reclaim resuming pending session=%s wallet=%s",
+                        pending.session_id,
+                        wallet_address,
+                    )
+                    return {
+                        "status": "awaiting_reclaim",
+                        "reclaim_url": pending.request_url,
+                        "reclaim_status_url": pending.status_url,
+                        "verification_mode": pending.verification_mode,
+                        "reclaim_session_id": pending.session_id,
+                        "wallet_address": wallet_address,
+                        "message": "Complete bank verification via Reclaim portal",
+                    }
                 callback = _reclaim_callback_url()
                 session = create_session(wallet_address, callback)
                 logger.info("=" * 60)
@@ -142,27 +182,30 @@ def _score_sync(
                                 "reclaim_session_id": session.session_id,
                             },
                         },
-                        "step_3_shortcut": "Or POST /score with only wallet_address + require_reclaim:true after callback",
+                        "step_3_shortcut": (
+                            "Or POST /score with reuse_verified_reclaim:true after callback"
+                        ),
                     },
                 }
 
-        session = get_session(reclaim_session_id)
-        if not session:
-            raise ValueError(f"Unknown or expired Reclaim session: {reclaim_session_id}")
-        if session.wallet_address != wallet_address.lower():
-            raise ValueError("Reclaim session wallet mismatch")
-        if session.status != "verified":
-            return {
-                "status": "awaiting_reclaim",
-                "reclaim_url": session.request_url,
-                "reclaim_session_id": session.session_id,
-                "wallet_address": wallet_address,
-                "message": "Complete bank verification via Reclaim, then POST /score again",
-                "instructions": {
-                    "poll": f"GET /reclaim/session/{session.session_id}",
-                    "then": "POST /score with require_reclaim:true and reclaim_session_id",
-                },
-            }
+        if reclaim_session_id:
+            session = get_session(reclaim_session_id)
+            if not session:
+                raise ValueError(f"Unknown or expired Reclaim session: {reclaim_session_id}")
+            if session.wallet_address != wallet_address.lower():
+                raise ValueError("Reclaim session wallet mismatch")
+            if session.status != "verified":
+                return {
+                    "status": "awaiting_reclaim",
+                    "reclaim_url": session.request_url,
+                    "reclaim_session_id": session.session_id,
+                    "wallet_address": wallet_address,
+                    "message": "Complete bank verification via Reclaim, then POST /score again",
+                    "instructions": {
+                        "poll": f"GET /reclaim/session/{session.session_id}",
+                        "then": "POST /score with require_reclaim:true and reclaim_session_id",
+                    },
+                }
 
     from indexer.alchemy_pipeline import get_wallet_state
     from indexer.chains import CREDFLOW_CHAINS, hub_chain, spoke_chains
@@ -283,6 +326,38 @@ def _score_sync(
                 default_prob_bps,
                 balance_usd_cents,
             )
+    elif (
+        use_reclaim
+        and reuse_verified_reclaim
+        and stored_balance_usd_cents is not None
+        and stored_balance_usd_cents > 0
+    ):
+        balance_usd_cents = int(stored_balance_usd_cents)
+        on_chain_cred_score = compute_on_chain_cred_score(default_prob_bps, balance_usd_cents)
+        reclaim_data = {
+            "balance_usd_cents": balance_usd_cents,
+            "reclaim_proof_hash": stored_reclaim_proof_hash,
+            "source": "stored_profile",
+        }
+        if stored_reclaim_proof_hash:
+            reclaim_data["reclaim_proof_hash"] = stored_reclaim_proof_hash
+        logger.info(
+            "  on_chain_score=%s from stored reclaim (ml_default_bps=%s balance_usd_cents=%s)",
+            on_chain_cred_score,
+            default_prob_bps,
+            balance_usd_cents,
+        )
+
+    score_floored = False
+    if floor_cred_score is not None and on_chain_cred_score < int(floor_cred_score):
+        logger.info(
+            "Applying score floor %s -> %s (ml_off_chain=%s)",
+            on_chain_cred_score,
+            floor_cred_score,
+            result["cred_score"],
+        )
+        score_floored = True
+        on_chain_cred_score = int(floor_cred_score)
 
     approved = on_chain_cred_score >= 500 and sybil_risk != "high"
     rejection_reason = None
@@ -332,7 +407,9 @@ def _score_sync(
         **result,
         **sub_scores,
         "status": "complete",
-        "cred_score": on_chain_cred_score if reclaim_data else result["cred_score"],
+        "cred_score": on_chain_cred_score
+        if (reclaim_data or floor_cred_score is not None)
+        else result["cred_score"],
         "ml_cred_score": result["cred_score"],
         "on_chain_cred_score": on_chain_cred_score,
         "default_prob_bps": default_prob_bps,
@@ -363,6 +440,8 @@ def _score_sync(
             "borrow_chains": borrow_features.get("chains_with_borrows", []),
         },
         "rejection_reason": rejection_reason,
+        "floor_cred_score": floor_cred_score,
+        "score_floored": score_floored,
         "pipeline": {
             "sybil": sybil,
             "phase_a_fetch_ms": phase_a_ms,
@@ -380,7 +459,13 @@ async def startup_log_config():
 
     logger.info("CredFlow Scoring API ready | log_level=%s", LOG_LEVEL)
     if reclaim_enabled():
-        logger.info("Reclaim enabled | callback=%s", _reclaim_callback_url())
+        callback = _reclaim_callback_url()
+        logger.info("Reclaim enabled | callback=%s", callback)
+        if callback.startswith("http://localhost") or callback.startswith("http://127.0.0.1"):
+            logger.warning(
+                "RECLAIM callback is localhost — bank proof will not arrive unless you use "
+                "npm run ml:serve (ngrok) or set RECLAIM_CALLBACK_URL to a public URL"
+            )
         logger.info("Postman step 1: POST /score {\"wallet_address\":\"0x...\",\"require_reclaim\":true}")
 
 
@@ -399,6 +484,15 @@ async def health():
         "feature_count": len(FEATURE_COLUMNS),
         "reclaim_enabled": reclaim_enabled(),
     }
+
+
+@app.post("/reclaim/reset")
+async def reclaim_reset(req: ScoreRequest):
+    """Clear stored Reclaim sessions for a wallet (used when resetting Supabase score cache)."""
+    from ml.reclaim_service import clear_sessions_for_wallet
+
+    removed = clear_sessions_for_wallet(req.wallet_address)
+    return {"ok": True, "wallet_address": req.wallet_address.lower(), "sessions_removed": removed}
 
 
 @app.get("/reclaim/session/{session_id}")
@@ -550,26 +644,70 @@ async def score_wallet_endpoint(req: ScoreRequest):
             req.wallet_address,
             reclaim_session_id=req.reclaim_session_id,
             require_reclaim=req.require_reclaim,
+            reuse_verified_reclaim=req.reuse_verified_reclaim,
+            floor_cred_score=req.floor_cred_score,
+            stored_balance_usd_cents=req.stored_balance_usd_cents,
+            stored_reclaim_proof_hash=req.stored_reclaim_proof_hash,
         )
         result = await loop.run_in_executor(_executor, fn)
         if result.get("status") == "awaiting_reclaim":
+            from agents.run_file_log import write_score_run
+
+            write_score_run(
+                wallet_address=req.wallet_address,
+                require_reclaim=req.require_reclaim,
+                status="awaiting_reclaim",
+                result=result,
+            )
             return result
         logger.info(
             "POST /score responding wallet=%s cred_score=%s",
             req.wallet_address,
             result.get("cred_score"),
         )
+        from agents.run_file_log import write_score_run
+
+        write_score_run(
+            wallet_address=req.wallet_address,
+            require_reclaim=req.require_reclaim,
+            status=str(result.get("status", "complete")),
+            result=result,
+        )
         return result
     except FileNotFoundError as exc:
         logger.error("Model not found: %s", exc)
+        from agents.run_file_log import write_score_run
+
+        write_score_run(
+            wallet_address=req.wallet_address,
+            require_reclaim=req.require_reclaim,
+            status="error",
+            error=str(exc),
+        )
         raise HTTPException(
             status_code=503,
             detail=f"Model not trained: {exc}. Run npm run ml:train first.",
         ) from exc
     except ValueError as exc:
+        from agents.run_file_log import write_score_run
+
+        write_score_run(
+            wallet_address=req.wallet_address,
+            require_reclaim=req.require_reclaim,
+            status="error",
+            error=str(exc),
+        )
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("Scoring failed for wallet=%s", req.wallet_address)
+        from agents.run_file_log import write_score_run
+
+        write_score_run(
+            wallet_address=req.wallet_address,
+            require_reclaim=req.require_reclaim,
+            status="error",
+            error=str(exc),
+        )
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 

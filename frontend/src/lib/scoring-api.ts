@@ -1,6 +1,7 @@
 export type ScoreRequestBody = {
   require_reclaim: boolean;
   reclaim_session_id?: string;
+  reuse_verified_reclaim?: boolean;
 };
 
 export type ScoreResponse = Record<string, unknown> & {
@@ -29,6 +30,7 @@ export async function fetchProfile(): Promise<{
   wallet: string;
   hasOnChainSbt: boolean;
   onChainScore: number | null;
+  mintTxHash: string | null;
 }> {
   const res = await fetch("/api/profile");
   if (!res.ok) throw new Error((await res.json()).error || "Failed to load profile");
@@ -54,10 +56,63 @@ export async function requestScore(body: ScoreRequestBody): Promise<ScoreRespons
   return data;
 }
 
-export async function pollReclaimSession(sessionId: string): Promise<Record<string, unknown>> {
-  const res = await fetch(`/api/reclaim/session/${sessionId}`);
-  if (!res.ok) throw new Error("Reclaim session poll failed");
-  return res.json();
+export type ReclaimPollResult = {
+  ok: boolean;
+  status?: string;
+  error?: string;
+  detail?: string;
+  session?: Record<string, unknown>;
+};
+
+export async function pollReclaimSession(sessionId: string): Promise<ReclaimPollResult> {
+  if (!sessionId) {
+    return {
+      ok: false,
+      error: "missing_session_id",
+      detail: "Scoring API did not return reclaim_session_id",
+    };
+  }
+
+  const res = await fetch(`/api/reclaim/session/${encodeURIComponent(sessionId)}`, {
+    cache: "no-store",
+  });
+  let data: Record<string, unknown> = {};
+  try {
+    data = await res.json();
+  } catch {
+    return {
+      ok: false,
+      error: "invalid_response",
+      detail: "Scoring API returned a non-JSON response — is npm run ml:serve running?",
+    };
+  }
+
+  if (!res.ok) {
+    const detail =
+      typeof data.detail === "string"
+        ? data.detail
+        : typeof data.error === "string"
+          ? data.error
+          : `HTTP ${res.status}`;
+    return {
+      ok: false,
+      error: res.status === 404 ? "session_not_found" : "poll_failed",
+      detail,
+    };
+  }
+
+  return {
+    ok: true,
+    status: data.status as string | undefined,
+    session: data,
+  };
+}
+
+export async function resetAccountCache(): Promise<Record<string, unknown>> {
+  const res = await fetch("/api/reset", { method: "POST" });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Reset failed");
+  return data;
 }
 
 export async function mintSbt(scoreSnapshot?: Record<string, unknown>): Promise<Record<string, unknown>> {

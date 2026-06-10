@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createPublicClient, http } from "viem";
 import { getFrontendAddress } from "@/lib/wallet-server";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
+import { fetchSbtMintTxHash } from "@/lib/sbt-chain";
+import { patchScoreSnapshot } from "@/lib/score-display";
 import hubAddresses from "@/lib/addresses.json";
 import { robinhoodTestnet } from "@/lib/chains";
 
@@ -84,11 +86,70 @@ export async function GET() {
       /* RPC optional */
     }
 
+    if (hasOnChainSbt && onChainScore != null && profile) {
+      const staleCred =
+        profile.cred_score == null || Number(profile.cred_score) !== onChainScore;
+      const staleMl =
+        profile.ml_cred_score == null || Number(profile.ml_cred_score) < onChainScore;
+      const staleFormula =
+        profile.on_chain_cred_score == null ||
+        Number(profile.on_chain_cred_score) < onChainScore;
+      const patchedSnapshot = patchScoreSnapshot(profile.score_snapshot, onChainScore);
+
+      if (staleCred || staleMl || staleFormula || patchedSnapshot) {
+        const merged = {
+          ...profile,
+          cred_score: onChainScore,
+          on_chain_cred_score: onChainScore,
+          sbt_score_on_chain: onChainScore,
+          ...(staleMl ? { ml_cred_score: onChainScore } : {}),
+          ...(patchedSnapshot ? { score_snapshot: patchedSnapshot } : {}),
+        };
+
+        if (supabase) {
+          const { data: synced } = await supabase
+            .from("account_profiles")
+            .update({
+              cred_score: onChainScore,
+              on_chain_cred_score: onChainScore,
+              sbt_score_on_chain: onChainScore,
+              ...(staleMl ? { ml_cred_score: onChainScore } : {}),
+              ...(patchedSnapshot ? { score_snapshot: patchedSnapshot } : {}),
+              updated_at: new Date().toISOString(),
+            })
+            .eq("wallet_address", wallet.toLowerCase())
+            .select()
+            .maybeSingle();
+          profile = (synced as Record<string, unknown> | null) ?? merged;
+        } else {
+          profile = merged;
+        }
+      }
+    }
+
+    let mintTxHash =
+      (profile?.mint_tx_hash as string | undefined) || null;
+    if (hasOnChainSbt && !mintTxHash) {
+      mintTxHash = await fetchSbtMintTxHash(wallet);
+      if (mintTxHash && supabase && profile) {
+        await supabase
+          .from("account_profiles")
+          .update({
+            mint_tx_hash: mintTxHash,
+            mint_status: profile.mint_status || "minted",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("wallet_address", wallet.toLowerCase());
+        profile = { ...profile, mint_tx_hash: mintTxHash };
+      }
+    }
+
     return NextResponse.json({
       wallet,
       profile,
       hasOnChainSbt,
       onChainScore,
+      mintTxHash,
     });
   } catch (err) {
     return NextResponse.json(

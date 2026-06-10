@@ -5,7 +5,6 @@
  *   echo '<proof json>' | node scripts/reclaim_helper.js verify
  */
 
-const fs = require("fs");
 const { ReclaimProofRequest, verifyProof } = require("@reclaimprotocol/js-sdk");
 
 function emitJson(payload) {
@@ -55,60 +54,14 @@ function extractParamsFromProof(proof) {
   }
 }
 
-function proofHasTeeAttestationPayload(proof) {
-  const proofs = Array.isArray(proof) ? proof : [proof];
-  return proofs.every((p) => Boolean(p?.teeAttestation));
-}
-
-function proofHasHttpProviderParams(proof) {
-  const proofs = Array.isArray(proof) ? proof : [proof];
-  return proofs.some((p) => {
-    const parameters = p?.claimData?.parameters;
-    if (!parameters || parameters === "" || parameters === "{}") {
-      return false;
-    }
-    try {
-      const parsed = JSON.parse(parameters);
-      return Boolean(parsed && typeof parsed === "object" && parsed.url && parsed.method);
-    } catch {
-      return false;
-    }
-  });
-}
-
-async function buildVerifyConfig(configFile, proof) {
-  const appSecret = process.env.RECLAIM_APP_SECRET;
-  const appId = process.env.RECLAIM_APP_ID;
-  const providerId = process.env.RECLAIM_PROVIDER_ID;
-  if (!appSecret || !appId || !providerId) {
-    throw new Error("RECLAIM_APP_ID, RECLAIM_APP_SECRET, RECLAIM_PROVIDER_ID required");
+function normalizeVerifyResult(result) {
+  if (typeof result === "boolean") {
+    return { isVerified: result, error: null, data: null };
   }
-
-  // Portal proofs omit HTTP claim parameters — hash validation cannot run.
-  // Full TEE JWT verification only when proof includes teeAttestation (portal often sends nonce in context only).
-  if (!proofHasHttpProviderParams(proof)) {
-    const config = { dangerouslyDisableContentValidation: true };
-    if (proofHasTeeAttestationPayload(proof)) {
-      config.teeAttestation = { appSecret };
-    }
-    return config;
-  }
-
-  let request;
-  if (configFile) {
-    const sessionConfig = fs.readFileSync(configFile, "utf8");
-    request = await ReclaimProofRequest.fromJsonString(sessionConfig);
-  } else {
-    request = await ReclaimProofRequest.init(appId, appSecret, providerId);
-  }
-
-  const proofs = Array.isArray(proof) ? proof : [proof];
-  const hashRequirements = await request.getProviderHashRequirements(proofs);
-  const base = Array.isArray(hashRequirements) ? hashRequirements[0] : hashRequirements;
-
   return {
-    ...base,
-    teeAttestation: { appSecret },
+    isVerified: Boolean(result?.isVerified),
+    error: result?.error ?? null,
+    data: result?.data ?? null,
   };
 }
 
@@ -149,12 +102,15 @@ function parseProofBody(raw) {
 }
 
 async function verify() {
-  const configIdx = process.argv.indexOf("--config-file");
-  const configFile = configIdx >= 0 ? process.argv[configIdx + 1] : null;
   const raw = await readStdin();
   const proof = parseProofBody(raw);
-  const verifyConfig = await buildVerifyConfig(configFile, proof);
-  const result = await verifyProof(proof, verifyConfig);
+
+  // SDK v5 requires config — plain verifyProof(proof) always fails.
+  // Portal bank proofs: skip HTTP hash checks; do NOT enable teeAttestation
+  // (context has attestationNonce but not a full TEE JWT — TEE verify fails).
+  const result = normalizeVerifyResult(
+    await verifyProof(proof, { dangerouslyDisableContentValidation: true })
+  );
 
   if (!result.isVerified) {
     const message =

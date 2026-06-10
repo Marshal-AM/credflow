@@ -1,4 +1,8 @@
-"""Reclaim Protocol bank balance sessions — INR parse, FX conversion, proof storage."""
+"""Reclaim Protocol bank balance sessions — INR parse, FX conversion, proof storage.
+
+Sessions live in-process memory only (no disk persistence). Restarting the ML API
+clears pending/verified Reclaim state; complete bank login again after a restart.
+"""
 
 from __future__ import annotations
 
@@ -8,7 +12,6 @@ import logging
 import os
 import re
 import subprocess
-import tempfile
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -60,9 +63,10 @@ def _cleanup_expired() -> None:
     now = time.time()
     for sid, session in list(_sessions.items()):
         if now - session.created_at > SESSION_TTL_SEC:
-            session.status = "expired"
             if session.status == "pending":
                 _sessions.pop(sid, None)
+            else:
+                session.status = "expired"
 
 
 def parse_balance_inr(extracted_params: dict) -> float:
@@ -117,7 +121,6 @@ def _parse_helper_stdout(stdout: str) -> dict:
     text = stdout.strip()
     if not text:
         raise RuntimeError("reclaim_helper returned empty stdout")
-    # SDK logger may prefix stdout (e.g. "current level info\n{...}")
     for line in text.splitlines():
         stripped = line.strip()
         if stripped.startswith("{"):
@@ -125,7 +128,6 @@ def _parse_helper_stdout(stdout: str) -> dict:
                 return json.loads(stripped)
             except json.JSONDecodeError:
                 pass
-    # Use first "{" — create output embeds JSON strings containing "{" in config
     start = text.find("{")
     if start < 0:
         raise RuntimeError(f"reclaim_helper: no JSON in stdout: {text[:500]!r}")
@@ -243,6 +245,30 @@ def bind_wallet_to_pending_session(wallet_address: str) -> ReclaimSession | None
     return None
 
 
+def get_pending_session_for_wallet(wallet_address: str) -> ReclaimSession | None:
+    """Return the newest pending Reclaim session with a portal URL for this wallet."""
+    wallet = wallet_address.lower()
+    pending = [
+        s
+        for s in _sessions.values()
+        if s.wallet_address == wallet and s.status == "pending" and s.request_url
+    ]
+    if not pending:
+        return None
+    return max(pending, key=lambda s: s.created_at)
+
+
+def clear_sessions_for_wallet(wallet_address: str) -> int:
+    """Remove all in-memory Reclaim sessions for a wallet."""
+    wallet = wallet_address.lower()
+    removed = 0
+    for sid, session in list(_sessions.items()):
+        if session.wallet_address == wallet:
+            _sessions.pop(sid, None)
+            removed += 1
+    return removed
+
+
 def process_proof_callback(raw_body: str, wallet_hint: str | None = None) -> ReclaimSession:
     """Verify Reclaim proof and attach to matching pending session."""
     _cleanup_expired()
@@ -285,28 +311,8 @@ def process_proof_callback(raw_body: str, wallet_hint: str | None = None) -> Rec
         if not pending:
             raise ValueError("No pending Reclaim session for this proof")
         session = pending[0]
-    config_path = None
-    try:
-        if session.config:
-            with tempfile.NamedTemporaryFile(
-                mode="w",
-                suffix=".json",
-                delete=False,
-                encoding="utf-8",
-            ) as tmp:
-                tmp.write(session.config)
-                config_path = tmp.name
-            verify_args = ["verify", "--config-file", config_path]
-        else:
-            verify_args = ["verify"]
 
-        result = _run_node_helper(verify_args, stdin=raw_body)
-    finally:
-        if config_path:
-            try:
-                os.unlink(config_path)
-            except OSError:
-                pass
+    result = _run_node_helper(["verify"], stdin=raw_body)
 
     if not result.get("valid"):
         raise ValueError(result.get("error", "Invalid Reclaim proof"))

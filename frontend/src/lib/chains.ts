@@ -60,3 +60,15 @@ export const chainIdByKey: Record<ChainKey, number> = {
   arbitrum: arbitrumSepolia.id,
   base: baseSepolia.id,
 };
+
+/** Block explorer tx URL when available (hub testnet has no public explorer). */
+export function txExplorerUrl(chainKey: ChainKey, txHash: string): string | null {
+  switch (chainKey) {
+    case "arbitrum":
+      return `https://sepolia.arbiscan.io/tx/${txHash}`;
+    case "base":
+      return `https://sepolia.basescan.org/tx/${txHash}`;
+    default:
+      return null;
+  }
+}

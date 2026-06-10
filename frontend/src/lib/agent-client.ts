@@ -1,0 +1,566 @@
+import { getSupabaseAdmin, profileFromScoreResponse } from "@/lib/supabase-server";
+import type { ChainKey } from "@/lib/chains";
+import { isHubTxSuccessful } from "@/lib/lz-broadcast";
+
+const SCORING_API = process.env.SCORING_API_URL || "http://localhost:8000";
+
+export type PostRepayPipelineResult = {
+  old_score: number | null;
+  new_score: number | null;
+  score: { ok: boolean; data?: Record<string, unknown>; error?: string } | null;
+  underwrite: { ok: boolean; data?: Record<string, unknown>; error?: string } | null;
+  lz_sync: { ok: boolean; data?: Record<string, unknown>; error?: string } | null;
+  supabase_saved: boolean;
+  errors: string[];
+};
+
+export type HubTxHash = {
+  chain_key: string;
+  eid: number;
+  tx_hash: string;
+  type?: string;
+};
+
+export async function persistLzBroadcast(params: {
+  wallet: string;
+  triggerSource: string;
+  messageType: string;
+  hubScore?: number;
+  hubTxHashes: HubTxHash[];
+  relatedOnchainTx?: string;
+  errorMessage?: string;
+}) {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return null;
+  const { data, error } = await supabase
+    .from("layerzero_broadcasts")
+    .insert({
+      wallet_address: params.wallet.toLowerCase(),
+      trigger_source: params.triggerSource,
+      message_type: params.messageType,
+      hub_score: params.hubScore ?? null,
+      hub_tx_hashes: params.hubTxHashes,
+      related_onchain_tx: params.relatedOnchainTx ?? null,
+      error_message: params.errorMessage ?? null,
+      status: params.errorMessage ? "failed" : "submitted",
+    })
+    .select()
+    .single();
+  if (error) return null;
+  return data;
+}
+
+export async function persistLoanEvent(params: {
+  wallet: string;
+  chainKey: string;
+  loanId?: bigint | number | null;
+  eventType: "created" | "repaid";
+  borrowAmount?: string;
+  collateralAmount?: string;
+  borrowToken?: string;
+  txHash: string;
+  metadata?: Record<string, unknown>;
+}) {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return null;
+  const { data, error } = await supabase
+    .from("loan_events")
+    .insert({
+      wallet_address: params.wallet.toLowerCase(),
+      chain_key: params.chainKey,
+      loan_id: params.loanId != null ? Number(params.loanId) : null,
+      event_type: params.eventType,
+      borrow_amount: params.borrowAmount ?? null,
+      collateral_amount: params.collateralAmount ?? null,
+      borrow_token: params.borrowToken ?? null,
+      tx_hash: params.txHash,
+      metadata: params.metadata ?? null,
+    })
+    .select()
+    .single();
+  if (error) return null;
+  return data;
+}
+
+async function callAgent<T>(
+  path: string,
+  body: Record<string, unknown>
+): Promise<{ ok: boolean; data?: T; error?: string }> {
+  try {
+    const res = await fetch(`${SCORING_API}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      return { ok: false, error: data.detail || JSON.stringify(data) };
+    }
+    return { ok: true, data: data as T };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Agent call failed" };
+  }
+}
+
+export async function triggerSyncScore(
+  wallet: string,
+  score: number,
+  triggerSource = "api_hook",
+  triggerEvent = "score_complete"
+) {
+  const result = await callAgent<{
+    hub_tx_hashes: HubTxHash[];
+    run_id?: string;
+  }>("/agents/sync-score", {
+    wallet_address: wallet,
+    score,
+    trigger_source: triggerSource,
+    trigger_event: triggerEvent,
+  });
+  if (result.ok && result.data) {
+    await persistLzBroadcast({
+      wallet,
+      triggerSource,
+      messageType: "score",
+      hubScore: score,
+      hubTxHashes: result.data.hub_tx_hashes || [],
+    });
+  }
+  return result;
+}
+
+const LZ_CLEAR_COOLDOWN_MS = 60 * 1000;
+const lzClearGuards = new Map<string, { at: number; inFlight: boolean }>();
+
+/** Clear OApp loanActiveMirror on spokes when hub loan is already repaid. */
+export async function triggerClearSpokeLoanActive(
+  wallet: string,
+  options?: { force?: boolean }
+) {
+  const key = wallet.toLowerCase();
+  const now = Date.now();
+  const guard = lzClearGuards.get(key);
+  if (guard?.inFlight) {
+    return { ok: false, error: "lz_clear_in_flight" };
+  }
+  if (!options?.force && guard && now - guard.at < LZ_CLEAR_COOLDOWN_MS) {
+    return { ok: false, error: "lz_clear_cooldown" };
+  }
+  lzClearGuards.set(key, { at: now, inFlight: true });
+  const result = await callAgent<{
+    hub_tx_hashes: HubTxHash[];
+    run_id?: string;
+  }>("/agents/sync-loan", {
+    wallet_address: wallet,
+    event: "repaid",
+    repair_stale: true,
+    trigger_source: "api_hook",
+    trigger_event: "stale_loan_flag_clear",
+  });
+  try {
+    if (result.ok && result.data) {
+      await persistLzBroadcast({
+        wallet,
+        triggerSource: "stale_loan_flag_clear",
+        messageType: "repaid",
+        hubTxHashes: result.data.hub_tx_hashes || [],
+      });
+    }
+    return result;
+  } finally {
+    lzClearGuards.set(key, { at: Date.now(), inFlight: false });
+  }
+}
+
+export async function triggerSyncLoanCreated(wallet: string, relatedTx: string) {
+  if (!(await isHubTxSuccessful(relatedTx))) {
+    return {
+      ok: false,
+      error: "Borrow tx reverted on hub — LayerZero loan_active sync skipped",
+    };
+  }
+  return triggerSyncHubLoanActive(wallet, relatedTx, "loan_created");
+}
+
+/** Re-broadcast hub loan_active to spokes (e.g. Base missed LZ while Arbitrum received it). */
+export async function triggerRepairHubLoanLock(wallet: string) {
+  return triggerSyncHubLoanActive(wallet, undefined, "hub_loan_lock_repair");
+}
+
+async function triggerSyncHubLoanActive(
+  wallet: string,
+  relatedTx: string | undefined,
+  triggerEvent: string
+) {
+  const result = await callAgent<{
+    hub_tx_hashes: HubTxHash[];
+    score?: number;
+    run_id?: string;
+  }>("/agents/sync-loan", {
+    wallet_address: wallet,
+    event: "created",
+    trigger_source: "api_hook",
+    trigger_event: triggerEvent,
+  });
+  if (result.ok && result.data) {
+    await persistLzBroadcast({
+      wallet,
+      triggerSource: triggerEvent,
+      messageType: "loan_active",
+      hubScore: result.data.score,
+      hubTxHashes: result.data.hub_tx_hashes || [],
+      relatedOnchainTx: relatedTx,
+    });
+  }
+  return result;
+}
+
+export async function triggerSyncLoanRepaid(
+  wallet: string,
+  relatedTx: string,
+  score?: number
+) {
+  if (!(await isHubTxSuccessful(relatedTx))) {
+    return {
+      ok: false,
+      error: "Repay tx reverted on hub — LayerZero repaid sync skipped",
+    };
+  }
+  const body: Record<string, unknown> = {
+    wallet_address: wallet,
+    event: "repaid",
+    trigger_source: "api_hook",
+    trigger_event: "loan_repaid",
+  };
+  if (typeof score === "number") {
+    body.score = score;
+  }
+  const result = await callAgent<{
+    hub_tx_hashes: HubTxHash[];
+    score?: number;
+    run_id?: string;
+  }>("/agents/sync-loan", body);
+  if (result.ok && result.data) {
+    await persistLzBroadcast({
+      wallet,
+      triggerSource: "loan_repaid",
+      messageType: "repaid",
+      hubScore: result.data.score,
+      hubTxHashes: result.data.hub_tx_hashes || [],
+      relatedOnchainTx: relatedTx,
+    });
+  }
+  return result;
+}
+
+export async function triggerUnderwriteRescore(
+  wallet: string,
+  options?: {
+    scoreSnapshot?: Record<string, unknown>;
+    repayChain?: ChainKey;
+    repayTx?: string;
+    loanId?: number | string | null;
+    triggerEvent?: string;
+  }
+) {
+  const body: Record<string, unknown> = {
+    wallet_address: wallet,
+    rescore: true,
+    trigger_source: "api_hook",
+    trigger_event: options?.triggerEvent ?? "loan_repaid",
+  };
+  if (options?.scoreSnapshot) body.score_snapshot = options.scoreSnapshot;
+  if (options?.repayChain) body.repay_chain = options.repayChain;
+  if (options?.repayTx) body.repay_tx = options.repayTx;
+  if (options?.loanId != null) body.loan_id = Number(options.loanId);
+  return callAgent<{
+    cred_score?: number;
+    tx?: string;
+    run_id?: string;
+    onchain?: string;
+  }>("/agents/underwrite", body);
+}
+
+async function requestPostRepayScore(
+  wallet: string,
+  options: {
+    requireReclaim: boolean;
+    floorScore?: number | null;
+    storedBalanceUsdCents?: number | null;
+    storedReclaimProofHash?: string | null;
+  }
+) {
+  const body: Record<string, unknown> = {
+    wallet_address: wallet,
+    require_reclaim: options.requireReclaim,
+    reuse_verified_reclaim: options.requireReclaim,
+  };
+  if (options.floorScore != null) {
+    body.floor_cred_score = options.floorScore;
+  }
+  if (options.storedBalanceUsdCents != null && options.storedBalanceUsdCents > 0) {
+    body.stored_balance_usd_cents = options.storedBalanceUsdCents;
+  }
+  if (options.storedReclaimProofHash) {
+    body.stored_reclaim_proof_hash = options.storedReclaimProofHash;
+  }
+  const res = await fetch(`${SCORING_API}/score`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  return { res, data };
+}
+
+const REPAIR_COOLDOWN_MS = 15 * 60 * 1000;
+const repairGuards = new Map<string, { at: number; inFlight: boolean }>();
+
+export async function repairChainScoreMismatch(
+  wallet: string,
+  targetScore: number,
+  hubScore: number
+) {
+  const key = wallet.toLowerCase();
+  const now = Date.now();
+  const guard = repairGuards.get(key);
+
+  if (guard?.inFlight) {
+    return { ok: false, error: "repair_in_flight" };
+  }
+  if (guard && now - guard.at < REPAIR_COOLDOWN_MS) {
+    return { ok: false, error: "repair_cooldown" };
+  }
+
+  repairGuards.set(key, { at: now, inFlight: true });
+  try {
+    if (hubScore >= targetScore) {
+      return triggerSyncScore(wallet, targetScore, "api_hook", "score_repair");
+    }
+
+    const supabase = getSupabaseAdmin();
+    let borrowSub = 60;
+    let walletSub = 90;
+    let shapCid = "ipfs://repair";
+    if (supabase) {
+      const { data } = await supabase
+        .from("account_profiles")
+        .select("borrow_sub_score, wallet_sub_score, shap_cid")
+        .eq("wallet_address", wallet.toLowerCase())
+        .maybeSingle();
+      if (typeof data?.borrow_sub_score === "number") borrowSub = data.borrow_sub_score;
+      if (typeof data?.wallet_sub_score === "number") walletSub = data.wallet_sub_score;
+      if (typeof data?.shap_cid === "string" && data.shap_cid) shapCid = data.shap_cid;
+    }
+    const snapshot: Record<string, unknown> = {
+      status: "complete",
+      cred_score: targetScore,
+      on_chain_cred_score: targetScore,
+      floor_cred_score: targetScore,
+      approved: true,
+      sybil_risk: "medium",
+      borrow_sub_score: borrowSub,
+      wallet_sub_score: walletSub,
+      shap_cid: shapCid,
+      default_prob_bps: 200,
+      balance_usd_cents: 0,
+    };
+    const underwrite = await triggerUnderwriteRescore(wallet, {
+      scoreSnapshot: snapshot,
+      triggerEvent: "score_repair",
+    });
+    if (underwrite.ok) {
+      await triggerSyncScore(wallet, targetScore, "api_hook", "score_repair");
+      if (supabase) {
+        const { data: existing } = await supabase
+          .from("account_profiles")
+          .select("score_snapshot")
+          .eq("wallet_address", wallet.toLowerCase())
+          .maybeSingle();
+        const { patchScoreSnapshot } = await import("@/lib/score-display");
+        const patchedSnapshot = patchScoreSnapshot(
+          existing?.score_snapshot,
+          targetScore
+        );
+        await supabase
+          .from("account_profiles")
+          .update({
+            cred_score: targetScore,
+            ml_cred_score: targetScore,
+            on_chain_cred_score: targetScore,
+            sbt_score_on_chain: targetScore,
+            ...(patchedSnapshot ? { score_snapshot: patchedSnapshot } : {}),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("wallet_address", wallet.toLowerCase());
+      }
+    }
+    return underwrite;
+  } finally {
+    repairGuards.set(key, { at: Date.now(), inFlight: false });
+  }
+}
+
+export async function runPostRepayPipeline(params: {
+  wallet: string;
+  chainKey: ChainKey;
+  repayTx: string;
+  loanId?: number | string | null;
+}): Promise<PostRepayPipelineResult> {
+  const { wallet, chainKey, repayTx, loanId } = params;
+  const errors: string[] = [];
+  const supabase = getSupabaseAdmin();
+
+  let oldScore: number | null = null;
+  let storedBalanceUsdCents: number | null = null;
+  let storedReclaimProofHash: string | null = null;
+  if (supabase) {
+    const { data } = await supabase
+      .from("account_profiles")
+      .select("cred_score, balance_usd_cents, reclaim, score_snapshot")
+      .eq("wallet_address", wallet.toLowerCase())
+      .maybeSingle();
+    if (typeof data?.cred_score === "number") {
+      oldScore = data.cred_score;
+    }
+    if (typeof data?.balance_usd_cents === "number" && data.balance_usd_cents > 0) {
+      storedBalanceUsdCents = data.balance_usd_cents;
+    }
+    const reclaim = data?.reclaim as Record<string, unknown> | null | undefined;
+    if (typeof reclaim?.reclaim_proof_hash === "string") {
+      storedReclaimProofHash = reclaim.reclaim_proof_hash;
+    }
+    const snap = data?.score_snapshot as Record<string, unknown> | null | undefined;
+    if (!storedReclaimProofHash && typeof snap?.reclaim_proof_hash === "string") {
+      storedReclaimProofHash = snap.reclaim_proof_hash;
+    }
+  }
+
+  let scoreResult: PostRepayPipelineResult["score"] = null;
+  let scoreSnapshot: Record<string, unknown> | undefined;
+  let newScore: number | null = null;
+
+  try {
+    let { res, data } = await requestPostRepayScore(wallet, {
+      requireReclaim: true,
+      floorScore: oldScore,
+      storedBalanceUsdCents,
+      storedReclaimProofHash,
+    });
+    if (data.status === "awaiting_reclaim" || !res.ok) {
+      ({ res, data } = await requestPostRepayScore(wallet, {
+        requireReclaim: false,
+        floorScore: oldScore,
+        storedBalanceUsdCents,
+        storedReclaimProofHash,
+      }));
+    }
+    if (!res.ok) {
+      const err = data.detail || JSON.stringify(data);
+      errors.push(`score: ${err}`);
+      scoreResult = { ok: false, error: String(err) };
+    } else {
+      scoreResult = { ok: true, data };
+      if (data.status === "complete") {
+        scoreSnapshot = data as Record<string, unknown>;
+        if (typeof data.cred_score === "number") {
+          newScore = data.cred_score;
+        }
+      } else {
+        errors.push(`score: status=${data.status}`);
+      }
+      if (supabase) {
+        await supabase.from("score_runs").insert({
+          wallet_address: wallet.toLowerCase(),
+          status: data.status || "unknown",
+          require_reclaim: Boolean(data.reclaim),
+          response: data,
+        });
+      }
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Score request failed";
+    errors.push(`score: ${msg}`);
+    scoreResult = { ok: false, error: msg };
+  }
+
+  const underwrite = await triggerUnderwriteRescore(wallet, {
+    scoreSnapshot,
+    repayChain: chainKey,
+    repayTx,
+    loanId,
+  });
+  if (!underwrite.ok) {
+    errors.push(`underwrite: ${underwrite.error}`);
+  } else if (typeof underwrite.data?.cred_score === "number") {
+    newScore = underwrite.data.cred_score;
+  }
+
+  const lzScore = underwrite.data?.cred_score ?? newScore ?? undefined;
+  let lz_sync = await triggerSyncLoanRepaid(
+    wallet,
+    repayTx,
+    typeof lzScore === "number" ? lzScore : undefined
+  );
+  if (!lz_sync.ok) {
+    errors.push(`lz_sync: ${lz_sync.error}`);
+    const fallback = await triggerClearSpokeLoanActive(wallet);
+    if (fallback.ok) {
+      lz_sync = fallback;
+    } else if (fallback.error !== "lz_clear_cooldown" && fallback.error !== "lz_clear_in_flight") {
+      errors.push(`lz_clear: ${fallback.error}`);
+    }
+  } else if (chainKey === "hub") {
+    void triggerClearSpokeLoanActive(wallet).catch(() => {
+      /* belt-and-suspenders spoke unlock after hub repay */
+    });
+  }
+
+  let supabaseSaved = false;
+  if (supabase && scoreSnapshot && scoreResult?.ok) {
+    const profile = profileFromScoreResponse(wallet, scoreSnapshot);
+    const { error } = await supabase.from("account_profiles").upsert({
+      ...profile,
+      sbt_score_on_chain:
+        typeof underwrite.data?.cred_score === "number"
+          ? underwrite.data.cred_score
+          : profile.cred_score,
+    });
+    if (error) {
+      errors.push(`supabase: ${error.message}`);
+    } else {
+      supabaseSaved = true;
+    }
+  }
+
+  return {
+    old_score: oldScore,
+    new_score: newScore,
+    score: scoreResult,
+    underwrite,
+    lz_sync,
+    supabase_saved: supabaseSaved,
+    errors,
+  };
+}
+
+export async function triggerAgent(agentId: string, wallet?: string) {
+  const body: Record<string, unknown> = {
+    trigger_source: "manual",
+    trigger_event: "manual",
+  };
+  if (wallet) body.wallet_address = wallet;
+
+  switch (agentId) {
+    case "crosschain_sync":
+      return callAgent("/agents/sync", body);
+    case "portfolio_monitor":
+      return callAgent("/agents/monitor", body);
+    case "rate_optimizer":
+      return callAgent("/agents/optimize-rates", body);
+    case "underwriter":
+      return callAgent("/agents/underwrite", { ...body, rescore: false, wallet_address: wallet });
+    default:
+      return { ok: false, error: `Unknown agent: ${agentId}` };
+  }
+}
