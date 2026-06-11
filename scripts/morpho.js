@@ -12,8 +12,11 @@
  *   MORPHO_SUPPLY_ETH=0.001
  *   MORPHO_BORROW_USDC=0.1
  *   MORPHO_MIN_ETH=0.002
- *   MORPHO_TX_DELAY_MS=5000
+ *   MORPHO_TX_DELAY_MS=10000
+ *   MORPHO_LOG_CHUNK=10          eth_getLogs block range (Alchemy free tier max 10)
+ *   MORPHO_LOG_LOOKBACK=500      blocks to scan for existing oracle
  *   MORPHO_SEED_USDC=1
+ *   MORPHO_ORACLE_ADDRESS=0x...   reuse an existing MorphoChainlinkOracleV2 (deploy often reverts on testnet RPC)
  */
 
 const hre = require("hardhat");
@@ -46,8 +49,12 @@ const CHAIN_CONFIG = {
     IRM:            cs("0x46415998764C29aB2a25CbeA6254146D50D22687"),
     LLTV:           "860000000000000000",
     CL_ETH_USD:     cs("0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1"),
+    // Public WETH/USDC oracle on Base Sepolia (Morpho factory, ETH/USD base feed).
+    DEFAULT_ORACLE: cs("0xc1b505f7ce2dc56abf5dc1495d6f66636937b125"),
   },
 };
+
+const ETHERSCAN_V2 = "https://api.etherscan.io/v2/api";
 
 // -- ABIs --
 const ERC20_ABI = [
@@ -91,7 +98,10 @@ const CL_FEED_ABI = [
 // -- Flags --
 const checkOnly = () => process.env.MORPHO_CHECK_ONLY === "1";
 const dryRun    = () => process.env.MORPHO_DRY_RUN    === "1";
-const TX_DELAY  = parseInt(process.env.MORPHO_TX_DELAY_MS || "5000", 10);
+const TX_DELAY  = parseInt(
+  process.env.MORPHO_TX_DELAY_MS || process.env.PREP_TX_DELAY_MS || process.env.TX_DELAY_MS || "10000",
+  10
+);
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -186,21 +196,93 @@ async function findOracleFromFactoryEvents(factory, signerAddr, fromBlock, toBlo
   return cs(pick.args.oracle);
 }
 
-const LOG_CHUNK = 1999;
+// Alchemy free tier allows eth_getLogs over at most 10 blocks.
+const LOG_CHUNK = parseInt(process.env.MORPHO_LOG_CHUNK || "10", 10);
 
-async function findOracleInRecentFactoryLogs(signerAddr, cfg, lookback = 300000) {
+async function validateOracleCandidate(factory, oracleAddress, cfg) {
+  try {
+    if (!(await factory.isMorphoChainlinkOracleV2(oracleAddress))) return false;
+    const oracle = new ethers.Contract(oracleAddress, ORACLE_ABI, ethers.provider);
+    const baseFeed = await oracle.BASE_FEED_1();
+    if (baseFeed.toLowerCase() !== cfg.CL_ETH_USD.toLowerCase()) return false;
+    const p = await oracle.price();
+    return p > 0n;
+  } catch (_) {
+    return false;
+  }
+}
+
+async function findOracleViaBasescan(cfg) {
+  const apiKey = process.env.BASESCAN_API_KEY || process.env.ETHERSCAN_API_KEY;
+  if (!apiKey) {
+    console.log("  Basescan oracle scan skipped (no BASESCAN_API_KEY / ETHERSCAN_API_KEY)");
+    return null;
+  }
+
+  const qs = new URLSearchParams({
+    chainid: String(BASE_SEPOLIA),
+    module: "logs",
+    action: "getLogs",
+    address: cfg.ORACLE_FACTORY,
+    fromBlock: "0",
+    toBlock: "latest",
+    page: "1",
+    offset: "50",
+    apikey: apiKey,
+  });
+
+  const res = await fetch(`${ETHERSCAN_V2}?${qs}`);
+  const json = await res.json();
+  if (json.status !== "1" || !Array.isArray(json.result) || json.result.length === 0) {
+    console.log("  Basescan oracle scan: no factory events found");
+    return null;
+  }
+
+  const factory = new ethers.Contract(cfg.ORACLE_FACTORY, ORACLE_FACTORY_ABI, ethers.provider);
+  const candidates = [];
+  for (const log of json.result) {
+    try {
+      const parsed = ORACLE_FACTORY_IFACE.parseLog(log);
+      candidates.push(cs(parsed.args.oracle));
+    } catch (_) {
+      /* skip malformed log */
+    }
+  }
+
+  for (let i = candidates.length - 1; i >= 0; i--) {
+    const addr = candidates[i];
+    if (await validateOracleCandidate(factory, addr, cfg)) {
+      return addr;
+    }
+  }
+
+  return null;
+}
+
+async function findOracleInRecentFactoryLogs(signerAddr, cfg, lookback) {
+  const scanBlocks = lookback ?? parseInt(process.env.MORPHO_LOG_LOOKBACK || "500", 10);
   const latest = await ethers.provider.getBlockNumber();
-  const from = Math.max(0, latest - lookback);
+  const from = Math.max(0, latest - scanBlocks);
   const candidates = [];
 
   for (let end = latest; end >= from; end -= LOG_CHUNK) {
     const start = Math.max(from, end - LOG_CHUNK + 1);
-    const logs = await ethers.provider.getLogs({
-      address: cfg.ORACLE_FACTORY,
-      fromBlock: start,
-      toBlock: end,
-      topics: [ORACLE_CREATED_TOPIC],
-    });
+    let logs = [];
+    try {
+      logs = await ethers.provider.getLogs({
+        address: cfg.ORACLE_FACTORY,
+        fromBlock: start,
+        toBlock: end,
+        topics: [ORACLE_CREATED_TOPIC],
+      });
+    } catch (err) {
+      const msg = err.message || String(err);
+      if (msg.includes("block range") || msg.includes("eth_getLogs")) {
+        console.log(`  log scan ${start}-${end} skipped (RPC limit): ${msg.slice(0, 100)}`);
+        continue;
+      }
+      throw err;
+    }
     for (const log of logs) {
       try {
         const parsed = ORACLE_FACTORY_IFACE.parseLog(log);
@@ -215,19 +297,22 @@ async function findOracleInRecentFactoryLogs(signerAddr, cfg, lookback = 300000)
 
   const factory = new ethers.Contract(cfg.ORACLE_FACTORY, ORACLE_FACTORY_ABI, ethers.provider);
   for (let i = candidates.length - 1; i >= 0; i--) {
-    const addr = candidates[i];
-    try {
-      if (!(await factory.isMorphoChainlinkOracleV2(addr))) continue;
-      const oracle = new ethers.Contract(addr, ORACLE_ABI, ethers.provider);
-      const baseFeed = await oracle.BASE_FEED_1();
-      if (baseFeed.toLowerCase() !== cfg.CL_ETH_USD.toLowerCase()) continue;
-      const p = await oracle.price();
-      if (p > 0n) return addr;
-    } catch (_) {
-      /* try next */
+    if (await validateOracleCandidate(factory, candidates[i], cfg)) {
+      return candidates[i];
     }
   }
   return null;
+}
+
+async function tryReuseOracle(factory, cfg, oracleAddress, label) {
+  if (!oracleAddress) return null;
+  const addr = cs(oracleAddress);
+  if (!(await validateOracleCandidate(factory, addr, cfg))) {
+    console.log(`  ${label} ${addr} failed validation — skipping`);
+    return null;
+  }
+  console.log(`  Reusing oracle (${label}): ${addr}`);
+  return addr;
 }
 
 async function verifyOraclePrice(oracleAddress, signer, retries = 5) {
@@ -281,10 +366,12 @@ async function ensureOracle(signer, cfg, chainId) {
     return oracleAddress;
   }
 
-  const envOracle = process.env.MORPHO_ORACLE_ADDRESS;
-  if (envOracle) {
-    oracleAddress = cs(envOracle);
-    console.log("  Using MORPHO_ORACLE_ADDRESS: " + oracleAddress);
+  if (process.env.MORPHO_ORACLE_ADDRESS) {
+    oracleAddress = await tryReuseOracle(factory, cfg, process.env.MORPHO_ORACLE_ADDRESS, "MORPHO_ORACLE_ADDRESS");
+  }
+
+  if (!oracleAddress && cfg.DEFAULT_ORACLE) {
+    oracleAddress = await tryReuseOracle(factory, cfg, cfg.DEFAULT_ORACLE, "chain default");
   }
 
   if (!oracleAddress) {
@@ -295,11 +382,36 @@ async function ensureOracle(signer, cfg, chainId) {
         oracleAddress = predicted;
         console.log("  Reusing existing oracle (CREATE2): " + oracleAddress);
       }
-    } catch (_) {
-      const signerAddr = (await signer.getAddress()).toLowerCase();
-      oracleAddress = await findOracleInRecentFactoryLogs(signerAddr, cfg);
-      if (oracleAddress) {
-        console.log("  Reusing oracle from factory logs: " + oracleAddress);
+    } catch (predictErr) {
+      console.log(
+        "  CREATE2 predict unavailable:",
+        predictErr.message ? predictErr.message.slice(0, 120) : predictErr
+      );
+      try {
+        oracleAddress = await findOracleViaBasescan(cfg);
+        if (oracleAddress) {
+          console.log("  Reusing oracle from Basescan factory events: " + oracleAddress);
+        }
+      } catch (scanErr) {
+        console.log(
+          "  Basescan oracle scan failed:",
+          scanErr.message ? scanErr.message.slice(0, 120) : scanErr
+        );
+      }
+
+      if (!oracleAddress) {
+        const signerAddr = (await signer.getAddress()).toLowerCase();
+        try {
+          oracleAddress = await findOracleInRecentFactoryLogs(signerAddr, cfg);
+          if (oracleAddress) {
+            console.log("  Reusing oracle from factory logs: " + oracleAddress);
+          }
+        } catch (logErr) {
+          console.log(
+            "  Factory log scan skipped:",
+            logErr.message ? logErr.message.slice(0, 120) : logErr
+          );
+        }
       }
     }
   }
@@ -331,10 +443,36 @@ async function ensureOracle(signer, cfg, chainId) {
       }
       console.log("  Oracle deployed at: " + oracleAddress);
     } catch (err) {
-      const signerAddr = (await signer.getAddress()).toLowerCase();
-      oracleAddress = await findOracleInRecentFactoryLogs(signerAddr, cfg);
+      try {
+        oracleAddress = await findOracleViaBasescan(cfg);
+      } catch (scanErr) {
+        console.log(
+          "  Basescan oracle scan after deploy error skipped:",
+          scanErr.message ? scanErr.message.slice(0, 120) : scanErr
+        );
+      }
+
       if (!oracleAddress) {
-        throw new Error("Oracle deploy failed and no reusable oracle found: " + err.message);
+        const signerAddr = (await signer.getAddress()).toLowerCase();
+        try {
+          oracleAddress = await findOracleInRecentFactoryLogs(signerAddr, cfg);
+        } catch (logErr) {
+          console.log(
+            "  Factory log scan after deploy error skipped:",
+            logErr.message ? logErr.message.slice(0, 120) : logErr
+          );
+        }
+      }
+
+      if (!oracleAddress && cfg.DEFAULT_ORACLE) {
+        oracleAddress = await tryReuseOracle(factory, cfg, cfg.DEFAULT_ORACLE, "chain default fallback");
+      }
+
+      if (!oracleAddress) {
+        throw new Error(
+          "Oracle deploy failed and no reusable oracle found: " + err.message +
+          ". Set MORPHO_ORACLE_ADDRESS or BASESCAN_API_KEY to discover an existing oracle."
+        );
       }
       console.log("  Reusing oracle after deploy collision: " + oracleAddress);
     }

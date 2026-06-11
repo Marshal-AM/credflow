@@ -1,21 +1,21 @@
 /**
- * Base Sepolia wallet activity for CredFlow scoring data.
+ * Arbitrum Sepolia wallet activity for CredFlow scoring data.
  *
- * Phase 2.2 (scoring-data-todo.md):
+ * Phase 1.2 (scoring-data-todo.md):
  *   - Check ETH balance
  *   - Send 3 outbound transfers to distinct recipients (Dune protocol_diversity)
  *   - Optional 4th tx: tiny WETH deposit (contract interaction)
  *
  * Usage:
- *   npx hardhat run scripts/base-sepolia-activity.js --network baseSepolia
- *   BASE_SEPOLIA_CHECK_ONLY=1           balance check only, no txs
+ *   npx hardhat run scripts/arbitrum-sepolia-activity.js --network arbitrumSepolia
+ *   ARBITRUM_SEPOLIA_CHECK_ONLY=1           balance check only, no txs
  *
  * Env:
- *   BASE_SEPOLIA_TRANSFER_ETH=0.00001   ETH per transfer
- *   BASE_SEPOLIA_MIN_ETH=0.0005         minimum balance to run txs
- *   BASE_SEPOLIA_WETH_DEPOSIT_ETH=0.00001 optional WETH deposit (tx 4)
- *   BASE_SEPOLIA_DRY_RUN=1              log only, no broadcasts
- *   PREP_TX_DELAY_MS / TX_DELAY_MS      pause after each confirmed tx (default 10000)
+ *   ARBITRUM_SEPOLIA_TRANSFER_ETH=0.00001   ETH per transfer
+ *   ARBITRUM_SEPOLIA_MIN_ETH=0.0005         minimum balance to run txs
+ *   ARBITRUM_SEPOLIA_WETH_DEPOSIT_ETH=0.00001 optional WETH deposit (tx 4)
+ *   ARBITRUM_SEPOLIA_DRY_RUN=1              log only, no broadcasts
+ *   PREP_TX_DELAY_MS / TX_DELAY_MS          pause after each confirmed tx (default 10000)
  */
 
 const hre = require("hardhat");
@@ -23,10 +23,9 @@ const { ethers } = hre;
 const { waitAfterTx } = require("./lib/tx-delay");
 require("dotenv").config();
 
-const BASE_SEPOLIA_CHAIN_ID = 84532;
+const ARBITRUM_SEPOLIA_CHAIN_ID = 421614;
 
-// Canonical L2 WETH on OP-stack chains (Base Sepolia)
-const WETH_BASE_SEPOLIA = "0x4200000000000000000000000000000000000006";
+const WETH_ARBITRUM_SEPOLIA = "0x1dF462e2712496373A347f8ad10802a5E95f053D";
 
 const WETH_ABI = [
   "function deposit() payable",
@@ -34,20 +33,20 @@ const WETH_ABI = [
 ];
 
 const DEFAULT_RECIPIENTS = [
-  process.env.BASE_SEPOLIA_RECIPIENT_A || "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
-  process.env.BASE_SEPOLIA_RECIPIENT_B || "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
-  process.env.BASE_SEPOLIA_RECIPIENT_C || "0x000000000000000000000000000000000000dEaD",
+  process.env.ARBITRUM_SEPOLIA_RECIPIENT_A || "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+  process.env.ARBITRUM_SEPOLIA_RECIPIENT_B || "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+  process.env.ARBITRUM_SEPOLIA_RECIPIENT_C || "0x000000000000000000000000000000000000dEaD",
 ];
 
 function checkOnlyFlag() {
-  return process.env.BASE_SEPOLIA_CHECK_ONLY === "1";
+  return process.env.ARBITRUM_SEPOLIA_CHECK_ONLY === "1";
 }
 
-async function assertBaseSepolia(network) {
+async function assertArbitrumSepolia(network) {
   const chainId = Number(network.config.chainId);
-  if (chainId !== BASE_SEPOLIA_CHAIN_ID) {
+  if (chainId !== ARBITRUM_SEPOLIA_CHAIN_ID) {
     throw new Error(
-      `Wrong network: chainId ${chainId}. Run with --network baseSepolia (expected ${BASE_SEPOLIA_CHAIN_ID}).`
+      `Wrong network: chainId ${chainId}. Run with --network arbitrumSepolia (expected ${ARBITRUM_SEPOLIA_CHAIN_ID}).`
     );
   }
 }
@@ -57,20 +56,20 @@ async function checkBalance(signer) {
   const balance = await ethers.provider.getBalance(address);
   const block = await ethers.provider.getBlock("latest");
 
-  console.log("--- Base Sepolia balance check ---");
-  console.log("Chain ID:     ", BASE_SEPOLIA_CHAIN_ID);
+  console.log("--- Arbitrum Sepolia balance check ---");
+  console.log("Chain ID:     ", ARBITRUM_SEPOLIA_CHAIN_ID);
   console.log("RPC:          ", hre.network.config.url);
   console.log("Wallet:       ", address);
   console.log("ETH balance:  ", ethers.formatEther(balance), "ETH");
   console.log("Block:        ", block.number);
-  console.log("----------------------------------");
+  console.log("--------------------------------------");
 
   return { address, balance };
 }
 
 async function sendTransfer(signer, to, label, valueWei) {
   console.log(`\n[${label}] ${ethers.formatEther(valueWei)} ETH -> ${to}`);
-  if (process.env.BASE_SEPOLIA_DRY_RUN === "1") {
+  if (process.env.ARBITRUM_SEPOLIA_DRY_RUN === "1") {
     console.log("  (dry run — skipped)");
     return null;
   }
@@ -84,14 +83,14 @@ async function sendTransfer(signer, to, label, valueWei) {
 }
 
 async function depositWeth(signer, valueWei) {
-  console.log(`\n[Tx 4] WETH deposit ${ethers.formatEther(valueWei)} ETH at ${WETH_BASE_SEPOLIA}`);
-  if (process.env.BASE_SEPOLIA_DRY_RUN === "1") {
+  console.log(`\n[Tx 4] WETH deposit ${ethers.formatEther(valueWei)} ETH at ${WETH_ARBITRUM_SEPOLIA}`);
+  if (process.env.ARBITRUM_SEPOLIA_DRY_RUN === "1") {
     console.log("  (dry run — skipped)");
     return null;
   }
 
-  const weth = new ethers.Contract(WETH_BASE_SEPOLIA, WETH_ABI, signer);
-  const code = await ethers.provider.getCode(WETH_BASE_SEPOLIA);
+  const weth = new ethers.Contract(WETH_ARBITRUM_SEPOLIA, WETH_ABI, signer);
+  const code = await ethers.provider.getCode(WETH_ARBITRUM_SEPOLIA);
   if (code === "0x") {
     console.log("  WETH contract not deployed on this RPC — skipping tx 4");
     return null;
@@ -106,9 +105,9 @@ async function depositWeth(signer, valueWei) {
 }
 
 async function runWalletActivity(signer, balance) {
-  const minEth = process.env.BASE_SEPOLIA_MIN_ETH || "0.0005";
-  const transferEth = process.env.BASE_SEPOLIA_TRANSFER_ETH || "0.00001";
-  const wethDepositEth = process.env.BASE_SEPOLIA_WETH_DEPOSIT_ETH || "0.00001";
+  const minEth = process.env.ARBITRUM_SEPOLIA_MIN_ETH || "0.0005";
+  const transferEth = process.env.ARBITRUM_SEPOLIA_TRANSFER_ETH || "0.00001";
+  const wethDepositEth = process.env.ARBITRUM_SEPOLIA_WETH_DEPOSIT_ETH || "0.00001";
 
   const minWei = ethers.parseEther(minEth);
   const transferWei = ethers.parseEther(transferEth);
@@ -118,8 +117,8 @@ async function runWalletActivity(signer, balance) {
   if (balance < minWei) {
     console.log("\nInsufficient balance to run activity txs.");
     console.log(`Need at least ${minEth} ETH. Fund via:`);
-    console.log("  https://www.alchemy.com/faucets/base-sepolia");
-    console.log("  https://www.coinbase.com/faucets/base-ethereum-goerli-faucet");
+    console.log("  https://www.alchemy.com/faucets/arbitrum-sepolia");
+    console.log("  https://faucet.quicknode.com/arbitrum/sepolia");
     return false;
   }
 
@@ -129,7 +128,7 @@ async function runWalletActivity(signer, balance) {
     );
   }
 
-  console.log("\n=== Base Sepolia wallet activity (Phase 2.2) ===");
+  console.log("\n=== Arbitrum Sepolia wallet activity (Phase 1.2) ===");
 
   const receipts = [];
   for (let i = 0; i < DEFAULT_RECIPIENTS.length; i++) {
@@ -147,13 +146,11 @@ async function runWalletActivity(signer, balance) {
 
   console.log("\n=== Done ===");
   console.log(`Broadcast ${receipts.length} tx(s) from`, await signer.getAddress());
-  console.log("Wait 30–90 min for Dune indexing, then run:");
-  console.log("  .\\credflow-env\\Scripts\\python.exe scripts\\live_integration_test.py");
   return true;
 }
 
 async function main() {
-  await assertBaseSepolia(hre.network);
+  await assertArbitrumSepolia(hre.network);
   const [signer] = await ethers.getSigners();
   const { balance } = await checkBalance(signer);
 
@@ -162,7 +159,8 @@ async function main() {
     return;
   }
 
-  await runWalletActivity(signer, balance);
+  const ok = await runWalletActivity(signer, balance);
+  if (!ok) process.exit(1);
 }
 
 main().catch((err) => {

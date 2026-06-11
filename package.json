@@ -33,6 +33,8 @@
     "unblacklist:wallet": "hardhat run scripts/unblacklist-wallet.js --network robinhoodTestnet",
     "base-sepolia:check": "set BASE_SEPOLIA_CHECK_ONLY=1&& hardhat run scripts/base-sepolia-activity.js --network baseSepolia",
     "base-sepolia:activity": "hardhat run scripts/base-sepolia-activity.js --network baseSepolia",
+    "arbitrum-sepolia:check": "set ARBITRUM_SEPOLIA_CHECK_ONLY=1&& hardhat run scripts/arbitrum-sepolia-activity.js --network arbitrumSepolia",
+    "arbitrum-sepolia:activity": "hardhat run scripts/arbitrum-sepolia-activity.js --network arbitrumSepolia",
     "base-sepolia:aave:check": "set BASE_SEPOLIA_AAVE_CHECK_ONLY=1&& hardhat run scripts/base-sepolia-aave.js --network baseSepolia",
     "base-sepolia:aave": "hardhat run scripts/base-sepolia-aave.js --network baseSepolia",
     "arbitrum-sepolia:aave:check": "set ARBITRUM_SEPOLIA_AAVE_CHECK_ONLY=1&& hardhat run scripts/arbitrum-sepolia-aave.js --network arbitrumSepolia",

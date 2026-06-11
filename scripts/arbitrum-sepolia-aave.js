@@ -12,10 +12,12 @@
  *   ARBITRUM_SEPOLIA_AAVE_BORROW_USDC=0.1     USDC to borrow (6 decimals)
  *   ARBITRUM_SEPOLIA_AAVE_MIN_ETH=0.002       minimum native ETH to run
  *   ARBITRUM_SEPOLIA_AAVE_DRY_RUN=1           log only
+ *   PREP_TX_DELAY_MS / TX_DELAY_MS            pause after each confirmed tx (default 10000)
  */
 
 const hre = require("hardhat");
 const { ethers } = hre;
+const { waitAfterTx } = require("./lib/tx-delay");
 require("dotenv").config();
 
 const ARBITRUM_SEPOLIA_CHAIN_ID = 421614;
@@ -70,7 +72,9 @@ async function ensureAllowance(token, owner, spender, amount, label) {
   if (dryRun()) return null;
   const tx = await token.approve(spender, amount);
   console.log("    tx:", tx.hash);
-  return tx.wait();
+  await tx.wait();
+  await waitAfterTx(`${label} approve`);
+  return true;
 }
 
 async function printStatus(signer) {
@@ -113,47 +117,67 @@ async function printStatus(signer) {
 async function runAaveFlow(signer, status) {
   const supplyEth = process.env.ARBITRUM_SEPOLIA_AAVE_SUPPLY_ETH || "0.001";
   const borrowUsdc = process.env.ARBITRUM_SEPOLIA_AAVE_BORROW_USDC || "0.1";
-  const minEth = process.env.ARBITRUM_SEPOLIA_AAVE_MIN_ETH || "0.002";
+  const minGasEth = process.env.ARBITRUM_SEPOLIA_AAVE_MIN_ETH || "0.001";
 
   const supplyWei = ethers.parseEther(supplyEth);
   const borrowUnits = ethers.parseUnits(borrowUsdc, 6);
-  const minWei = ethers.parseEther(minEth);
+  const minGasWei = ethers.parseEther(minGasEth);
+  let txCount = 0;
 
-  if (status.ethBal < minWei) {
-    console.log(`\nNeed at least ${minEth} ETH. Fund: https://www.alchemy.com/faucets/arbitrum-sepolia`);
-    return false;
+  if (status.ethBal < minGasWei) {
+    console.log(
+      `\nNeed at least ${minGasEth} native ETH for gas (have ${ethers.formatEther(status.ethBal)}). Fund: https://www.alchemy.com/faucets/arbitrum-sepolia`
+    );
+    return { ok: false, txCount };
   }
 
   const address = status.address;
   const weth = new ethers.Contract(WETH, WETH_ABI, signer);
   const usdc = new ethers.Contract(USDC, ERC20_ABI, signer);
   const pool = new ethers.Contract(AAVE_POOL, POOL_ABI, signer);
+  const hasCollateral =
+    status.aWethBal >= supplyWei ||
+    (status.account && status.account[0] > 0n);
 
   console.log("\n=== Aave v3 Arbitrum Sepolia (supply → borrow → repay) ===");
   console.log(`Supply ${supplyEth} WETH | Borrow ${borrowUsdc} USDC`);
 
   // Step 1: Wrap ETH if needed
   let wethBal = await weth.balanceOf(address);
-  if (wethBal < supplyWei) {
+  if (!hasCollateral && wethBal < supplyWei) {
     const wrapAmount = supplyWei - wethBal;
+    if (status.ethBal < wrapAmount) {
+      console.log(
+        `\nInsufficient native ETH to wrap ${ethers.formatEther(wrapAmount)} WETH (have ${ethers.formatEther(status.ethBal)} ETH).`
+      );
+      return { ok: false, txCount };
+    }
     console.log(`\n[1] WETH deposit ${ethers.formatEther(wrapAmount)} ETH`);
     if (!dryRun()) {
       const tx = await weth.deposit({ value: wrapAmount });
       console.log("  tx:", tx.hash);
       await tx.wait();
+      await waitAfterTx("WETH deposit");
+      txCount += 1;
     }
     wethBal = await weth.balanceOf(address);
   } else {
-    console.log("\n[1] WETH balance sufficient — skip wrap");
+    console.log("\n[1] Collateral/WETH sufficient — skip wrap");
   }
 
   // Step 2: Supply WETH
-  console.log(`\n[2] Supply ${supplyEth} WETH to Aave Pool`);
-  await ensureAllowance(weth, address, AAVE_POOL, supplyWei, "WETH");
-  if (!dryRun()) {
-    const tx = await pool.supply(WETH, supplyWei, address, 0);
-    console.log("  tx:", tx.hash);
-    await tx.wait();
+  if (!hasCollateral) {
+    console.log(`\n[2] Supply ${supplyEth} WETH to Aave Pool`);
+    await ensureAllowance(weth, address, AAVE_POOL, supplyWei, "WETH");
+    if (!dryRun()) {
+      const tx = await pool.supply(WETH, supplyWei, address, 0);
+      console.log("  tx:", tx.hash);
+      await tx.wait();
+      await waitAfterTx("Aave supply");
+      txCount += 1;
+    }
+  } else {
+    console.log(`\n[2] Existing Aave collateral (${ethers.formatEther(status.aWethBal)} aWETH) — skip supply`);
   }
 
   // Step 3: Borrow USDC
@@ -162,6 +186,8 @@ async function runAaveFlow(signer, status) {
     const tx = await pool.borrow(USDC, borrowUnits, VARIABLE_RATE_MODE, 0, address);
     console.log("  tx:", tx.hash);
     await tx.wait();
+    await waitAfterTx("Aave borrow");
+    txCount += 1;
   }
 
   const usdcAfterBorrow = await usdc.balanceOf(address);
@@ -174,12 +200,15 @@ async function runAaveFlow(signer, status) {
     const tx = await pool.repay(USDC, ethers.MaxUint256, VARIABLE_RATE_MODE, address);
     console.log("  tx:", tx.hash);
     await tx.wait();
+    await waitAfterTx("Aave repay");
+    txCount += 1;
   }
 
   console.log("\n=== Aave flow complete ===");
+  console.log(`Broadcast ${txCount} transaction(s) for wallet`, address);
   console.log("On-chain supply/borrow/repay events emitted for wallet", address);
   console.log("CredFlow indexer will pick these up via Alchemy transfers + receipt logs.");
-  return true;
+  return { ok: true, txCount };
 }
 
 async function main() {
@@ -192,7 +221,14 @@ async function main() {
     return;
   }
 
-  await runAaveFlow(signer, status);
+  const result = await runAaveFlow(signer, status);
+  if (!result.ok) {
+    process.exit(1);
+  }
+  if (!dryRun() && result.txCount === 0) {
+    console.error("\nNo transactions were broadcast.");
+    process.exit(1);
+  }
   console.log("\n--- Post-flow status ---");
   await printStatus(signer);
 }

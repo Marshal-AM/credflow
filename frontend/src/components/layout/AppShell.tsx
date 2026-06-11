@@ -5,14 +5,16 @@ import { YourAccountTab } from "@/components/account/YourAccountTab";
 import { LoansTab } from "@/components/loans/LoansTab";
 import { AgentsTab } from "@/components/agents/AgentsTab";
 import { TestDefaultTab } from "@/components/test-default/TestDefaultTab";
+import { PrepWalletTab } from "@/components/prep-wallet/PrepWalletTab";
 
-export type AppTab = "account" | "loans" | "agents" | "test-default";
+export type AppTab = "account" | "loans" | "agents" | "test-default" | "prep-wallet";
 
 const TABS: { id: AppTab; label: string }[] = [
   { id: "account", label: "Your Account" },
   { id: "loans", label: "Loans" },
   { id: "agents", label: "Agents" },
   { id: "test-default", label: "Test Default" },
+  { id: "prep-wallet", label: "Prep Wallet" },
 ];
 
 export function AppShell() {
@@ -52,6 +54,7 @@ export function AppShell() {
           {tab === "account" && <YourAccountTab />}
           {tab === "loans" && <LoansTab />}
           {tab === "agents" && <AgentsTab />}
+          {tab === "prep-wallet" && <PrepWalletTab />}
           {tab === "test-default" && <TestDefaultTab />}
         </div>
       </main>
