@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getFrontendAddress } from "@/lib/wallet-server";
+import { requireRequestWallet } from "@/lib/wallet-request";
 import {
   triggerCrashOracle,
   triggerGraceExpire,
@@ -22,7 +22,7 @@ type Step =
 
 export async function POST(req: NextRequest) {
   try {
-    const wallet = getFrontendAddress();
+    const wallet = requireRequestWallet(req);
     const body = await req.json();
     const step = body.step as Step;
     const loanId = Number(body.loan_id ?? 0);

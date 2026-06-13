@@ -1,14 +1,14 @@
-import { NextResponse } from "next/server";
-import { getFrontendAddress } from "@/lib/wallet-server";
+import { NextRequest, NextResponse } from "next/server";
+import { requireRequestWallet } from "@/lib/wallet-request";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const address = getFrontendAddress();
+    const address = requireRequestWallet(req);
     return NextResponse.json({ address });
   } catch (err) {
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Wallet config error" },
-      { status: 500 }
+      { error: err instanceof Error ? err.message : "Wallet not connected" },
+      { status: 401 }
     );
   }
 }

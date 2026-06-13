@@ -1,23 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getFrontendAddress } from "@/lib/wallet-server";
-import { borrowLoan, readChainLoanSummary } from "@/lib/loan-server";
+import { requireRequestWallet } from "@/lib/wallet-request";
+import { readChainLoanSummary } from "@/lib/loan-server";
 import { enrichChainSummaries } from "@/lib/loan-chain-enrich";
 import { prepareSpokeBorrow } from "@/lib/spoke-loan-prepare";
 import { persistLoanEvent, triggerSyncLoanCreated } from "@/lib/agent-client";
 import { contractsByChain } from "@/lib/contracts";
 import type { ChainKey } from "@/lib/chains";
 import { writeApiHookRun } from "@/lib/run-file-log";
+import { getPublicClient } from "@/lib/loan-server";
+import { LENDING_ABI } from "@/lib/contracts";
+import type { Hash } from "viem";
 
 export async function POST(req: NextRequest) {
   try {
-    const wallet = getFrontendAddress();
+    const wallet = requireRequestWallet(req);
     const body = await req.json();
     const chainKey = body.chain_key as ChainKey;
     const borrowAmount = String(body.borrow_amount ?? "0.5");
     const durationDays = Number(body.duration_days ?? 30);
+    const txHash = body.tx_hash as Hash | undefined;
+    const collateralEth = body.collateral_eth as string | undefined;
 
     if (!["hub", "arbitrum", "base"].includes(chainKey)) {
       return NextResponse.json({ error: "Invalid chain_key" }, { status: 400 });
+    }
+    if (!txHash) {
+      return NextResponse.json(
+        { error: "Missing tx_hash — sign the borrow transaction in your wallet first" },
+        { status: 400 }
+      );
     }
 
     async function loadSummaries() {
@@ -42,42 +53,42 @@ export async function POST(req: NextRequest) {
       summary = summaries.find((s) => s.chainKey === chainKey)!;
     }
 
-    if (summary.lzLockKind === "hub_mirror") {
-      return NextResponse.json(
-        { error: summary.eligibilityReason || "Repay Robinhood hub loan first" },
-        { status: 400 }
-      );
+    const publicClient = getPublicClient(chainKey);
+    const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+    if (receipt.status !== "success") {
+      return NextResponse.json({ error: "Borrow transaction reverted on-chain" }, { status: 400 });
     }
-
-    if (!summary.eligible) {
-      return NextResponse.json(
-        { error: summary.eligibilityReason || "Not eligible to borrow" },
-        { status: 400 }
-      );
-    }
-
-    const { txHash, loanId, collateralEth } = await borrowLoan({
-      chainKey,
-      borrowAmount,
-      durationDays,
-      score: summary.score,
-    });
 
     const cfg = contractsByChain[chainKey];
+    const lending = cfg.lending as `0x${string}`;
+    const loanId = await publicClient.readContract({
+      address: lending,
+      abi: LENDING_ABI,
+      functionName: "activeLoanId",
+      args: [wallet],
+    });
+
+    if (loanId === 0n) {
+      return NextResponse.json(
+        { error: "Borrow tx mined but no active loan was created — try again" },
+        { status: 400 }
+      );
+    }
+
     await persistLoanEvent({
       wallet,
       chainKey,
       loanId,
       eventType: "created",
       borrowAmount,
-      collateralAmount: collateralEth,
+      collateralAmount: collateralEth ?? "0",
       borrowToken: cfg.borrowSymbol,
       txHash,
       metadata: { duration_days: durationDays },
     });
 
     let lzSync: Awaited<ReturnType<typeof triggerSyncLoanCreated>> | null = null;
-    if (chainKey === "hub" && loanId != null && loanId > 0n) {
+    if (chainKey === "hub" && loanId > 0n) {
       lzSync = await triggerSyncLoanCreated(wallet, txHash);
     }
 
@@ -88,7 +99,7 @@ export async function POST(req: NextRequest) {
       success: true,
       summary: `borrow on ${chainKey} loan_id=${loanId}`,
       steps: [
-        { step: "on_chain_borrow", ok: true, data: { tx_hash: txHash, loan_id: loanId?.toString() } },
+        { step: "on_chain_borrow", ok: true, data: { tx_hash: txHash, loan_id: loanId.toString() } },
         {
           step: "lz_sync",
           ok: chainKey !== "hub" || (lzSync?.ok ?? false),
@@ -96,18 +107,17 @@ export async function POST(req: NextRequest) {
           data: chainKey !== "hub" ? { skipped: "spoke borrow — no LZ agent" } : undefined,
         },
       ],
-      payload: { loan_tx: txHash, loan_id: loanId?.toString(), lz_sync: lzSync },
+      payload: { loan_tx: txHash, loan_id: loanId.toString(), lz_sync: lzSync },
     });
 
     return NextResponse.json({
       ok: true,
       chain_key: chainKey,
       loan_tx: txHash,
-      loan_id: loanId?.toString() ?? null,
-      collateral_eth: collateralEth,
+      loan_id: loanId.toString(),
+      collateral_eth: collateralEth ?? null,
       lz_sync: lzSync,
-      agents_triggered:
-        chainKey === "hub" ? ["crosschain_sync"] : [],
+      agents_triggered: chainKey === "hub" ? ["crosschain_sync"] : [],
       note:
         chainKey === "hub"
           ? "Hub borrow triggers crosschain_sync (not underwriter). Underwriter runs on score/mint/rescore only."

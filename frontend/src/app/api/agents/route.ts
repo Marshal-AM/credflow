@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getFrontendAddress } from "@/lib/wallet-server";
+import { requireRequestWallet } from "@/lib/wallet-request";
 import { loadAgentRunsFromFiles } from "@/lib/agent-run-logs";
 
 const AGENT_IDS = [
@@ -12,7 +12,7 @@ const AGENT_IDS = [
 
 export async function GET(req: NextRequest) {
   try {
-    const wallet = getFrontendAddress();
+    const wallet = requireRequestWallet(req);
     const agentFilter = req.nextUrl.searchParams.get("agent_id") || undefined;
 
     const { runs, logs, sessionDir } = loadAgentRunsFromFiles({

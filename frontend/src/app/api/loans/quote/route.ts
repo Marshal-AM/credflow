@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getFrontendAddress } from "@/lib/wallet-server";
+import { requireRequestWallet } from "@/lib/wallet-request";
 import { computeRequiredCollateral, readChainLoanSummary } from "@/lib/loan-server";
 import type { ChainKey } from "@/lib/chains";
 
 export async function GET(req: NextRequest) {
   try {
-    const wallet = getFrontendAddress();
+    const wallet = requireRequestWallet(req);
     const chainKey = req.nextUrl.searchParams.get("chain_key") as ChainKey;
     const borrowAmount = req.nextUrl.searchParams.get("borrow_amount") ?? "0.5";
 

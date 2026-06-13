@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getFrontendAddress } from "@/lib/wallet-server";
+import { requireRequestWallet } from "@/lib/wallet-request";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { fetchSbtMintTxHash } from "@/lib/sbt-chain";
 import { triggerSyncScore } from "@/lib/agent-client";
@@ -9,7 +9,7 @@ const SCORING_API = process.env.SCORING_API_URL || "http://localhost:8000";
 
 export async function POST(req: NextRequest) {
   try {
-    const wallet = getFrontendAddress();
+    const wallet = requireRequestWallet(req);
     const body = await req.json().catch(() => ({}));
     const supabase = getSupabaseAdmin();
 

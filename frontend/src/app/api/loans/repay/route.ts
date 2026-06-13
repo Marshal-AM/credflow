@@ -1,39 +1,81 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getFrontendAddress } from "@/lib/wallet-server";
-import { repayLoan } from "@/lib/loan-server";
+import { requireRequestWallet } from "@/lib/wallet-request";
+import { getPublicClient } from "@/lib/loan-server";
 import { persistLoanEvent, runPostRepayPipeline } from "@/lib/agent-client";
-import { contractsByChain } from "@/lib/contracts";
+import { contractsByChain, LENDING_ABI } from "@/lib/contracts";
 import type { ChainKey } from "@/lib/chains";
 import { writeApiHookRun } from "@/lib/run-file-log";
+import { formatEther, formatUnits, type Hash } from "viem";
 
 export async function POST(req: NextRequest) {
   try {
-    const wallet = getFrontendAddress();
+    const wallet = requireRequestWallet(req);
     const body = await req.json();
     const chainKey = body.chain_key as ChainKey;
+    const txHash = body.tx_hash as Hash | undefined;
 
     if (!["hub", "arbitrum", "base"].includes(chainKey)) {
       return NextResponse.json({ error: "Invalid chain_key" }, { status: 400 });
     }
+    if (!txHash) {
+      return NextResponse.json(
+        { error: "Missing tx_hash — sign the repay transaction in your wallet first" },
+        { status: 400 }
+      );
+    }
 
-    const repay = await repayLoan(chainKey);
-    const { txHash, loanId } = repay;
     const cfg = contractsByChain[chainKey];
+    if (!cfg.lending) {
+      return NextResponse.json({ error: `Lending not deployed on ${cfg.label}` }, { status: 400 });
+    }
+
+    const publicClient = getPublicClient(chainKey);
+    const lending = cfg.lending as `0x${string}`;
+    const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+    if (receipt.status !== "success") {
+      return NextResponse.json({ error: "Repay transaction reverted on-chain" }, { status: 400 });
+    }
+
+    const loanId = body.loan_id != null ? BigInt(body.loan_id) : 0n;
+    let resolvedLoanId = loanId;
+    if (resolvedLoanId === 0n) {
+      resolvedLoanId = await publicClient.readContract({
+        address: lending,
+        abi: LENDING_ABI,
+        functionName: "activeLoanId",
+        args: [wallet],
+      });
+    }
+
+    const raw =
+      resolvedLoanId > 0n
+        ? await publicClient.readContract({
+            address: lending,
+            abi: LENDING_ABI,
+            functionName: "loans",
+            args: [resolvedLoanId],
+          })
+        : null;
+
+    const collateralEth =
+      (body.collateral_returned_eth as string | undefined) ??
+      (raw ? formatEther(raw.collateralAmount) : "0");
+    const totalRepaidFormatted =
+      (body.total_repaid as string | undefined) ??
+      (raw ? formatUnits(raw.borrowedAmount, 6) : "0");
 
     await persistLoanEvent({
       wallet,
       chainKey,
-      loanId,
+      loanId: resolvedLoanId,
       eventType: "repaid",
-      borrowAmount: repay.totalRepaidFormatted,
-      collateralAmount: repay.collateralEth,
+      borrowAmount: totalRepaidFormatted,
+      collateralAmount: collateralEth,
       borrowToken: cfg.borrowSymbol,
       txHash,
       metadata: {
-        collateral_wei: repay.collateralWei.toString(),
-        total_repaid_wei: repay.totalRepaidWei.toString(),
-        block_number: repay.receipt.blockNumber,
-        gas_used: repay.receipt.gasUsed,
+        block_number: receipt.blockNumber.toString(),
+        gas_used: receipt.gasUsed.toString(),
       },
     });
 
@@ -41,7 +83,7 @@ export async function POST(req: NextRequest) {
       wallet,
       chainKey,
       repayTx: txHash,
-      loanId: loanId.toString(),
+      loanId: resolvedLoanId.toString(),
     });
 
     const scoreDelta =
@@ -61,11 +103,11 @@ export async function POST(req: NextRequest) {
           ok: true,
           data: {
             tx_hash: txHash,
-            loan_id: loanId.toString(),
-            collateral_returned_eth: repay.collateralEth,
-            total_repaid: `${repay.totalRepaidFormatted} ${repay.borrowSymbol}`,
-            block_number: repay.receipt.blockNumber,
-            gas_used: repay.receipt.gasUsed,
+            loan_id: resolvedLoanId.toString(),
+            collateral_returned_eth: collateralEth,
+            total_repaid: `${totalRepaidFormatted} ${cfg.borrowSymbol}`,
+            block_number: receipt.blockNumber.toString(),
+            gas_used: receipt.gasUsed.toString(),
           },
         },
         { step: "ml_rescore", ok: postRepay.score?.ok ?? false, error: postRepay.score?.error },
@@ -84,9 +126,13 @@ export async function POST(req: NextRequest) {
       ],
       payload: {
         repay_tx: txHash,
-        collateral_returned_eth: repay.collateralEth,
-        total_repaid: `${repay.totalRepaidFormatted} ${repay.borrowSymbol}`,
-        receipt: repay.receipt,
+        collateral_returned_eth: collateralEth,
+        total_repaid: `${totalRepaidFormatted} ${cfg.borrowSymbol}`,
+        receipt: {
+          blockNumber: receipt.blockNumber.toString(),
+          status: receipt.status,
+          gasUsed: receipt.gasUsed.toString(),
+        },
         old_score: postRepay.old_score,
         new_score: postRepay.new_score,
         score_delta: scoreDelta,
@@ -99,11 +145,15 @@ export async function POST(req: NextRequest) {
       ok: true,
       chain_key: chainKey,
       repay_tx: txHash,
-      loan_id: loanId.toString(),
-      collateral_returned_eth: repay.collateralEth,
-      total_repaid: repay.totalRepaidFormatted,
-      borrow_symbol: repay.borrowSymbol,
-      receipt: repay.receipt,
+      loan_id: resolvedLoanId.toString(),
+      collateral_returned_eth: collateralEth,
+      total_repaid: totalRepaidFormatted,
+      borrow_symbol: cfg.borrowSymbol,
+      receipt: {
+        blockNumber: receipt.blockNumber.toString(),
+        status: receipt.status,
+        gasUsed: receipt.gasUsed.toString(),
+      },
       old_score: postRepay.old_score,
       new_score: postRepay.new_score,
       score_delta: scoreDelta,
