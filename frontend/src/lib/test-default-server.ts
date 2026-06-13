@@ -1,5 +1,4 @@
 import { formatEther, formatUnits } from "viem";
-import { getFrontendAddress } from "@/lib/wallet-server";
 import { getPublicClient, readChainLoanSummary } from "@/lib/loan-server";
 import { contractsByChain, LENDING_ABI, OAPP_ABI, SBT_ABI } from "@/lib/contracts";
 
@@ -31,8 +30,7 @@ export type DefaultTestStatus = {
   };
 };
 
-export async function readDefaultTestStatus(): Promise<DefaultTestStatus> {
-  const wallet = getFrontendAddress();
+export async function readDefaultTestStatus(wallet: `0x${string}`): Promise<DefaultTestStatus> {
   const hubSummary = await readChainLoanSummary("hub", wallet);
   const client = getPublicClient("hub");
   const cfg = contractsByChain.hub;

@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { DefaultTestStatus } from "@/lib/test-default-server";
+import { useWalletApi } from "@/hooks/use-wallet-api";
+import { ConnectWalletPrompt } from "@/components/wallet/ConnectWalletPrompt";
+import { toast } from "@/lib/toast";
 
 type StepLog = {
   step: string;
@@ -19,7 +22,7 @@ function bpsToPct(bps: number | null): string {
 function TxProof({ txs }: { txs: string[] }) {
   if (!txs.length) return null;
   return (
-    <ul className="mt-2 space-y-1 text-xs break-all text-emerald-800 dark:text-emerald-200">
+    <ul className="mt-2 space-y-1 text-xs break-all text-emerald-400 font-mono">
       {txs.map((tx) => (
         <li key={tx}>
           <code>{tx}</code>
@@ -30,23 +33,23 @@ function TxProof({ txs }: { txs: string[] }) {
 }
 
 export function TestDefaultTab() {
+  const { address, isConnected, isConnecting, apiFetch } = useWalletApi();
   const [status, setStatus] = useState<DefaultTestStatus | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [crashPrice, setCrashPrice] = useState("200");
   const [logs, setLogs] = useState<StepLog[]>([]);
 
   const load = useCallback(async () => {
+    if (!address) return;
     try {
-      const res = await fetch("/api/test-default/status");
+      const res = await apiFetch("/api/test-default/status");
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to load");
       setStatus(data);
-      setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Load failed");
+      toast.error(err instanceof Error ? err.message : "Load failed", "test-default-load");
     }
-  }, []);
+  }, [address, apiFetch]);
 
   useEffect(() => {
     void load();
@@ -59,7 +62,7 @@ export function TestDefaultTab() {
   ) {
     setBusy(step);
     try {
-      const res = await fetch("/api/test-default/step", {
+      const res = await apiFetch("/api/test-default/step", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ step, ...body }),
@@ -108,7 +111,7 @@ export function TestDefaultTab() {
         { step: label || step, at: new Date().toLocaleString(), ok: false, message: msg, txs: [] },
         ...prev,
       ]);
-      setError(msg);
+      toast.error(msg, `test-default-${step}`);
     } finally {
       setBusy(null);
     }
@@ -116,77 +119,73 @@ export function TestDefaultTab() {
 
   const loanId = status?.hub.loanId ? Number(status.hub.loanId) : null;
 
+  if (!isConnected && !isConnecting) {
+    return <ConnectWalletPrompt message="Connect your wallet to run the default test flow" />;
+  }
+
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <div className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-        <h3 className="text-lg font-semibold">Alternate ending — Maya defaults</h3>
-        <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+      <div className="card-padded">
+        <h3 className="text-lg font-[650]">Alternate ending — Maya defaults</h3>
+        <p className="mt-2 text-sm text-muted-foreground">
           Follows{" "}
-          <span className="font-medium">docs/userStory.md</span> steps 5–6: portfolio monitor
+          <span className="font-[650]">docs/userStory.md</span> steps 5–6: portfolio monitor
           health warning → covenant breach / grace → liquidation → LayerZero default broadcast →
-          optional whitelist via <code>removeFromBlacklist</code> on the SBT (agents replace OZ
-          Defender).
+          optional whitelist via <code className="font-mono">removeFromBlacklist</code> on the SBT
+          (agents replace OZ Defender).
         </p>
-        <p className="mt-2 text-xs text-zinc-500">
-          Prerequisite: active hub loan on{" "}
-          <code className="text-zinc-700 dark:text-zinc-300">{status?.wallet ?? "…"}</code>.{" "}
-          <code className="text-zinc-700 dark:text-zinc-300">npm run ml:serve</code> and{" "}
-          <code className="text-zinc-700 dark:text-zinc-300">npm run agents:serve</code> must be
-          running.
+        <p className="mt-2 text-xs text-subtle">
+          Prerequisite: active hub loan. Run{" "}
+          <code className="font-mono">npm run ml:serve</code> and{" "}
+          <code className="font-mono">npm run agents:serve</code> for full flow.
         </p>
       </div>
 
-      {error && (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200">
-          {error}
-        </p>
-      )}
-
-      <section className="rounded-xl border border-zinc-200 p-5 dark:border-zinc-800">
-        <div className="mb-3 flex items-center justify-between">
-          <h4 className="font-medium">Live state</h4>
+      <section className="card-padded">
+        <div className="mb-4 flex items-center justify-between">
+          <h4 className="font-[650]">Live state</h4>
           <button
             type="button"
             onClick={() => void load()}
-            className="text-xs text-emerald-700 underline dark:text-emerald-300"
+            className="text-xs text-primary hover:underline"
           >
             Refresh
           </button>
         </div>
         {status ? (
-          <dl className="grid gap-2 text-sm sm:grid-cols-2">
+          <dl className="grid gap-3 text-sm sm:grid-cols-2">
             <div>
-              <dt className="text-zinc-500">Hub loan</dt>
-              <dd>{status.hub.loanActive ? `#${status.hub.loanId}` : "None"}</dd>
+              <dt className="section-label">Hub loan</dt>
+              <dd className="mt-1">{status.hub.loanActive ? `#${status.hub.loanId}` : "None"}</dd>
             </div>
             <div>
-              <dt className="text-zinc-500">LTV / liquidation at</dt>
-              <dd>
+              <dt className="section-label">LTV / liquidation at</dt>
+              <dd className="mt-1">
                 {bpsToPct(status.hub.ltvBps)} / {bpsToPct(status.hub.liquidationThresholdBps)}
                 {status.ready.liquidatable ? " ✓ liquidatable" : ""}
               </dd>
             </div>
             <div>
-              <dt className="text-zinc-500">Due</dt>
-              <dd>
+              <dt className="section-label">Due</dt>
+              <dd className="mt-1">
                 {status.hub.dueTime ?? "—"}
                 {status.hub.overdue ? " (overdue)" : ""}
               </dd>
             </div>
             <div>
-              <dt className="text-zinc-500">Hub score / defaults</dt>
-              <dd>
+              <dt className="section-label">Hub score / defaults</dt>
+              <dd className="mt-1">
                 {status.hub.score} · defaultCount={status.hub.defaultCount}
               </dd>
             </div>
             <div>
-              <dt className="text-zinc-500">Hub blacklist</dt>
-              <dd>{status.hub.hubBlacklisted ? "Yes" : "No"}</dd>
+              <dt className="section-label">Hub blacklist</dt>
+              <dd className="mt-1">{status.hub.hubBlacklisted ? "Yes" : "No"}</dd>
             </div>
             {status.spokes.map((s) => (
               <div key={s.chainKey}>
-                <dt className="text-zinc-500">{s.label} LZ</dt>
-                <dd>
+                <dt className="section-label">{s.label} LZ</dt>
+                <dd className="mt-1">
                   score {s.score}
                   {s.lzBlacklisted ? " · blacklisted" : ""}
                   {s.lzLoanActive ? " · loan mirror" : ""}
@@ -195,7 +194,7 @@ export function TestDefaultTab() {
             ))}
           </dl>
         ) : (
-          <p className="text-sm text-zinc-500">Loading…</p>
+          <p className="text-sm text-muted-foreground">Loading…</p>
         )}
       </section>
 
@@ -207,12 +206,12 @@ export function TestDefaultTab() {
       >
         <div className="flex flex-wrap items-end gap-3">
           <label className="text-sm">
-            ETH price (USD)
+            <span className="section-label">ETH price (USD)</span>
             <input
               type="number"
               value={crashPrice}
               onChange={(e) => setCrashPrice(e.target.value)}
-              className="mt-1 block w-32 rounded border border-zinc-300 px-2 py-1 dark:border-zinc-700 dark:bg-zinc-950"
+              className="input-field mt-1.5 w-32"
             />
           </label>
           <button
@@ -221,7 +220,7 @@ export function TestDefaultTab() {
             onClick={() =>
               void runStep("crash_oracle", { eth_price_usd: Number(crashPrice) }, "Crash oracle")
             }
-            className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            className="rounded-xl bg-amber-500 px-4 py-2 text-sm font-[650] text-black transition-spring hover:scale-[1.03] disabled:opacity-50"
           >
             {busy === "crash_oracle" ? "Crashing…" : "1. Crash ETH price"}
           </button>
@@ -241,7 +240,7 @@ export function TestDefaultTab() {
             onClick={() =>
               void runStep("health_warning", { loan_id: loanId }, "Health warning")
             }
-            className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            className="rounded-xl bg-sky-500 px-4 py-2 text-sm font-[650] text-white transition-spring hover:scale-[1.03] disabled:opacity-50"
           >
             {busy === "health_warning" ? "Emitting…" : "2a. Emit HealthWarning"}
           </button>
@@ -249,7 +248,7 @@ export function TestDefaultTab() {
             type="button"
             disabled={busy === "portfolio_monitor"}
             onClick={() => void runStep("portfolio_monitor", {}, "Portfolio monitor")}
-            className="rounded-lg border border-zinc-300 px-4 py-2 text-sm dark:border-zinc-600"
+            className="btn-secondary"
           >
             {busy === "portfolio_monitor" ? "Scanning…" : "2b. Run monitor sweep"}
           </button>
@@ -267,7 +266,7 @@ export function TestDefaultTab() {
             type="button"
             disabled={busy === "grace_start"}
             onClick={() => void runStep("grace_start", { loan_id: loanId }, "Covenant breach")}
-            className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            className="rounded-xl bg-violet-500 px-4 py-2 text-sm font-[650] text-white transition-spring hover:scale-[1.03] disabled:opacity-50"
           >
             {busy === "grace_start" ? "Starting…" : "3a. Start grace (covenant breach)"}
           </button>
@@ -275,7 +274,7 @@ export function TestDefaultTab() {
             type="button"
             disabled={busy === "grace_expire"}
             onClick={() => void runStep("grace_expire", { loan_id: loanId }, "Expire grace")}
-            className="rounded-lg border border-violet-300 px-4 py-2 text-sm text-violet-900 dark:border-violet-800 dark:text-violet-200"
+            className="rounded-xl border border-violet-400/30 px-4 py-2 text-sm text-violet-300 transition-spring hover:scale-[1.02] disabled:opacity-50"
           >
             {busy === "grace_expire" ? "Expiring…" : "3b. Expire grace (test)"}
           </button>
@@ -298,12 +297,12 @@ export function TestDefaultTab() {
               "Liquidate + LZ default"
             )
           }
-          className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          className="rounded-xl bg-red-500 px-4 py-2 text-sm font-[650] text-white transition-spring hover:scale-[1.03] disabled:opacity-50"
         >
           {busy === "liquidate" ? "Liquidating…" : "4. Liquidate (after grace)"}
         </button>
         {!status?.ready.liquidatable && status?.ready.hasActiveLoan && (
-          <p className="mt-2 text-xs text-zinc-500">
+          <p className="mt-2 text-xs text-muted-foreground">
             LTV is below {bpsToPct(status.hub.liquidationThresholdBps)} — step 4 will auto-crash the
             oracle to make the loan liquidatable before sending the liquidate tx.
           </p>
@@ -320,30 +319,30 @@ export function TestDefaultTab() {
           type="button"
           disabled={busy === "unblacklist"}
           onClick={() => void runStep("unblacklist", {}, "Whitelist / unblacklist")}
-          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          className="btn-primary disabled:opacity-50"
         >
           {busy === "unblacklist" ? "Whitelisting…" : "5. Whitelist my wallet"}
         </button>
       </StepCard>
 
       {logs.length > 0 && (
-        <section className="rounded-xl border border-zinc-200 p-5 dark:border-zinc-800">
-          <h4 className="mb-3 font-medium">Transaction log</h4>
+        <section className="card-padded">
+          <h4 className="mb-4 font-[650]">Transaction log</h4>
           <ul className="space-y-3">
             {logs.map((log, i) => (
               <li
                 key={`${log.step}-${log.at}-${i}`}
-                className={`rounded-lg border p-3 text-sm ${
+                className={`rounded-xl border p-3 text-sm ${
                   log.ok
-                    ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-900 dark:bg-emerald-950/20"
-                    : "border-red-200 bg-red-50/50 dark:border-red-900"
+                    ? "border-emerald-400/20 bg-emerald-400/5"
+                    : "border-red-400/20 bg-red-400/5"
                 }`}
               >
-                <p className="font-medium">
+                <p className="font-[650]">
                   {log.ok ? "✓" : "✗"} {log.step}{" "}
-                  <span className="font-normal text-zinc-500">· {log.at}</span>
+                  <span className="font-normal text-muted-foreground">· {log.at}</span>
                 </p>
-                <p className="text-zinc-600 dark:text-zinc-400">{log.message}</p>
+                <p className="text-muted-foreground">{log.message}</p>
                 <TxProof txs={log.txs} />
               </li>
             ))}
@@ -368,12 +367,10 @@ function StepCard({
   children: ReactNode;
 }) {
   return (
-    <section
-      className={`rounded-xl border border-zinc-200 p-5 dark:border-zinc-800 ${disabled ? "opacity-60" : ""}`}
-    >
-      <p className="text-xs font-medium text-zinc-500">Step {n}</p>
-      <h4 className="mt-1 font-medium">{title}</h4>
-      <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{desc}</p>
+    <section className={`card-padded transition-spring ${disabled ? "opacity-60" : "hover:border-primary/20"}`}>
+      <p className="section-label">Step {n}</p>
+      <h4 className="mt-1 font-[650]">{title}</h4>
+      <p className="mt-1 text-sm text-muted-foreground">{desc}</p>
       <div className="mt-4">{children}</div>
     </section>
   );

@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AgentCard } from "./AgentCard";
 import { AgentLogPanel } from "./AgentLogPanel";
+import { useWalletApi } from "@/hooks/use-wallet-api";
+import { ConnectWalletPrompt } from "@/components/wallet/ConnectWalletPrompt";
 
 const AGENT_IDS = [
   "underwriter",
@@ -40,11 +42,10 @@ function mapAgentsFromRuns(runs: AgentRun[]) {
 }
 
 export function AgentsTab() {
-  const [wallet, setWallet] = useState("");
+  const { address, isConnected, isConnecting, apiFetch } = useWalletApi();
   const [agents, setAgents] = useState<Array<{ agent_id: string; last_run: AgentRun | null }>>([]);
   const [runs, setRuns] = useState<AgentRun[]>([]);
   const [logs, setLogs] = useState<LogLine[]>([]);
-  const [sessionDir, setSessionDir] = useState<string | null>(null);
   const [streamStatus, setStreamStatus] = useState<"connecting" | "live" | "poll" | "error">(
     "connecting"
   );
@@ -53,17 +54,16 @@ export function AgentsTab() {
   const esRef = useRef<EventSource | null>(null);
 
   const applyPayload = useCallback((data: Record<string, unknown>) => {
-    if (typeof data.wallet === "string") setWallet(data.wallet);
     const nextRuns = (data.runs as AgentRun[]) || [];
     setRuns(nextRuns);
     setAgents((data.agents as typeof agents) || mapAgentsFromRuns(nextRuns));
     setLogs((data.logs as LogLine[]) || []);
-    setSessionDir((data.session_dir as string) || (data.sessionDir as string) || null);
   }, []);
 
   const loadOnce = useCallback(async () => {
+    if (!address) return false;
     try {
-      const res = await fetch("/api/agents");
+      const res = await apiFetch("/api/agents");
       const data = await res.json();
       applyPayload(data);
       return true;
@@ -71,19 +71,22 @@ export function AgentsTab() {
       setStreamStatus("error");
       return false;
     }
-  }, [applyPayload]);
+  }, [address, apiFetch, applyPayload]);
 
   useEffect(() => {
+    if (!address) return;
     let cancelled = false;
     let pollId: ReturnType<typeof setInterval> | null = null;
 
     void loadOnce();
 
+    const streamUrl = `/api/agents/stream?wallet=${encodeURIComponent(address)}`;
+
     if (typeof EventSource === "undefined") {
       setStreamStatus("poll");
       pollId = setInterval(() => void loadOnce(), 3000);
     } else {
-      const es = new EventSource("/api/agents/stream");
+      const es = new EventSource(streamUrl);
       esRef.current = es;
       setStreamStatus("connecting");
 
@@ -121,12 +124,13 @@ export function AgentsTab() {
       esRef.current = null;
       if (pollId) clearInterval(pollId);
     };
-  }, [applyPayload, loadOnce]);
+  }, [address, applyPayload, loadOnce]);
 
   async function trigger(agentId: string) {
+    if (!address) return;
     setTriggering(agentId);
     try {
-      await fetch("/api/agents/trigger", {
+      await apiFetch("/api/agents/trigger", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ agent_id: agentId }),
@@ -139,37 +143,40 @@ export function AgentsTab() {
 
   const lastByAgent = new Map(agents.map((a) => [a.agent_id, a.last_run]));
 
+  if (!isConnected && !isConnecting) {
+    return <ConnectWalletPrompt message="Connect your wallet to view agent activity" />;
+  }
+
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="text-sm text-zinc-600">
-          <p>
-            Agent activity for <span className="font-mono">{wallet || "…"}</span>
-          </p>
-          <p className="mt-1 text-xs text-zinc-500">
-            Logs stream from{" "}
-            <code className="text-[11px]">logs/agent-runs</code>
-            {sessionDir ? ` (${sessionDir.split(/[/\\]/).slice(-2).join("/")})` : ""} —{" "}
-            {streamStatus === "live"
-              ? "live"
-              : streamStatus === "poll"
-                ? "polling fallback"
-                : streamStatus}
+        <div className="text-sm text-muted-foreground">
+          <p>Automated agents that monitor loans, sync scores, and manage risk.</p>
+          <p className="mt-1 text-xs">
+            Status:{" "}
+            <span className="inline-flex items-center gap-1">
+              {streamStatus === "live" && (
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              )}
+              {streamStatus === "live"
+                ? "Live"
+                : streamStatus === "poll"
+                  ? "Polling"
+                  : streamStatus === "connecting"
+                    ? "Connecting"
+                    : "Offline"}
+            </span>
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => void loadOnce()}
-            className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700"
-          >
+          <button type="button" onClick={() => void loadOnce()} className="btn-secondary text-sm">
             Refresh
           </button>
           <button
             type="button"
             disabled={triggering === "portfolio_monitor"}
             onClick={() => trigger("portfolio_monitor")}
-            className="rounded-lg border border-emerald-600 px-3 py-1.5 text-sm text-emerald-700 disabled:opacity-50"
+            className="btn-outline-primary disabled:opacity-50"
           >
             Run monitor
           </button>
@@ -177,7 +184,7 @@ export function AgentsTab() {
             type="button"
             disabled={triggering === "crosschain_sync"}
             onClick={() => trigger("crosschain_sync")}
-            className="rounded-lg border border-emerald-600 px-3 py-1.5 text-sm text-emerald-700 disabled:opacity-50"
+            className="btn-outline-primary disabled:opacity-50"
           >
             Run sync
           </button>

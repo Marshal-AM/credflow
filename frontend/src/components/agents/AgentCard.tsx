@@ -36,21 +36,21 @@ export function AgentCard({ agentId, lastRun, selected, onSelect }: Props) {
     <button
       type="button"
       onClick={onSelect}
-      className={`rounded-xl border p-4 text-left transition-colors ${
+      className={`card-padded text-left transition-spring hover:scale-[1.02] ${
         selected
-          ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20"
-          : "border-zinc-200 hover:border-zinc-300 dark:border-zinc-800"
+          ? "border-primary/50 bg-primary/5"
+          : "hover:border-primary/30"
       }`}
     >
       <div className="flex items-center gap-2">
         <span
           className={`h-2 w-2 rounded-full ${
-            running ? "animate-pulse bg-amber-500" : lastRun ? "bg-emerald-500" : "bg-zinc-300"
+            running ? "animate-pulse bg-primary" : lastRun ? "bg-emerald-400" : "bg-muted-foreground/30"
           }`}
         />
-        <h3 className="text-sm font-semibold">{label}</h3>
+        <h3 className="text-sm font-[650]">{label}</h3>
       </div>
-      <p className="mt-2 text-xs text-zinc-500">
+      <p className="mt-2 text-xs text-muted-foreground">
         {lastRun
           ? `Last: ${new Date(lastRun.started_at).toLocaleString()} — ${lastRun.status}`
           : "No runs yet"}
