@@ -1,194 +1,241 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { ChainLoanCard } from "./ChainLoanCard";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useAccount,
+  useWaitForTransactionReceipt,
+  useWriteContract,
+} from "wagmi";
+import { ChainCredScore } from "./ChainCredScore";
+import { LoansPanelShell } from "./LoansPanelShell";
+import type { ChainSummary, CollateralQuote } from "./loans-types";
 import { contractsByChain } from "@/lib/contracts";
 import type { ChainKey } from "@/lib/chains";
-
-type ChainSummary = {
-  chainKey: string;
-  label: string;
-  score: number;
-  eligible: boolean;
-  eligibilityReason: string | null;
-  loanActive: boolean;
-  lzLockKind?: "none" | "hub_mirror" | "lz_clear_pending";
-  hasLocalLoan?: boolean;
-};
-
-type CollateralQuote = {
-  collateral_eth: string;
-  max_ltv_pct: string;
-  eth_usd: string;
-};
+import { useEnsureChain } from "@/hooks/use-ensure-chain";
+import { useWalletApi } from "@/hooks/use-wallet-api";
+import { clientBorrowLoan, formatCollateralEth } from "@/lib/loan-client";
+import { COLLATERAL_SYMBOL } from "@/lib/chain-logos";
+import { toast } from "@/lib/toast";
 
 type Props = {
   chains: ChainSummary[];
   onSuccess: () => void;
 };
 
-function formatCollateralEth(eth: string): string {
-  const n = Number(eth);
-  if (!Number.isFinite(n)) return eth;
-  if (n >= 0.001) return n.toFixed(4);
-  if (n >= 0.0001) return n.toFixed(6);
-  return n.toFixed(8);
-}
-
 export function PurchaseLoanPanel({ chains, onSuccess }: Props) {
+  const { isConnected } = useAccount();
+  const { apiFetch } = useWalletApi();
+  const { writeContractAsync } = useWriteContract();
+  const [selectedChainKey, setSelectedChainKey] = useState<string | null>(null);
   const [borrowAmount, setBorrowAmount] = useState("0.5");
   const [durationDays, setDurationDays] = useState("30");
-  const [busy, setBusy] = useState<string | null>(null);
-  const [status, setStatus] = useState<Record<string, string>>({});
-  const [quotes, setQuotes] = useState<Record<string, CollateralQuote | null>>({});
-  const [quoteErrors, setQuoteErrors] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+  const [quote, setQuote] = useState<CollateralQuote | null>(null);
+  const [quoteError, setQuoteError] = useState<string | null>(null);
+  const [pendingHash, setPendingHash] = useState<`0x${string}` | undefined>();
+  const { isLoading: confirming } = useWaitForTransactionReceipt({ hash: pendingHash });
 
-  const loadQuotes = useCallback(async () => {
-    const nextQuotes: Record<string, CollateralQuote | null> = {};
-    const nextErrors: Record<string, string> = {};
+  const selectedChain = useMemo(
+    () => chains.find((c) => c.chainKey === selectedChainKey) ?? null,
+    [chains, selectedChainKey]
+  );
 
-    await Promise.all(
-      chains.map(async (chain) => {
-        if (!chain.eligible || chain.score <= 0) {
-          nextQuotes[chain.chainKey] = null;
-          return;
-        }
-        try {
-          const params = new URLSearchParams({
-            chain_key: chain.chainKey,
-            borrow_amount: borrowAmount,
-          });
-          const res = await fetch(`/api/loans/quote?${params}`);
-          const data = await res.json();
-          if (!res.ok) {
-            nextErrors[chain.chainKey] = data.error || "Could not compute collateral";
-            nextQuotes[chain.chainKey] = null;
-          } else {
-            nextQuotes[chain.chainKey] = {
-              collateral_eth: data.collateral_eth,
-              max_ltv_pct: data.max_ltv_pct,
-              eth_usd: data.eth_usd,
-            };
-          }
-        } catch {
-          nextErrors[chain.chainKey] = "Quote request failed";
-          nextQuotes[chain.chainKey] = null;
-        }
-      })
-    );
+  const chainKey = selectedChainKey as ChainKey | null;
+  const cfg = chainKey ? contractsByChain[chainKey] : null;
+  const { ensureChain } = useEnsureChain(chainKey ?? "hub");
 
-    setQuotes(nextQuotes);
-    setQuoteErrors(nextErrors);
-  }, [chains, borrowAmount]);
+  const chainOptions = useMemo(
+    () => chains.map((c) => ({ chainKey: c.chainKey, label: c.label })),
+    [chains]
+  );
+
+  const loadQuote = useCallback(async () => {
+    if (!selectedChain || !selectedChain.eligible || selectedChain.score <= 0) {
+      setQuote(null);
+      setQuoteError(null);
+      return;
+    }
+    try {
+      const params = new URLSearchParams({
+        chain_key: selectedChain.chainKey,
+        borrow_amount: borrowAmount,
+      });
+      const res = await apiFetch(`/api/loans/quote?${params}`);
+      const data = await res.json();
+      if (!res.ok) {
+        setQuoteError(data.error || "Could not compute collateral");
+        setQuote(null);
+      } else {
+        setQuote({
+          collateral_eth: data.collateral_eth,
+          max_ltv_pct: data.max_ltv_pct,
+          eth_usd: data.eth_usd,
+        });
+        setQuoteError(null);
+      }
+    } catch {
+      setQuoteError("Quote request failed");
+      setQuote(null);
+    }
+  }, [apiFetch, borrowAmount, selectedChain]);
 
   useEffect(() => {
-    void loadQuotes();
-  }, [loadQuotes]);
+    void loadQuote();
+  }, [loadQuote]);
 
-  async function handleBorrow(chainKey: ChainKey) {
-    setBusy(chainKey);
-    setStatus((s) => ({ ...s, [chainKey]: "Submitting borrow…" }));
+  useEffect(() => {
+    if (!selectedChain?.eligibilityReason || selectedChain.eligible) return;
+    toast.warning(selectedChain.eligibilityReason, `chain-eligibility-${selectedChain.chainKey}`);
+  }, [selectedChain]);
+
+  useEffect(() => {
+    if (quoteError && selectedChainKey) {
+      toast.warning(quoteError, `quote-${selectedChainKey}`);
+    }
+  }, [quoteError, selectedChainKey]);
+
+  async function handleBorrow() {
+    if (!quote || !selectedChain || !chainKey || !cfg || !isConnected) return;
+    setBusy(true);
+    setStatus("Switching network and signing borrow…");
     try {
-      const res = await fetch("/api/loans/borrow", {
+      const { txHash, collateralEth } = await clientBorrowLoan({
+        chainKey,
+        borrowAmount,
+        durationDays: Number(durationDays),
+        collateralEth: quote.collateral_eth,
+        writeContractAsync,
+        ensureChain,
+      });
+      setPendingHash(txHash);
+
+      const res = await apiFetch("/api/loans/borrow", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           chain_key: chainKey,
           borrow_amount: borrowAmount,
           duration_days: Number(durationDays),
+          tx_hash: txHash,
+          collateral_eth: collateralEth,
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Borrow failed");
-      const lz = data.lz_sync?.ok ? " + LZ sync started" : "";
-      const coll = data.collateral_eth
-        ? ` · ${formatCollateralEth(data.collateral_eth)} WETH posted`
-        : "";
-      setStatus((s) => ({
-        ...s,
-        [chainKey]: `Loan tx: ${data.loan_tx}${coll}${lz}`,
-      }));
+      if (!res.ok) throw new Error(data.error || "Borrow confirmation failed");
+      toast.success(`Loan opened on ${selectedChain.label}`, `borrow-${chainKey}`);
+      setStatus(null);
       onSuccess();
     } catch (err) {
-      setStatus((s) => ({
-        ...s,
-        [chainKey]: err instanceof Error ? err.message : "Borrow failed",
-      }));
+      const msg = err instanceof Error ? err.message : "Borrow failed";
+      toast.error(msg, `borrow-error-${chainKey}`);
+      setStatus(null);
     } finally {
-      setBusy(null);
+      setBusy(false);
+      setPendingHash(undefined);
     }
   }
 
+  const canBorrow =
+    Boolean(selectedChain) &&
+    selectedChain!.eligible &&
+    Boolean(quote) &&
+    !busy &&
+    !confirming &&
+    isConnected;
+
+  const borrowSymbol = cfg?.borrowSymbol ?? "—";
+
   return (
-    <div className="grid gap-4 lg:grid-cols-3">
-      {chains.map((chain) => {
-        const cfg = contractsByChain[chain.chainKey as ChainKey];
-        const quote = quotes[chain.chainKey];
-        const quoteError = quoteErrors[chain.chainKey];
-        return (
-          <ChainLoanCard key={chain.chainKey} chain={chain}>
-            <div className="space-y-3 text-sm">
-              <label className="block">
-                <span className="text-xs text-zinc-500">Borrow ({cfg.borrowSymbol})</span>
+    <LoansPanelShell
+      title="Borrow"
+      chainOptions={chainOptions}
+      selectedChainKey={selectedChainKey}
+      onChainChange={setSelectedChainKey}
+      chainPlaceholder="Select chain to borrow"
+    >
+      {!selectedChain ? (
+        <p className="text-sm text-muted-foreground">
+          Choose a chain to view your CredScore, collateral requirement, and borrow.
+        </p>
+      ) : (
+        <>
+          <ChainCredScore
+            score={selectedChain.score}
+            eligible={selectedChain.eligible}
+            chainLabel={selectedChain.label}
+          />
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block">
+              <span className="section-label">Borrow amount</span>
+              <div className="relative mt-1.5">
                 <input
                   type="text"
                   value={borrowAmount}
                   onChange={(e) => setBorrowAmount(e.target.value)}
-                  className="mt-1 w-full rounded border border-zinc-300 px-2 py-1.5 dark:border-zinc-700 dark:bg-zinc-900"
+                  className="input-field pr-[4.5rem]"
                 />
-              </label>
-              <label className="block">
-                <span className="text-xs text-zinc-500">Duration (days)</span>
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 font-mono text-sm text-muted-foreground">
+                  {borrowSymbol}
+                </span>
+              </div>
+            </label>
+            <label className="block">
+              <span className="section-label">Duration</span>
+              <div className="relative mt-1.5">
                 <input
                   type="text"
                   value={durationDays}
                   onChange={(e) => setDurationDays(e.target.value)}
-                  className="mt-1 w-full rounded border border-zinc-300 px-2 py-1.5 dark:border-zinc-700 dark:bg-zinc-900"
+                  className="input-field pr-[4.5rem]"
                 />
-              </label>
-              <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900/50">
-                <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
-                  Required WETH collateral
-                </p>
-                {quote ? (
-                  <>
-                    <p className="mt-1 text-base font-semibold tabular-nums">
-                      {formatCollateralEth(quote.collateral_eth)} ETH
-                    </p>
-                    <p className="mt-1 text-xs text-zinc-500">
-                      Score tier max LTV {quote.max_ltv_pct}% · ETH ≈ ${quote.eth_usd}
-                    </p>
-                    <p className="mt-1 text-xs text-zinc-500">
-                      Computed from borrow amount and your on-chain score — not editable.
-                    </p>
-                  </>
-                ) : quoteError ? (
-                  <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">{quoteError}</p>
-                ) : chain.eligible ? (
-                  <p className="mt-1 text-xs text-zinc-500">Calculating…</p>
-                ) : (
-                  <p className="mt-1 text-xs text-zinc-500">—</p>
-                )}
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 font-mono text-sm text-muted-foreground">
+                  days
+                </span>
               </div>
-              <button
-                type="button"
-                disabled={
-                  !chain.eligible || busy === chain.chainKey || !quote
-                }
-                onClick={() => handleBorrow(chain.chainKey as ChainKey)}
-                className="w-full rounded-lg bg-emerald-600 py-2 text-sm font-medium text-white disabled:opacity-50"
-              >
-                {busy === chain.chainKey ? "Borrowing…" : `Borrow on ${chain.label}`}
-              </button>
-              {status[chain.chainKey] && (
-                <p className="text-xs break-all text-zinc-600 dark:text-zinc-400">
-                  {status[chain.chainKey]}
+            </label>
+          </div>
+
+          <div className="surface-row px-4 py-4">
+            <p className="section-label">Required collateral</p>
+            {quote ? (
+              <>
+                <div className="mt-2 flex items-baseline gap-2">
+                  <p className="text-2xl font-[650] tabular-nums tracking-tight">
+                    {formatCollateralEth(quote.collateral_eth)}
+                  </p>
+                  <span className="font-mono text-sm text-muted-foreground">{COLLATERAL_SYMBOL}</span>
+                </div>
+                <p className="mt-1.5 text-sm text-muted-foreground">
+                  Score tier max LTV {quote.max_ltv_pct}% · {COLLATERAL_SYMBOL} ≈ ${quote.eth_usd}
                 </p>
-              )}
-            </div>
-          </ChainLoanCard>
-        );
-      })}
-    </div>
+              </>
+            ) : quoteError ? (
+              <p className="mt-2 text-sm text-destructive">Unable to calculate collateral</p>
+            ) : selectedChain.eligible ? (
+              <p className="mt-2 text-sm text-muted-foreground">Calculating…</p>
+            ) : (
+              <p className="mt-2 text-sm text-destructive">
+                {selectedChain.eligibilityReason ?? "Not eligible to borrow on this chain"}
+              </p>
+            )}
+          </div>
+
+          <div className="flex justify-end">
+            <button
+              type="button"
+              disabled={!canBorrow}
+              onClick={() => void handleBorrow()}
+              className="btn-primary min-w-[220px] disabled:opacity-50"
+            >
+              {busy || confirming ? "Borrowing…" : `Borrow on ${selectedChain.label}`}
+            </button>
+          </div>
+
+          {status && <p className="text-right text-xs text-muted-foreground">{status}</p>}
+        </>
+      )}
+    </LoansPanelShell>
   );
 }
