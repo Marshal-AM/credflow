@@ -13,6 +13,9 @@ import {
   type ScoreResponse,
 } from "@/lib/scoring-api";
 import { applyOnChainScore } from "@/lib/score-display";
+import { toast } from "@/lib/toast";
+import { useWalletApi } from "@/hooks/use-wallet-api";
+import { ConnectWalletPrompt } from "@/components/wallet/ConnectWalletPrompt";
 
 type Phase = "loading" | "empty" | "scoring" | "reclaim" | "complete" | "error";
 
@@ -44,28 +47,26 @@ function profileToScoreData(profile: Record<string, unknown>): ScoreResponse {
 }
 
 export function YourAccountTab() {
+  const { address, isConnected, isConnecting } = useWalletApi();
   const [phase, setPhase] = useState<Phase>("loading");
-  const [wallet, setWallet] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [scoreData, setScoreData] = useState<ScoreResponse | null>(null);
   const [profile, setProfile] = useState<Record<string, unknown> | null>(null);
   const [hasOnChainSbt, setHasOnChainSbt] = useState(false);
   const [onChainScore, setOnChainScore] = useState<number | null>(null);
-  const [mintTxHash, setMintTxHash] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [walletTrack, setWalletTrack] = useState<"idle" | "running" | "done" | "error">("idle");
   const [sybilTrack, setSybilTrack] = useState<"idle" | "running" | "done" | "error">("idle");
   const [reclaimTrack, setReclaimTrack] = useState<"idle" | "running" | "done" | "error">("idle");
   const [minting, setMinting] = useState(false);
-  const [resetting, setResetting] = useState(false);
   const [mintError, setMintError] = useState<string | null>(null);
-  const [mintTx, setMintTx] = useState<string | null>(null);
   const [hasCachedScore, setHasCachedScore] = useState(false);
   const [reclaimMessage, setReclaimMessage] = useState<string | null>(null);
   const [reclaimUrl, setReclaimUrl] = useState<string | null>(null);
   const [completeModalOpen, setCompleteModalOpen] = useState(false);
   const [completeSummary, setCompleteSummary] = useState<ScoreResponse | null>(null);
   const reclaimWindowRef = useRef<Window | null>(null);
+  const lastErrorToast = useRef<string | null>(null);
 
   const openReclaimPortal = useCallback((url: string): boolean => {
     if (!url) return false;
@@ -89,12 +90,11 @@ export function YourAccountTab() {
   }, []);
 
   const loadProfile = useCallback(async () => {
-    const data = await fetchProfile();
-    setWallet(data.wallet);
+    if (!address) return;
+    const data = await fetchProfile(address);
     setProfile(data.profile);
     setHasOnChainSbt(data.hasOnChainSbt);
     setOnChainScore(data.onChainScore ?? null);
-    setMintTxHash(data.mintTxHash ?? (data.profile?.mint_tx_hash as string | null) ?? null);
 
     const cached = hasCompleteScoreSnapshot(data.profile);
     setHasCachedScore(cached);
@@ -110,21 +110,35 @@ export function YourAccountTab() {
       setScoreData(null);
       setPhase("empty");
     }
-  }, []);
+  }, [address]);
 
   useEffect(() => {
+    if (!address) {
+      setPhase("empty");
+      return;
+    }
     loadProfile().catch((e) => {
-      setError(e instanceof Error ? e.message : "Failed to load");
+      const msg = e instanceof Error ? e.message : "Failed to load";
+      setError(msg);
       setPhase("error");
     });
-  }, [loadProfile]);
+  }, [loadProfile, address]);
+
+  useEffect(() => {
+    if (phase === "error" && error && error !== lastErrorToast.current) {
+      toast.error(error, "account-error");
+      lastErrorToast.current = error;
+    }
+  }, [phase, error]);
 
   const runScore = async (
     requireReclaim: boolean,
     reclaimSessionId?: string,
     preOpenedWindow?: Window | null
   ) => {
+    if (!address) throw new Error("Connect your wallet to continue");
     setError(null);
+    lastErrorToast.current = null;
     setPhase("scoring");
     setWalletTrack("running");
     setSybilTrack("running");
@@ -132,7 +146,7 @@ export function YourAccountTab() {
     else if (requireReclaim) setReclaimTrack("done");
 
     try {
-      const data = await requestScore({
+      const data = await requestScore(address, {
         require_reclaim: requireReclaim,
         reclaim_session_id: reclaimSessionId,
       });
@@ -145,7 +159,7 @@ export function YourAccountTab() {
         const url = data.reclaim_url as string;
         const sessionId = data.reclaim_session_id as string;
         if (!sessionId) {
-          throw new Error("Scoring API returned awaiting_reclaim without reclaim_session_id");
+          throw new Error("Bank verification could not be started. Please try again.");
         }
         setReclaimUrl(url || null);
 
@@ -163,8 +177,8 @@ export function YourAccountTab() {
 
         setReclaimMessage(
           portalOpened
-            ? "Complete bank login in the Reclaim tab. This page will detect verification automatically."
-            : "Click Open Reclaim Portal below to log into your bank (popup was blocked)."
+            ? "Complete bank login in the Reclaim tab. This page will continue automatically."
+            : "Click Open bank portal below to verify your account."
         );
 
         const finishScore = async (final: ScoreResponse) => {
@@ -195,30 +209,26 @@ export function YourAccountTab() {
             setReclaimTrack("done");
             setReclaimUrl(null);
             setPhase("scoring");
-            setReclaimMessage(
-              "Bank verified! Running CredScore analysis — this usually takes 1–2 minutes…"
-            );
+            setReclaimMessage("Bank verified. Calculating your score…");
             break;
           }
 
           if (!poll.ok && poll.error === "session_not_found") {
-            setReclaimMessage(
-              "Waiting for bank verification… (keep ml:serve running)"
-            );
+            setReclaimMessage("Waiting for bank verification…");
           } else if (!poll.ok && poll.error === "invalid_response") {
-            throw new Error(poll.detail || "Reclaim session poll failed");
+            throw new Error(poll.detail || "Bank verification failed");
           } else {
-            setReclaimMessage("Waiting for bank verification in Reclaim…");
+            setReclaimMessage("Waiting for bank verification…");
           }
         }
 
         if (!bankVerified) {
-          throw new Error("Reclaim timed out — complete bank verification and try again");
+          throw new Error("Bank verification timed out. Please try again.");
         }
 
         setWalletTrack("running");
         setSybilTrack("running");
-        const final = await requestScore({
+        const final = await requestScore(address, {
           require_reclaim: true,
           reclaim_session_id: sessionId,
         });
@@ -226,7 +236,7 @@ export function YourAccountTab() {
         if (final.status !== "complete") {
           throw new Error(
             final.status === "awaiting_reclaim"
-              ? "Bank proof not ready yet — try Rebuild score again"
+              ? "Bank proof not ready yet — try updating your score again"
               : "Scoring did not complete"
           );
         }
@@ -258,46 +268,18 @@ export function YourAccountTab() {
     if (preWin) {
       preWin.document.title = "Reclaim — loading…";
       preWin.document.body.innerHTML =
-        "<p style='font-family:sans-serif;padding:2rem'>Loading Reclaim portal…</p>";
+        "<p style='font-family:sans-serif;padding:2rem'>Loading bank portal…</p>";
       reclaimWindowRef.current = preWin;
     }
     void runScore(true, undefined, preWin);
-  };
-
-  const handleResetCache = async () => {
-    if (
-      !window.confirm(
-        "Delete Supabase score cache for this wallet? On-chain SBT will remain minted."
-      )
-    ) {
-      return;
-    }
-    setResetting(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/reset", { method: "POST" });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error || "Reset failed");
-      setScoreData(null);
-      await loadProfile();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Reset failed");
-      setPhase("error");
-    } finally {
-      setResetting(false);
-    }
   };
 
   const handleMint = async () => {
     setMinting(true);
     setMintError(null);
     try {
-      const result = await mintSbt(scoreData || undefined);
-      const tx =
-        (result.tx as string | undefined) ||
-        (result.mint_tx_hash as string | undefined) ||
-        null;
-      setMintTx(tx);
+      await mintSbt(address!, scoreData || undefined);
+      toast.success("Credential minted successfully", "mint-success");
       await loadProfile();
     } catch (e) {
       setMintError(e instanceof Error ? e.message : "Mint failed");
@@ -306,21 +288,35 @@ export function YourAccountTab() {
     }
   };
 
+  if (!isConnected && !isConnecting) {
+    return <ConnectWalletPrompt message="Connect your wallet to build and view your CredScore" />;
+  }
+
   if (phase === "loading") {
-    return <p className="text-center text-sm text-zinc-500">Loading account…</p>;
+    return (
+      <div className="flex min-h-[300px] items-center justify-center">
+        <div className="h-8 w-48 animate-shimmer rounded-xl" />
+      </div>
+    );
   }
 
   if (phase === "empty") {
     return (
       <>
-        <div className="flex min-h-[400px] flex-col items-center justify-center gap-4">
-          <p className="font-mono text-xs text-zinc-500">{wallet}</p>
+        <div className="flex min-h-[400px] flex-col items-center justify-center gap-6 card-padded border border-border/80 text-center">
+          <div>
+            <h3 className="text-xl font-[650]">Get your CredScore</h3>
+            <p className="mt-2 max-w-sm text-sm text-muted-foreground">
+              Connect your wallet history and optionally verify your bank account to see how much you
+              can borrow.
+            </p>
+          </div>
           <button
             type="button"
             onClick={() => setModalOpen(true)}
-            className="rounded-xl bg-emerald-600 px-8 py-4 text-base font-semibold text-white shadow-lg hover:bg-emerald-700"
+            className="btn-primary px-10 py-4 text-base"
           >
-            Build Your Score
+            Build your score
           </button>
         </div>
         <BuildScoreModal
@@ -338,46 +334,45 @@ export function YourAccountTab() {
 
   if (phase === "scoring" || phase === "reclaim") {
     return (
-      <>
-        <ScoringProgress
-          walletTrack={walletTrack}
-          sybilTrack={sybilTrack}
-          reclaimTrack={reclaimTrack !== "idle" ? reclaimTrack : undefined}
-          reclaimUrl={phase === "reclaim" && reclaimTrack !== "done" ? reclaimUrl : null}
-          onOpenReclaim={
-            reclaimUrl && reclaimTrack !== "done"
-              ? () => {
-                  const opened = openReclaimPortal(reclaimUrl);
-                  if (opened) {
-                    setReclaimMessage(
-                      "Complete bank login in the Reclaim tab. This page will detect verification automatically."
-                    );
-                  }
+      <ScoringProgress
+        walletTrack={walletTrack}
+        sybilTrack={sybilTrack}
+        reclaimTrack={reclaimTrack !== "idle" ? reclaimTrack : undefined}
+        reclaimUrl={phase === "reclaim" && reclaimTrack !== "done" ? reclaimUrl : null}
+        onOpenReclaim={
+          reclaimUrl && reclaimTrack !== "done"
+            ? () => {
+                const opened = openReclaimPortal(reclaimUrl);
+                if (opened) {
+                  setReclaimMessage(
+                    "Complete bank login in the Reclaim tab. This page will continue automatically."
+                  );
                 }
-              : undefined
-          }
-          message={
-            reclaimMessage ||
-            (phase === "reclaim"
-              ? "Complete bank login in the Reclaim tab — analysis continues automatically"
-              : "Analyzing your credit profile…")
-          }
-        />
-      </>
+              }
+            : undefined
+        }
+        message={
+          reclaimMessage ||
+          (phase === "reclaim"
+            ? "Verify your bank account to continue"
+            : "Calculating your CredScore…")
+        }
+      />
     );
   }
 
   if (phase === "error") {
     return (
-      <div className="mx-auto max-w-md space-y-4 text-center">
-        <p className="text-sm text-red-600">{error}</p>
+      <div className="mx-auto max-w-md space-y-4 text-center card-padded">
+        <p className="text-sm text-muted-foreground">Something went wrong. You can try again.</p>
         <button
           type="button"
           onClick={() => {
-            setPhase("empty");
+            setPhase(hasCachedScore || hasOnChainSbt ? "complete" : "empty");
             setError(null);
+            lastErrorToast.current = null;
           }}
-          className="rounded-lg border px-4 py-2 text-sm"
+          className="btn-secondary"
         >
           Try again
         </button>
@@ -386,9 +381,8 @@ export function YourAccountTab() {
   }
 
   return (
-    <>
+    <div className="min-h-full">
       <AccountDashboard
-        wallet={wallet}
         data={scoreData || {}}
         profile={profile}
         hasOnChainSbt={hasOnChainSbt}
@@ -396,23 +390,17 @@ export function YourAccountTab() {
         hasCachedScore={hasCachedScore}
         onMint={handleMint}
         onRescore={() => setModalOpen(true)}
-        onResetCache={handleResetCache}
         minting={minting}
-        resetting={resetting}
         mintError={mintError}
-        mintTx={mintTx}
-        mintTxHash={mintTxHash}
       />
       <ScoreCompleteModal
         open={completeModalOpen}
         credScore={completeSummary?.cred_score as number | undefined}
-        mlScore={completeSummary?.ml_cred_score as number | undefined}
         bankUsd={
           completeSummary?.balance_usd_cents != null
             ? (completeSummary.balance_usd_cents as number) / 100
             : undefined
         }
-        sybilRisk={completeSummary?.sybil_risk as string | undefined}
         onClose={() => setCompleteModalOpen(false)}
       />
       <BuildScoreModal
@@ -424,6 +412,6 @@ export function YourAccountTab() {
         }}
         onWithBank={startBankScore}
       />
-    </>
+    </div>
   );
 }
