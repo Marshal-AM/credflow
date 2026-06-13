@@ -5,53 +5,49 @@ import { YourAccountTab } from "@/components/account/YourAccountTab";
 import { LoansTab } from "@/components/loans/LoansTab";
 import { AgentsTab } from "@/components/agents/AgentsTab";
 import { TestDefaultTab } from "@/components/test-default/TestDefaultTab";
+import { PrepWalletTab } from "@/components/prep-wallet/PrepWalletTab";
+import { AppNavbar } from "./AppNavbar";
 
-export type AppTab = "account" | "loans" | "agents" | "test-default";
+export type AppTab = "account" | "loans" | "agents" | "test-default" | "prep-wallet";
 
-const TABS: { id: AppTab; label: string }[] = [
-  { id: "account", label: "Your Account" },
-  { id: "loans", label: "Loans" },
-  { id: "agents", label: "Agents" },
-  { id: "test-default", label: "Test Default" },
+const TABS: { id: AppTab; label: string; subtitle: string }[] = [
+  { id: "loans", label: "Loans", subtitle: "Borrow and repay across supported chains" },
+  { id: "account", label: "Dashboard", subtitle: "Build your CredScore from wallet and bank data" },
+  { id: "agents", label: "Agents", subtitle: "Background monitoring for your loans" },
+  { id: "prep-wallet", label: "Prep Wallet", subtitle: "Seed testnet activity for your CredScore" },
+  { id: "test-default", label: "Test Default", subtitle: "Liquidation and default scenario testing" },
 ];
 
 export function AppShell() {
-  const [tab, setTab] = useState<AppTab>("account");
+  const [tab, setTab] = useState<AppTab>("loans");
+  const active = TABS.find((t) => t.id === tab)!;
+  const isDashboard = tab === "account";
 
   return (
-    <div className="flex min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <aside className="flex w-56 shrink-0 flex-col border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="border-b border-zinc-200 px-5 py-6 dark:border-zinc-800">
-          <h1 className="text-lg font-bold tracking-tight">CredFlow</h1>
-          <p className="text-xs text-zinc-500">Multi-chain credit</p>
+    <div
+      className={`bg-background select-none ${
+        isDashboard ? "flex h-svh flex-col overflow-hidden" : "min-h-screen"
+      }`}
+    >
+      <AppNavbar tab={tab} onTabChange={setTab} />
+      <main
+        className={`mx-auto flex w-full max-w-[var(--page-max)] flex-col px-[var(--page-gutter)] py-8 ${
+          isDashboard ? "min-h-0 flex-1 overflow-hidden" : ""
+        }`}
+      >
+        <div className="mb-8 shrink-0 animate-fade-in-up">
+          <h1 className="page-title">{active.label}</h1>
+          <p className="page-subtitle mt-1">{active.subtitle}</p>
         </div>
-        <nav className="flex flex-1 flex-col gap-1 p-3">
-          {TABS.map(({ id, label }) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setTab(id)}
-              className={`rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors ${
-                tab === id
-                  ? "bg-emerald-600 text-white"
-                  : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </nav>
-      </aside>
-      <main className="flex flex-1 flex-col">
-        <header className="border-b border-zinc-200 bg-white px-8 py-4 dark:border-zinc-800 dark:bg-zinc-900">
-          <h2 className="text-base font-semibold">
-            {TABS.find((t) => t.id === tab)?.label}
-          </h2>
-        </header>
-        <div className="flex-1 overflow-auto p-8">
+        <div
+          className={`animate-fade-in-up stagger-2 ${
+            isDashboard ? "min-h-0 flex-1 overflow-y-auto overflow-x-hidden" : ""
+          }`}
+        >
           {tab === "account" && <YourAccountTab />}
           {tab === "loans" && <LoansTab />}
           {tab === "agents" && <AgentsTab />}
+          {tab === "prep-wallet" && <PrepWalletTab />}
           {tab === "test-default" && <TestDefaultTab />}
         </div>
       </main>
