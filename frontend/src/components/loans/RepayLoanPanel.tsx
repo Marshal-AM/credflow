@@ -1,26 +1,21 @@
 "use client";
 
-import { useState } from "react";
-import { ChainLoanCard } from "./ChainLoanCard";
-import { contractsByChain } from "@/lib/contracts";
-import { txExplorerUrl, type ChainKey } from "@/lib/chains";
-
-type LoanData = {
-  totalDue: string;
-  active: boolean;
-};
-
-type ChainSummary = {
-  chainKey: string;
-  label: string;
-  score: number;
-  eligible: boolean;
-  eligibilityReason: string | null;
-  loanActive: boolean;
-  lzLockKind?: "none" | "hub_mirror" | "lz_clear_pending";
-  hasLocalLoan?: boolean;
-  loan: LoanData | null;
-};
+import { useMemo, useState } from "react";
+import {
+  useAccount,
+  useReadContract,
+  useWriteContract,
+} from "wagmi";
+import { ChainCredScore } from "./ChainCredScore";
+import { LoansPanelShell } from "./LoansPanelShell";
+import type { ChainSummary } from "./loans-types";
+import { contractsByChain, LENDING_ABI } from "@/lib/contracts";
+import { txExplorerUrl, chainIdByKey, type ChainKey } from "@/lib/chains";
+import { useEnsureChain } from "@/hooks/use-ensure-chain";
+import { useWalletApi } from "@/hooks/use-wallet-api";
+import { clientRepayLoan } from "@/lib/loan-client";
+import { COLLATERAL_SYMBOL } from "@/lib/chain-logos";
+import { toast } from "@/lib/toast";
 
 type RepayOutcome = {
   repay_tx?: string;
@@ -45,198 +40,243 @@ function formatToken(amount: string, decimals = 6): string {
   return (Number(amount) / 10 ** decimals).toFixed(4);
 }
 
-export function RepayLoanPanel({ chains, onSuccess }: Props) {
-  const [busy, setBusy] = useState<string | null>(null);
-  const [status, setStatus] = useState<Record<string, string>>({});
-  const [outcomes, setOutcomes] = useState<Record<string, RepayOutcome>>({});
+function RepayChainContent({
+  chain,
+  onSuccess,
+  busy,
+  onBusy,
+}: {
+  chain: ChainSummary;
+  onSuccess: () => void;
+  busy: boolean;
+  onBusy: (v: boolean) => void;
+}) {
+  const chainKey = chain.chainKey as ChainKey;
+  const cfg = contractsByChain[chainKey];
+  const { address, isConnected } = useAccount();
+  const { apiFetch } = useWalletApi();
+  const { ensureChain } = useEnsureChain(chainKey);
+  const { writeContractAsync } = useWriteContract();
+  const [status, setStatus] = useState<string | null>(null);
+  const [outcome, setOutcome] = useState<RepayOutcome | null>(null);
+  const targetChainId = chainIdByKey[chainKey];
 
-  async function handleRepay(chainKey: ChainKey) {
-    setBusy(chainKey);
-    setStatus((s) => ({ ...s, [chainKey]: "Repaying…" }));
+  const hasLoan = Boolean(chain.loan?.active || chain.hasLocalLoan);
+
+  const { data: onChainLoanId } = useReadContract({
+    address: cfg.lending as `0x${string}`,
+    abi: LENDING_ABI,
+    functionName: "activeLoanId",
+    args: address ? [address] : undefined,
+    chainId: targetChainId,
+    query: { enabled: !!address && !!cfg.lending && hasLoan },
+  });
+
+  const loanId = onChainLoanId ?? (chain.loan?.loanId ? BigInt(chain.loan.loanId) : 0n);
+
+  const { data: loanRaw } = useReadContract({
+    address: cfg.lending as `0x${string}`,
+    abi: LENDING_ABI,
+    functionName: "loans",
+    args: loanId > 0n ? [loanId] : undefined,
+    chainId: targetChainId,
+    query: { enabled: !!cfg.lending && loanId > 0n },
+  });
+
+  const { data: interest } = useReadContract({
+    address: cfg.lending as `0x${string}`,
+    abi: LENDING_ABI,
+    functionName: "calculateInterest",
+    args: loanRaw ? [loanRaw] : undefined,
+    chainId: targetChainId,
+    query: { enabled: !!loanRaw && !!cfg.lending },
+  });
+
+  const { data: borrowToken } = useReadContract({
+    address: cfg.lending as `0x${string}`,
+    abi: LENDING_ABI,
+    functionName: "borrowToken",
+    chainId: targetChainId,
+    query: { enabled: !!cfg.lending && hasLoan },
+  });
+
+  async function handleRepay() {
+    if (!address || !loanRaw || !borrowToken || loanId === 0n) return;
+    onBusy(true);
+    setStatus("Switching network and signing repay…");
     try {
-      const res = await fetch("/api/loans/repay", {
+      const totalDue = loanRaw.borrowedAmount + (interest ?? 0n);
+      const { txHash, totalRepaidFormatted, borrowSymbol } = await clientRepayLoan({
+        chainKey,
+        loanId,
+        totalDue,
+        borrowToken: borrowToken as `0x${string}`,
+        writeContractAsync,
+        ensureChain,
+      });
+
+      const res = await apiFetch("/api/loans/repay", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chain_key: chainKey }),
+        body: JSON.stringify({
+          chain_key: chainKey,
+          tx_hash: txHash,
+          loan_id: loanId.toString(),
+          total_repaid: totalRepaidFormatted,
+          collateral_returned_eth: chain.loan?.collateralAmount
+            ? (Number(chain.loan.collateralAmount) / 1e18).toFixed(6)
+            : undefined,
+        }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Repay failed");
-      setOutcomes((o) => ({
-        ...o,
-        [chainKey]: {
-          repay_tx: data.repay_tx,
-          collateral_returned_eth: data.collateral_returned_eth,
-          total_repaid: data.total_repaid,
-          borrow_symbol: data.borrow_symbol,
-          receipt: data.receipt,
-          old_score: data.old_score,
-          new_score: data.new_score,
-          score_delta: data.score_delta,
-          errors: data.errors,
-          underwrite: data.underwrite,
-          lz_sync: data.lz_sync,
-        },
-      }));
-      const delta =
-        typeof data.score_delta === "number"
-          ? data.score_delta >= 0
-            ? `+${data.score_delta}`
-            : String(data.score_delta)
-          : null;
-      const scoreLine =
-        data.old_score != null && data.new_score != null
-          ? `Score ${data.old_score} → ${data.new_score}${delta ? ` (${delta})` : ""}`
-          : data.new_score != null
-            ? `New score: ${data.new_score}`
-            : null;
-      const collateralLine =
-        data.collateral_returned_eth != null
-          ? `Collateral returned: ${Number(data.collateral_returned_eth).toFixed(6)} WETH`
-          : null;
-      const repaidLine =
-        data.total_repaid != null && data.borrow_symbol
-          ? `Repaid: ${data.total_repaid} ${data.borrow_symbol}`
-          : null;
-      setStatus((s) => ({
-        ...s,
-        [chainKey]: [
-          collateralLine,
-          repaidLine,
-          scoreLine,
-          data.errors?.length ? `Agent warnings: ${data.errors.join("; ")}` : null,
-        ]
-          .filter(Boolean)
-          .join(" · "),
-      }));
+      if (!res.ok) throw new Error(data.error || "Repay confirmation failed");
+
+      setOutcome({
+        repay_tx: data.repay_tx,
+        collateral_returned_eth: data.collateral_returned_eth,
+        total_repaid: data.total_repaid,
+        borrow_symbol: data.borrow_symbol ?? borrowSymbol,
+        receipt: data.receipt,
+        old_score: data.old_score,
+        new_score: data.new_score,
+        score_delta: data.score_delta,
+        errors: data.errors,
+        underwrite: data.underwrite,
+        lz_sync: data.lz_sync,
+      });
+
+      toast.success(`Loan repaid on ${chain.label}`, `repay-${chain.chainKey}`);
+      if (data.errors?.length) {
+        toast.warning(String(data.errors[0]), `repay-warn-${chain.chainKey}`);
+      }
+      setStatus(null);
       onSuccess();
     } catch (err) {
-      setStatus((s) => ({
-        ...s,
-        [chainKey]: err instanceof Error ? err.message : "Repay failed",
-      }));
+      const msg = err instanceof Error ? err.message : "Repay failed";
+      toast.error(msg, `repay-error-${chain.chainKey}`);
+      setStatus(null);
     } finally {
-      setBusy(null);
+      onBusy(false);
     }
   }
 
+  if (!hasLoan || !chain.loan) {
+    return (
+      <p className="text-sm text-muted-foreground">No active loan to repay on this chain.</p>
+    );
+  }
+
   return (
-    <div className="grid gap-4 lg:grid-cols-3">
-      {chains.map((chain) => {
-        const cfg = contractsByChain[chain.chainKey as ChainKey];
-        const hasLoan = Boolean(chain.loan?.active || chain.hasLocalLoan);
-        return (
-          <ChainLoanCard key={chain.chainKey} chain={chain}>
-            {hasLoan && chain.loan ? (
-              <div className="space-y-3 text-sm">
-                <p>
-                  Total due:{" "}
-                  <strong>
-                    {formatToken(chain.loan.totalDue)} {cfg.borrowSymbol}
-                  </strong>
-                </p>
-                <button
-                  type="button"
-                  disabled={busy === chain.chainKey}
-                  onClick={() => handleRepay(chain.chainKey as ChainKey)}
-                  className="w-full rounded-lg bg-emerald-600 py-2 text-sm font-medium text-white disabled:opacity-50"
+    <>
+      <ChainCredScore
+        score={chain.score}
+        eligible={chain.eligible}
+        chainLabel={chain.label}
+      />
+
+      <div className="surface-row px-4 py-4">
+        <p className="section-label">Amount due</p>
+        <p className="mt-2 text-2xl font-[650] tabular-nums tracking-tight">
+          {formatToken(chain.loan.totalDue)}{" "}
+          <span className="text-base text-muted-foreground">{cfg.borrowSymbol}</span>
+        </p>
+        <p className="mt-1.5 text-sm text-muted-foreground">
+          Loan #{chain.loan.loanId} · Collateral returned in {COLLATERAL_SYMBOL} after repay
+        </p>
+      </div>
+
+      <div className="flex justify-end">
+        <button
+          type="button"
+          disabled={busy || !isConnected || loanId === 0n}
+          onClick={() => void handleRepay()}
+          className="btn-primary min-w-[220px] disabled:opacity-50"
+        >
+          {busy ? "Repaying…" : `Repay on ${chain.label}`}
+        </button>
+      </div>
+
+      {status && (
+        <p className="text-right text-xs break-all text-muted-foreground font-mono">{status}</p>
+      )}
+
+      {outcome && (
+        <div className="space-y-2 rounded-xl border border-primary/20 bg-primary/5 p-4 text-xs">
+          <p className="font-[650] text-primary">On-chain proof</p>
+          {outcome.repay_tx && (
+            <p className="break-all">
+              Repay tx:{" "}
+              {txExplorerUrl(chainKey, outcome.repay_tx) ? (
+                <a
+                  href={txExplorerUrl(chainKey, outcome.repay_tx)!}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-primary underline"
                 >
-                  {busy === chain.chainKey ? "Repaying…" : "Repay loan"}
-                </button>
-                {status[chain.chainKey] && (
-                  <p className="text-xs break-all text-zinc-600">{status[chain.chainKey]}</p>
-                )}
-                {(() => {
-                  const outcome = outcomes[chain.chainKey];
-                  if (!outcome) return null;
-                  const uwTx = outcome.underwrite?.data?.tx;
-                  const lzTxs = outcome.lz_sync?.data?.hub_tx_hashes ?? [];
-                  const chainKey = chain.chainKey as ChainKey;
-                  const repayUrl = outcome.repay_tx
-                    ? txExplorerUrl(chainKey, outcome.repay_tx)
-                    : null;
-                  return (
-                    <div className="space-y-2 rounded border border-emerald-100 bg-emerald-50/50 p-2 text-xs text-zinc-700 dark:border-emerald-900 dark:bg-emerald-950/20">
-                      <p className="font-medium text-emerald-900 dark:text-emerald-200">
-                        On-chain proof
-                      </p>
-                      {outcome.collateral_returned_eth != null && (
-                        <p>
-                          WETH collateral returned:{" "}
-                          <strong>{Number(outcome.collateral_returned_eth).toFixed(6)} ETH</strong>
-                        </p>
-                      )}
-                      {outcome.total_repaid != null && outcome.borrow_symbol && (
-                        <p>
-                          Borrow token repaid:{" "}
-                          <strong>
-                            {outcome.total_repaid} {outcome.borrow_symbol}
-                          </strong>
-                        </p>
-                      )}
-                      {outcome.repay_tx && (
-                        <p className="break-all">
-                          Repay tx:{" "}
-                          {repayUrl ? (
-                            <a
-                              href={repayUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-emerald-700 underline dark:text-emerald-300"
-                            >
-                              {outcome.repay_tx}
-                            </a>
-                          ) : (
-                            <code>{outcome.repay_tx}</code>
-                          )}
-                        </p>
-                      )}
-                      {outcome.receipt && (
-                        <p>
-                          Block {outcome.receipt.blockNumber} · gas {outcome.receipt.gasUsed} ·{" "}
-                          {outcome.receipt.status}
-                        </p>
-                      )}
-                      {outcome.underwrite?.ok && (
-                        <p className="break-all">
-                          Underwriter: {outcome.underwrite.data?.onchain || "ok"}
-                          {uwTx ? ` · ${uwTx}` : ""}
-                        </p>
-                      )}
-                      {lzTxs.length > 0 && (
-                        <div className="space-y-0.5">
-                          <p className="font-medium">LayerZero unlock (spokes):</p>
-                          {lzTxs.map((t) => {
-                            const url = txExplorerUrl(t.chain_key as ChainKey, t.tx_hash);
-                            return (
-                              <p key={`${t.chain_key}-${t.tx_hash}`} className="break-all pl-2">
-                                {t.chain_key}:{" "}
-                                {url ? (
-                                  <a
-                                    href={url}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="text-emerald-700 underline dark:text-emerald-300"
-                                  >
-                                    {t.tx_hash}
-                                  </a>
-                                ) : (
-                                  <code>{t.tx_hash}</code>
-                                )}
-                              </p>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
-              </div>
-            ) : (
-              <p className="text-sm text-zinc-500">No active loan to repay.</p>
-            )}
-          </ChainLoanCard>
-        );
-      })}
-    </div>
+                  {outcome.repay_tx}
+                </a>
+              ) : (
+                <code className="font-mono">{outcome.repay_tx}</code>
+              )}
+            </p>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
+export function RepayLoanPanel({ chains, onSuccess }: Props) {
+  const [selectedChainKey, setSelectedChainKey] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const repayableChains = useMemo(
+    () => chains.filter((c) => c.loan?.active || c.hasLocalLoan),
+    [chains]
+  );
+
+  const selectedChain = useMemo(() => {
+    if (!selectedChainKey) return null;
+    return repayableChains.find((c) => c.chainKey === selectedChainKey) ?? null;
+  }, [repayableChains, selectedChainKey]);
+
+  const chainOptions = useMemo(
+    () => repayableChains.map((c) => ({ chainKey: c.chainKey, label: c.label })),
+    [repayableChains]
+  );
+
+  if (!repayableChains.length) {
+    return (
+      <div className="card-padded text-sm text-muted-foreground">
+        <p>No loans to repay.</p>
+        <p className="mt-2 text-xs text-subtle">
+          Open a loan from the Borrow tab, then return here after it confirms on-chain.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <LoansPanelShell
+      title="Repay"
+      chainOptions={chainOptions}
+      selectedChainKey={selectedChainKey}
+      onChainChange={setSelectedChainKey}
+      chainPlaceholder="Select chain to repay"
+    >
+      {!selectedChain ? (
+        <p className="text-sm text-muted-foreground">
+          Select a chain to view the amount due and repay your loan.
+        </p>
+      ) : (
+        <RepayChainContent
+          key={selectedChain.chainKey}
+          chain={selectedChain}
+          onSuccess={onSuccess}
+          busy={busy}
+          onBusy={setBusy}
+        />
+      )}
+    </LoansPanelShell>
   );
 }

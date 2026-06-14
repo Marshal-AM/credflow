@@ -1,14 +1,14 @@
-import { NextResponse } from "next/server";
-import { getFrontendAddress } from "@/lib/wallet-server";
+import { NextRequest, NextResponse } from "next/server";
+import { requireRequestWallet } from "@/lib/wallet-request";
 import { readChainLoanSummary } from "@/lib/loan-server";
 import { enrichChainSummaries } from "@/lib/loan-chain-enrich";
 import { prepareSpokeBorrow } from "@/lib/spoke-loan-prepare";
 import type { ChainKey } from "@/lib/chains";
 
 /** Clear OApp loanActive mirror when hub has no loan (not hub-mirror lock). */
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
-    const wallet = getFrontendAddress();
+    const wallet = requireRequestWallet(req);
     const body = await req.json();
     const chainKey = body.chain_key as ChainKey;
 

@@ -1,17 +1,12 @@
 import {
   createPublicClient,
-  createWalletClient,
   formatEther,
   formatUnits,
   http,
-  maxUint256,
   parseEther,
   parseUnits,
-  type Hash,
   type PublicClient,
-  type WalletClient,
 } from "viem";
-import { getFrontendAccount } from "@/lib/wallet-server";
 import {
   arbitrumSepolia,
   baseSepolia,
@@ -20,7 +15,6 @@ import {
 } from "@/lib/chains";
 import {
   contractsByChain,
-  ERC20_ABI,
   LENDING_ABI,
   OAPP_ABI,
   ORACLE_ABI,
@@ -28,7 +22,6 @@ import {
   WETH_ABI,
 } from "@/lib/contracts";
 import { collateralWeiForBorrow, maxLtvPercent } from "@/lib/loan-collateral";
-import { sendWalletContractWrite } from "@/lib/wallet-tx";
 
 function rpcForChain(chainKey: ChainKey): string {
   switch (chainKey) {
@@ -69,14 +62,6 @@ export function getPublicClient(chainKey: ChainKey): PublicClient {
     chain: chainForKey(chainKey),
     transport: http(rpcForChain(chainKey)),
   }) as PublicClient;
-}
-
-export function getWalletClient(chainKey: ChainKey): WalletClient {
-  return createWalletClient({
-    account: getFrontendAccount(),
-    chain: chainForKey(chainKey),
-    transport: http(rpcForChain(chainKey)),
-  });
 }
 
 export type LoanOnChain = {
@@ -334,263 +319,5 @@ export async function computeRequiredCollateral(
     maxLtvBps,
     maxLtvPct: maxLtvPercent(maxLtvBps),
     ethUsd: formatUnits(ethUsd6, 6),
-  };
-}
-
-export async function borrowLoan(params: {
-  chainKey: ChainKey;
-  borrowAmount: string;
-  durationDays: number;
-  score: number;
-  collateralEth?: string;
-}): Promise<{ txHash: Hash; loanId: bigint | null; collateralEth: string }> {
-  const { chainKey, borrowAmount, durationDays, score } = params;
-  const quote = await computeRequiredCollateral(chainKey, score, borrowAmount);
-  const collateralEth = params.collateralEth ?? quote.collateralEth;
-  const cfg = contractsByChain[chainKey];
-  if (!cfg.lending) throw new Error(`Lending not deployed on ${cfg.label}`);
-
-  const wallet = getFrontendAccount();
-  const publicClient = getPublicClient(chainKey);
-  const walletClient = getWalletClient(chainKey);
-  const borrow = parseUnits(borrowAmount, 6);
-  const collateral = parseEther(collateralEth);
-  const weth = cfg.weth as `0x${string}`;
-  const lending = cfg.lending as `0x${string}`;
-
-  const chain = chainForKey(chainKey);
-
-  try {
-    await sendWalletContractWrite(publicClient, walletClient, {
-      address: weth,
-      abi: WETH_ABI,
-      functionName: "deposit",
-      value: collateral,
-      account: wallet,
-      chain,
-    });
-  } catch {
-    /* may already have WETH */
-  }
-
-  await sendWalletContractWrite(publicClient, walletClient, {
-    address: weth,
-    abi: WETH_ABI,
-    functionName: "approve",
-    args: [lending, collateral],
-    account: wallet,
-    chain,
-  });
-
-  await publicClient.simulateContract({
-    address: lending,
-    abi: LENDING_ABI,
-    functionName: "requestLoan",
-    args: [borrow, weth, collateral, BigInt(durationDays)],
-    account: wallet.address,
-  });
-
-  const loanHash = await sendWalletContractWrite(publicClient, walletClient, {
-    address: lending,
-    abi: LENDING_ABI,
-    functionName: "requestLoan",
-    args: [borrow, weth, collateral, BigInt(durationDays)],
-    account: wallet,
-    chain,
-  });
-  const receipt = await publicClient.waitForTransactionReceipt({ hash: loanHash });
-
-  if (receipt.status !== "success") {
-    throw new Error(
-      "Borrow transaction reverted on-chain (check collateral, pool liquidity, or score LTV)"
-    );
-  }
-
-  const activeLoanId = await publicClient.readContract({
-    address: lending,
-    abi: LENDING_ABI,
-    functionName: "activeLoanId",
-    args: [wallet.address],
-  });
-
-  if (activeLoanId === 0n) {
-    throw new Error("Borrow tx mined but no active loan was created — try again");
-  }
-
-  return {
-    txHash: receipt.transactionHash,
-    loanId: activeLoanId,
-    collateralEth,
-  };
-}
-
-async function ensureBorrowTokenAllowance(
-  chainKey: ChainKey,
-  borrowToken: `0x${string}`,
-  lending: `0x${string}`,
-  wallet: ReturnType<typeof getFrontendAccount>,
-  publicClient: PublicClient,
-  walletClient: WalletClient,
-  minRequired: bigint
-): Promise<void> {
-  const chain = chainForKey(chainKey);
-  let allowance = await publicClient.readContract({
-    address: borrowToken,
-    abi: ERC20_ABI,
-    functionName: "allowance",
-    args: [wallet.address, lending],
-  });
-
-  if (allowance >= minRequired && allowance >= maxUint256 / 2n) {
-    return;
-  }
-
-  // USDC (and similar) often require reset to 0 before a new non-zero approve.
-  if (allowance > 0n) {
-    await sendWalletContractWrite(publicClient, walletClient, {
-      address: borrowToken,
-      abi: ERC20_ABI,
-      functionName: "approve",
-      args: [lending, 0n],
-      account: wallet,
-      chain,
-    });
-  }
-
-  await sendWalletContractWrite(publicClient, walletClient, {
-    address: borrowToken,
-    abi: ERC20_ABI,
-    functionName: "approve",
-    args: [lending, maxUint256],
-    account: wallet,
-    chain,
-  });
-
-  allowance = await publicClient.readContract({
-    address: borrowToken,
-    abi: ERC20_ABI,
-    functionName: "allowance",
-    args: [wallet.address, lending],
-  });
-  if (allowance < minRequired) {
-    throw new Error(
-      `Borrow token allowance still too low after approve (${allowance.toString()} < ${minRequired.toString()}). ` +
-        `Token ${borrowToken} on ${cfgLabel(chainKey)}.`
-    );
-  }
-}
-
-function cfgLabel(chainKey: ChainKey): string {
-  return contractsByChain[chainKey].label;
-}
-
-export type RepayLoanResult = {
-  txHash: Hash;
-  loanId: bigint;
-  collateralWei: bigint;
-  collateralEth: string;
-  totalRepaidWei: bigint;
-  totalRepaidFormatted: string;
-  borrowSymbol: string;
-  receipt: {
-    blockNumber: string;
-    status: "success" | "reverted";
-    gasUsed: string;
-  };
-};
-
-export async function repayLoan(chainKey: ChainKey): Promise<RepayLoanResult> {
-  const cfg = contractsByChain[chainKey];
-  if (!cfg.lending) throw new Error(`Lending not deployed on ${cfg.label}`);
-
-  const wallet = getFrontendAccount();
-  const publicClient = getPublicClient(chainKey);
-  const walletClient = getWalletClient(chainKey);
-  const lending = cfg.lending as `0x${string}`;
-  const chain = chainForKey(chainKey);
-
-  const loanId = await publicClient.readContract({
-    address: lending,
-    abi: LENDING_ABI,
-    functionName: "activeLoanId",
-    args: [wallet.address],
-  });
-  if (loanId === 0n) throw new Error("No active loan");
-
-  const borrowToken = (await publicClient.readContract({
-    address: lending,
-    abi: LENDING_ABI,
-    functionName: "borrowToken",
-  })) as `0x${string}`;
-
-  const raw = await publicClient.readContract({
-    address: lending,
-    abi: LENDING_ABI,
-    functionName: "loans",
-    args: [loanId],
-  });
-  const interest = await publicClient.readContract({
-    address: lending,
-    abi: LENDING_ABI,
-    functionName: "calculateInterest",
-    args: [raw],
-  });
-  const totalDue = raw.borrowedAmount + interest;
-
-  const balance = await publicClient.readContract({
-    address: borrowToken,
-    abi: ERC20_ABI,
-    functionName: "balanceOf",
-    args: [wallet.address],
-  });
-  if (balance < totalDue) {
-    throw new Error(
-      `Insufficient ${cfg.borrowSymbol} balance (${balance.toString()} < ${totalDue.toString()} wei)`
-    );
-  }
-
-  await ensureBorrowTokenAllowance(
-    chainKey,
-    borrowToken,
-    lending,
-    wallet,
-    publicClient,
-    walletClient,
-    totalDue
-  );
-
-  const { request } = await publicClient.simulateContract({
-    address: lending,
-    abi: LENDING_ABI,
-    functionName: "repayLoan",
-    args: [loanId],
-    account: wallet,
-  });
-
-  const repayHash = await sendWalletContractWrite(publicClient, walletClient, {
-    ...request,
-    account: wallet,
-    chain,
-  });
-
-  const receipt = await publicClient.waitForTransactionReceipt({ hash: repayHash });
-  if (receipt.status !== "success") {
-    throw new Error("Repay transaction reverted on-chain");
-  }
-
-  const borrowDecimals = cfg.borrowSymbol === "USDG" ? 6 : 6;
-  return {
-    txHash: repayHash,
-    loanId,
-    collateralWei: raw.collateralAmount,
-    collateralEth: formatEther(raw.collateralAmount),
-    totalRepaidWei: totalDue,
-    totalRepaidFormatted: formatUnits(totalDue, borrowDecimals),
-    borrowSymbol: cfg.borrowSymbol,
-    receipt: {
-      blockNumber: receipt.blockNumber.toString(),
-      status: receipt.status,
-      gasUsed: receipt.gasUsed.toString(),
-    },
   };
 }

@@ -1,21 +1,12 @@
 import { createConfig, http } from "wagmi";
-import { injected, metaMask } from "wagmi/connectors";
+import { arbitrumSepolia, baseSepolia, robinhoodTestnet } from "@/lib/chains";
 
-const robinhoodChain = {
-  id: Number(process.env.NEXT_PUBLIC_ROBINHOOD_CHAIN_ID || 46630),
-  name: "Robinhood Chain",
-  nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
-  rpcUrls: {
-    default: {
-      http: [process.env.NEXT_PUBLIC_RPC_ROBINHOOD || "https://rpc.testnet.chain.robinhood.com"],
-    },
-  },
-} as const;
-
-export const config = createConfig({
-  chains: [robinhoodChain],
-  connectors: [injected(), metaMask()],
+export const wagmiConfig = createConfig({
+  chains: [robinhoodTestnet, arbitrumSepolia, baseSepolia] as never,
   transports: {
-    [robinhoodChain.id]: http(),
+    [robinhoodTestnet.id]: http(robinhoodTestnet.rpcUrls.default.http[0]),
+    [arbitrumSepolia.id]: http(arbitrumSepolia.rpcUrls.default.http[0]),
+    [baseSepolia.id]: http(baseSepolia.rpcUrls.default.http[0]),
   },
+  ssr: true,
 });

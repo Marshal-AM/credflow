@@ -1,5 +1,4 @@
 import { formatEther, formatUnits } from "viem";
-import { getFrontendAddress } from "@/lib/wallet-server";
 import { getPublicClient, readChainLoanSummary } from "@/lib/loan-server";
 import { contractsByChain, LENDING_ABI, OAPP_ABI, SBT_ABI } from "@/lib/contracts";
 
@@ -31,8 +30,7 @@ export type DefaultTestStatus = {
   };
 };
 
-export async function readDefaultTestStatus(): Promise<DefaultTestStatus> {
-  const wallet = getFrontendAddress();
+export async function readDefaultTestStatus(wallet: `0x${string}`): Promise<DefaultTestStatus> {
   const hubSummary = await readChainLoanSummary("hub", wallet);
   const client = getPublicClient("hub");
   const cfg = contractsByChain.hub;
@@ -113,7 +111,7 @@ export async function readDefaultTestStatus(): Promise<DefaultTestStatus> {
     wallet,
     hub: {
       loanId: loanId?.toString() ?? null,
-      loanActive: Boolean(hubSummary.loan?.active || loanId),
+      loanActive: Boolean(hubSummary.loan?.active),
       borrowed: hubSummary.loan
         ? formatUnits(hubSummary.loan.borrowedAmount, 6)
         : null,
@@ -130,7 +128,7 @@ export async function readDefaultTestStatus(): Promise<DefaultTestStatus> {
     },
     spokes,
     ready: {
-      hasActiveLoan: Boolean(loanId),
+      hasActiveLoan: Boolean(loanId && hubSummary.loan?.active),
       liquidatable: ltvBps != null && ltvBps >= liquidationThresholdBps,
     },
   };

@@ -1,30 +1,12 @@
 "use client";
 
-import { ChainLoanCard } from "./ChainLoanCard";
+import { useMemo, useState } from "react";
+import { ChainCredScore } from "./ChainCredScore";
+import { LoansPanelShell } from "./LoansPanelShell";
+import type { ChainSummary } from "./loans-types";
 import { contractsByChain } from "@/lib/contracts";
+import { COLLATERAL_SYMBOL } from "@/lib/chain-logos";
 import type { ChainKey } from "@/lib/chains";
-
-type LoanData = {
-  loanId: string;
-  borrowedAmount: string;
-  collateralAmount: string;
-  interest: string;
-  totalDue: string;
-  dueTime: string;
-  maxLTV: string;
-  interestRate: string;
-  active: boolean;
-};
-
-type ChainSummary = {
-  chainKey: string;
-  label: string;
-  score: number;
-  eligible: boolean;
-  eligibilityReason: string | null;
-  loanActive: boolean;
-  loan: LoanData | null;
-};
 
 type Props = {
   chains: ChainSummary[];
@@ -39,67 +21,102 @@ function formatEth(wei: string): string {
   return (Number(wei) / 1e18).toFixed(6);
 }
 
-export function ActiveLoansPanel({ chains }: Props) {
-  const active = chains.filter((c) => c.loan?.active === true);
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-4 border-b border-border/40 py-3 text-sm last:border-0">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-[650] tabular-nums text-right">{value}</span>
+    </div>
+  );
+}
 
-  if (!active.length) {
+export function ActiveLoansPanel({ chains }: Props) {
+  const activeChains = useMemo(
+    () => chains.filter((c) => c.loan?.active === true),
+    [chains]
+  );
+
+  const [selectedChainKey, setSelectedChainKey] = useState<string | null>(null);
+
+  const selectedChain = useMemo(() => {
+    if (!selectedChainKey) return null;
+    return activeChains.find((c) => c.chainKey === selectedChainKey) ?? null;
+  }, [activeChains, selectedChainKey]);
+
+  const chainOptions = useMemo(
+    () => activeChains.map((c) => ({ chainKey: c.chainKey, label: c.label })),
+    [activeChains]
+  );
+
+  if (!activeChains.length) {
     return (
-      <div className="rounded-xl border border-zinc-200 p-6 text-sm text-zinc-500 dark:border-zinc-800">
+      <div className="card-padded text-sm text-muted-foreground">
         <p>No active loans on any chain.</p>
-        <p className="mt-2 text-xs text-zinc-400">
+        <p className="mt-2 text-xs text-subtle">
           If you just borrowed, refresh after the tx confirms. A reverted borrow (wrong collateral or
-          pool limits) will not appear here — check the Purchase tab status message or block explorer.
+          pool limits) will not appear here — check the Borrow tab status message or block explorer.
         </p>
       </div>
     );
   }
 
+  const loan = selectedChain?.loan;
+  const cfg = selectedChain
+    ? contractsByChain[selectedChain.chainKey as ChainKey]
+    : null;
+  const due = loan ? new Date(Number(loan.dueTime) * 1000) : null;
+
   return (
-    <div className="grid gap-4 lg:grid-cols-3">
-      {active.map((chain) => {
-        const loan = chain.loan;
-        if (!loan) return null;
-        const cfg = contractsByChain[chain.chainKey as ChainKey];
-        const due = new Date(Number(loan.dueTime) * 1000);
-        return (
-          <ChainLoanCard key={chain.chainKey} chain={chain}>
-            <dl className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <dt className="text-zinc-500">Loan #</dt>
-                <dd>{loan.loanId}</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-zinc-500">Borrowed</dt>
-                <dd>
-                  {formatToken(loan.borrowedAmount)} {cfg.borrowSymbol}
-                </dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-zinc-500">Collateral</dt>
-                <dd>{formatEth(loan.collateralAmount)} WETH</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-zinc-500">Interest</dt>
-                <dd>{formatToken(loan.interest)} {cfg.borrowSymbol}</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-zinc-500">Total due</dt>
-                <dd className="font-medium">
-                  {formatToken(loan.totalDue)} {cfg.borrowSymbol}
-                </dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-zinc-500">Due</dt>
-                <dd>{due.toLocaleDateString()}</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-zinc-500">Max LTV</dt>
-                <dd>{(Number(loan.maxLTV) / 100).toFixed(0)}%</dd>
-              </div>
-            </dl>
-          </ChainLoanCard>
-        );
-      })}
-    </div>
+    <LoansPanelShell
+      title="Active loans"
+      chainOptions={chainOptions}
+      selectedChainKey={selectedChainKey}
+      onChainChange={setSelectedChainKey}
+      chainPlaceholder="Select chain with active loan"
+    >
+      {!selectedChain || !loan || !cfg ? (
+        <p className="text-sm text-muted-foreground">
+          Select a chain to view your active loan details.
+        </p>
+      ) : (
+        <>
+          <ChainCredScore
+            score={selectedChain.score}
+            eligible={selectedChain.eligible}
+            chainLabel={selectedChain.label}
+          />
+
+          <div className="surface-row px-4 py-1">
+            <DetailRow label="Loan #" value={loan.loanId} />
+            <DetailRow
+              label="Borrowed"
+              value={`${formatToken(loan.borrowedAmount)} ${cfg.borrowSymbol}`}
+            />
+            <DetailRow
+              label="Collateral"
+              value={`${formatEth(loan.collateralAmount)} ${COLLATERAL_SYMBOL}`}
+            />
+            <DetailRow
+              label="Interest"
+              value={`${formatToken(loan.interest)} ${cfg.borrowSymbol}`}
+            />
+            <DetailRow
+              label="Total due"
+              value={`${formatToken(loan.totalDue)} ${cfg.borrowSymbol}`}
+            />
+            <DetailRow label="Due date" value={due!.toLocaleDateString()} />
+            <DetailRow label="Max LTV" value={`${(Number(loan.maxLTV) / 100).toFixed(0)}%`} />
+            <DetailRow
+              label="Interest rate"
+              value={`${(Number(loan.interestRate) / 100).toFixed(2)}%`}
+            />
+          </div>
+
+          <div className="rounded-full bg-primary/15 px-3 py-1.5 text-center text-xs font-[650] uppercase tracking-wider text-primary">
+            Active loan on {selectedChain.label}
+          </div>
+        </>
+      )}
+    </LoansPanelShell>
   );
 }

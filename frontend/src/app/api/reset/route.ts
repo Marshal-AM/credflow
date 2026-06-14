@@ -1,13 +1,13 @@
-import { NextResponse } from "next/server";
-import { getFrontendAddress } from "@/lib/wallet-server";
+import { NextRequest, NextResponse } from "next/server";
+import { requireRequestWallet } from "@/lib/wallet-request";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 
 const SCORING_API = process.env.SCORING_API_URL || "http://localhost:8000";
 
 /** Delete Supabase cache (account_profiles + score_runs) for the env wallet. On-chain SBT is not removed. */
-export async function POST() {
+export async function POST(req: NextRequest) {
   try {
-    const wallet = getFrontendAddress().toLowerCase();
+    const wallet = requireRequestWallet(req).toLowerCase();
     const supabase = getSupabaseAdmin();
     if (!supabase) {
       return NextResponse.json(

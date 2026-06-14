@@ -20,18 +20,18 @@ function TrackRow({
 }) {
   const dot =
     status === "done"
-      ? "bg-emerald-500"
+      ? "bg-emerald-400"
       : status === "running"
-        ? "bg-amber-400 animate-pulse"
+        ? "bg-primary animate-pulse"
         : status === "error"
-          ? "bg-red-500"
-          : "bg-zinc-300";
+          ? "bg-red-400"
+          : "bg-muted-foreground/30";
   return (
-    <div className="flex gap-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
-      <div className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${dot}`} />
+    <div className="flex gap-3 surface-row p-4 transition-spring hover:scale-[1.01]">
+      <div className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${dot}`} />
       <div>
-        <p className="text-sm font-medium">{label}</p>
-        <p className="text-xs text-zinc-500">{detail}</p>
+        <p className="text-sm font-[650]">{label}</p>
+        <p className="text-xs text-muted-foreground">{detail}</p>
       </div>
     </div>
   );
@@ -47,45 +47,39 @@ export function ScoringProgress({
 }: Props) {
   return (
     <div className="mx-auto max-w-lg space-y-3">
-      <p className="text-center text-sm text-zinc-500">
-        {message || "Analyzing your credit profile…"}
+      <p className="text-center text-sm text-muted-foreground">
+        {message || "Calculating your CredScore…"}
       </p>
 
       {reclaimUrl && onOpenReclaim && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-center dark:border-emerald-900 dark:bg-emerald-950/30">
-          <p className="text-sm text-emerald-900 dark:text-emerald-100">
-            Log into your bank in the Reclaim portal to continue.
-          </p>
-          <button
-            type="button"
-            onClick={onOpenReclaim}
-            className="mt-3 rounded-lg bg-emerald-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
-          >
-            Open Reclaim Portal
+        <div className="rounded-xl border border-primary/30 bg-primary/10 p-4 text-center">
+          <p className="text-sm text-primary">Log into your bank to continue.</p>
+          <button type="button" onClick={onOpenReclaim} className="btn-primary mt-3">
+            Open bank portal
           </button>
-          <p className="mt-2 text-xs text-zinc-500">
+          <p className="mt-2 text-xs text-muted-foreground">
             Popup blocked? Use this button — it opens on your click.
           </p>
         </div>
       )}
 
       <TrackRow
-        label="Wallet analysis"
-        detail="XGBoost on DeFi history, borrow behavior, wallet age"
+        label="Wallet history"
+        detail="Reviewing your on-chain activity"
         status={walletTrack}
       />
       <TrackRow
-        label="R-GCN Sybil detector"
-        detail="Transaction graph, defaulter links, farming patterns"
+        label="Identity check"
+        detail="Screening for fraud and sybil patterns"
         status={sybilTrack}
       />
       {reclaimTrack && reclaimTrack !== "idle" && (
         <TrackRow
-          label="Bank verification (Reclaim)"
+          label="Bank verification"
           detail={
             reclaimTrack === "done"
-              ? "Bank proof verified"
-              : "Waiting for bank proof via Reclaim portal"
+              ? "Bank account verified"
+              : "Waiting for bank login"
           }
           status={reclaimTrack}
         />

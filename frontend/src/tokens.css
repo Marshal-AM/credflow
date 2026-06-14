@@ -1,0 +1,47 @@
+:root {
+  --color-background: oklch(0.9821 0 0);
+  --color-foreground: oklch(0.2435 0 0);
+  --color-card: oklch(0.9911 0 0);
+  --color-primary: oklch(0.4341 0.0392 41.9938);
+  --color-primary-foreground: oklch(1 0 0);
+  --color-secondary: oklch(0.92 0.0651 74.3695);
+  --color-secondary-foreground: oklch(0.3499 0.0685 40.8288);
+  --color-muted: oklch(0.9521 0 0);
+  --color-muted-foreground: oklch(0.5032 0 0);
+  --color-accent: oklch(0.931 0 0);
+  --color-destructive: oklch(0.6271 0.1936 33.339);
+  --color-success: oklch(0.62 0.17 145);
+  --color-border: oklch(0.8822 0 0);
+  --color-ring: oklch(0.4341 0.0392 41.9938);
+  --color-surface: oklch(0.96 0 0);
+  --color-subtle: oklch(0.65 0 0);
+
+  --font-display: "Haffer", "Haffer XH", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Haffer", "Haffer XH", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Haffer Mono", "Haffer SemiMono", ui-monospace, SFMono-Regular, monospace;
+
+  --page-gutter: clamp(1rem, 4vw, 4%);
+  --page-max: 1720px;
+
+  --spring-easing: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --fluid-easing: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dark {
+  --color-background: oklch(0.1776 0 0);
+  --color-foreground: oklch(0.9491 0 0);
+  --color-card: oklch(0.2134 0 0);
+  --color-primary: oklch(0.9247 0.0524 66.1732);
+  --color-primary-foreground: oklch(0.2029 0.024 200.1962);
+  --color-secondary: oklch(0.3163 0.019 63.6992);
+  --color-secondary-foreground: oklch(0.9247 0.0524 66.1732);
+  --color-muted: oklch(0.252 0 0);
+  --color-muted-foreground: oklch(0.7699 0 0);
+  --color-accent: oklch(0.285 0 0);
+  --color-destructive: oklch(0.6271 0.1936 33.339);
+  --color-success: oklch(0.72 0.19 145);
+  --color-border: oklch(0.2351 0.0115 91.7467);
+  --color-ring: oklch(0.9247 0.0524 66.1732);
+  --color-surface: oklch(0.22 0.005 91);
+  --color-subtle: oklch(0.55 0 0);
+}

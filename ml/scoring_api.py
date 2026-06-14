@@ -1,17 +1,20 @@
 """FastAPI scoring service — XGBoost + Sybil detection + optional Reclaim bank balance."""
 
 import asyncio
+import json
 import logging
 import os
+import queue
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
-from typing import Optional
+from typing import Any, Callable, Optional
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from ml.agent_handlers import router as agents_router
@@ -62,6 +65,14 @@ class UnderwriteRequest(BaseModel):
     score_snapshot: Optional[dict] = None
 
 
+ScoreEventEmitter = Callable[[str, dict[str, Any]], None]
+
+
+def _emit(emit: ScoreEventEmitter | None, event_type: str, data: dict[str, Any]) -> None:
+    if emit is not None:
+        emit(event_type, data)
+
+
 def _configure_indexer_loggers() -> None:
     """Ensure indexer modules log to the same terminal as the API."""
     for name in (
@@ -97,6 +108,7 @@ def _score_sync(
     floor_cred_score: int | None = None,
     stored_balance_usd_cents: int | None = None,
     stored_reclaim_proof_hash: str | None = None,
+    emit: ScoreEventEmitter | None = None,
 ) -> dict:
     load_dotenv(override=False)
     _configure_indexer_loggers()
@@ -111,6 +123,10 @@ def _score_sync(
     from ml.score_engine import compute_on_chain_cred_score, default_prob_to_bps
 
     use_reclaim = require_reclaim and reclaim_enabled()
+
+    def _awaiting(payload: dict) -> dict:
+        _emit(emit, "awaiting_reclaim", payload)
+        return payload
 
     if use_reclaim:
         if not reclaim_session_id:
@@ -143,7 +159,7 @@ def _score_sync(
                         pending.session_id,
                         wallet_address,
                     )
-                    return {
+                    return _awaiting({
                         "status": "awaiting_reclaim",
                         "reclaim_url": pending.request_url,
                         "reclaim_status_url": pending.status_url,
@@ -151,7 +167,7 @@ def _score_sync(
                         "reclaim_session_id": pending.session_id,
                         "wallet_address": wallet_address,
                         "message": "Complete bank verification via Reclaim portal",
-                    }
+                    })
                 callback = _reclaim_callback_url()
                 session = create_session(wallet_address, callback)
                 logger.info("=" * 60)
@@ -162,7 +178,7 @@ def _score_sync(
                 logger.info("Callback:   %s", callback)
                 logger.info("After bank login, POST /score again (same wallet + require_reclaim)")
                 logger.info("=" * 60)
-                return {
+                return _awaiting({
                     "status": "awaiting_reclaim",
                     "reclaim_url": session.request_url,
                     "reclaim_status_url": session.status_url,
@@ -186,7 +202,7 @@ def _score_sync(
                             "Or POST /score with reuse_verified_reclaim:true after callback"
                         ),
                     },
-                }
+                })
 
         if reclaim_session_id:
             session = get_session(reclaim_session_id)
@@ -195,7 +211,7 @@ def _score_sync(
             if session.wallet_address != wallet_address.lower():
                 raise ValueError("Reclaim session wallet mismatch")
             if session.status != "verified":
-                return {
+                return _awaiting({
                     "status": "awaiting_reclaim",
                     "reclaim_url": session.request_url,
                     "reclaim_session_id": session.session_id,
@@ -205,7 +221,7 @@ def _score_sync(
                         "poll": f"GET /reclaim/session/{session.session_id}",
                         "then": "POST /score with require_reclaim:true and reclaim_session_id",
                     },
-                }
+                })
 
     from indexer.alchemy_pipeline import get_wallet_state
     from indexer.chains import CREDFLOW_CHAINS, hub_chain, spoke_chains
@@ -227,6 +243,7 @@ def _score_sync(
 
     logger.info("=== SCORE START wallet=%s ===", wallet_address)
     step("imports loaded")
+    _emit(emit, "step", {"id": "fetch", "status": "running", "label": "Fetching on-chain & borrow history"})
 
     from concurrent.futures import as_completed
 
@@ -256,8 +273,25 @@ def _score_sync(
         wallet_features.get("tx_count"),
         alchemy_state.get("tx_count"),
     )
+    _emit(
+        emit,
+        "fetch_result",
+        {
+            "phase_a_ms": phase_a_ms,
+            "borrow_total": borrow_features.get("total_borrows"),
+            "wallet_tx_count": wallet_features.get("tx_count"),
+            "alchemy_tx_count": alchemy_state.get("tx_count"),
+            "chains": alchemy_state.get("chains", []),
+        },
+    )
+    _emit(emit, "step", {"id": "fetch", "status": "done", "label": "On-chain data loaded"})
 
     def _wallet_analysis_path() -> tuple[dict, dict, dict, dict, dict, dict]:
+        _emit(
+            emit,
+            "step",
+            {"id": "wallet_ml", "status": "running", "label": "Running ML credit model"},
+        )
         t_w = time.perf_counter()
         source_data = collect_all_sources(wallet_address, borrow_features=borrow_features)
         from indexer.scoring_metrics import enrich_scoring_features
@@ -273,11 +307,55 @@ def _score_sync(
         )
         result = score_wallet(features)
         ms = int((time.perf_counter() - t_w) * 1000)
+        _emit(
+            emit,
+            "ml_result",
+            {
+                "cred_score": result.get("cred_score"),
+                "default_probability": result.get("default_probability"),
+                "wallet_analysis_ms": ms,
+            },
+        )
+        _emit(emit, "step", {"id": "wallet_ml", "status": "done"})
         return result, features, source_data, w_feat, b_feat, {"wallet_analysis_ms": ms}
 
     def _sybil_path() -> tuple[dict, dict]:
+        from ml.sybil_detector import resolve_sybil_risk_addresses
+        from ml.sybil_graph import stream_wallet_graph
+
         t_s = time.perf_counter()
-        sybil = run_sybil_check(wallet_address, alchemy_state)
+        risk_addresses = resolve_sybil_risk_addresses(wallet_address, alchemy_state)
+        if risk_addresses:
+            logger.info(
+                "  sybil on-chain risk addresses: %s",
+                ", ".join(sorted(risk_addresses)[:8])
+                + ("…" if len(risk_addresses) > 8 else ""),
+            )
+        _emit(
+            emit,
+            "step",
+            {"id": "sybil_graph", "status": "running", "label": "Mapping wallet neighborhood"},
+        )
+        for graph_event in stream_wallet_graph(
+            wallet_address, alchemy_state, risk_addresses=risk_addresses
+        ):
+            if graph_event["type"] == "graph_node":
+                _emit(emit, "graph_node", graph_event["node"])
+            elif graph_event["type"] == "graph_edge":
+                _emit(emit, "graph_edge", graph_event["edge"])
+            elif graph_event["type"] == "graph_meta":
+                _emit(emit, "graph_meta", graph_event["meta"])
+        _emit(
+            emit,
+            "step",
+            {"id": "sybil_rgcn", "status": "running", "label": "Running R-GCN sybil screening"},
+        )
+        sybil = run_sybil_check(
+            wallet_address, alchemy_state, risk_addresses=risk_addresses
+        )
+        _emit(emit, "sybil_result", sybil)
+        _emit(emit, "step", {"id": "sybil_graph", "status": "done"})
+        _emit(emit, "step", {"id": "sybil_rgcn", "status": "done"})
         ms = int((time.perf_counter() - t_s) * 1000)
         return sybil, {"sybil_analysis_ms": ms}
 
@@ -305,6 +383,7 @@ def _score_sync(
         sub_scores["borrow_sub_score"],
         sub_scores["wallet_sub_score"],
     )
+    _emit(emit, "sub_scores", sub_scores)
 
     sybil_risk = sybil.get("sybil_risk", "low")
     default_prob = float(result.get("default_probability", 0))
@@ -369,8 +448,11 @@ def _score_sync(
         )
 
     t = step("upload_shap_explanation (Pinata IPFS)")
+    _emit(emit, "step", {"id": "shap", "status": "running", "label": "Uploading SHAP explanation"})
     shap_cid = upload_shap_explanation(result["shap_values"], wallet_address)
     logger.info("  shap_cid=%s", shap_cid)
+    _emit(emit, "shap", {"cid": shap_cid})
+    _emit(emit, "step", {"id": "shap", "status": "done"})
 
     step("build_model_breakdown")
     model_breakdown = build_model_breakdown(
@@ -403,7 +485,7 @@ def _score_sync(
         total_s,
     )
 
-    return {
+    final = {
         **result,
         **sub_scores,
         "status": "complete",
@@ -450,6 +532,23 @@ def _score_sync(
             **sybil_timing,
         },
     }
+    from ml.sybil_graph import collect_wallet_graph
+
+    final["wallet_graph"] = collect_wallet_graph(wallet_address, alchemy_state)
+    _emit(
+        emit,
+        "score_summary",
+        {
+            "cred_score": final["cred_score"],
+            "on_chain_cred_score": on_chain_cred_score,
+            "sybil_risk": sybil_risk,
+            "approved": approved,
+            "rejection_reason": rejection_reason,
+            "balance_usd_cents": balance_usd_cents,
+        },
+    )
+    _emit(emit, "complete", final)
+    return final
 
 
 @app.on_event("startup")
@@ -709,6 +808,67 @@ async def score_wallet_endpoint(req: ScoreRequest):
             error=str(exc),
         )
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.post("/score/stream")
+async def score_stream_endpoint(req: ScoreRequest):
+    """Server-sent events stream for live CredScore calculation."""
+    event_q: queue.Queue = queue.Queue()
+
+    def emit(event_type: str, data: dict[str, Any]) -> None:
+        event_q.put({"type": event_type, "data": data})
+
+    async def generate():
+        loop = asyncio.get_event_loop()
+        fn = partial(
+            _score_sync,
+            req.wallet_address,
+            reclaim_session_id=req.reclaim_session_id,
+            require_reclaim=req.require_reclaim,
+            reuse_verified_reclaim=req.reuse_verified_reclaim,
+            floor_cred_score=req.floor_cred_score,
+            stored_balance_usd_cents=req.stored_balance_usd_cents,
+            stored_reclaim_proof_hash=req.stored_reclaim_proof_hash,
+            emit=emit,
+        )
+        task = loop.run_in_executor(_executor, fn)
+        terminal = {"complete", "error", "awaiting_reclaim"}
+
+        while True:
+            try:
+                item = event_q.get_nowait()
+            except queue.Empty:
+                if task.done():
+                    break
+                await asyncio.sleep(0.15)
+                continue
+
+            yield f"data: {json.dumps(item, default=str)}\n\n"
+            if item.get("type") in terminal:
+                break
+
+        while True:
+            try:
+                item = event_q.get_nowait()
+            except queue.Empty:
+                break
+            yield f"data: {json.dumps(item, default=str)}\n\n"
+            if item.get("type") in terminal:
+                break
+
+        if not task.done():
+            await task
+
+        exc = task.exception()
+        if exc is not None:
+            err = {"type": "error", "data": {"message": str(exc)}}
+            yield f"data: {json.dumps(err)}\n\n"
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"},
+    )
 
 
 def main():

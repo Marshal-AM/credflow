@@ -1,8 +1,12 @@
-import { NextResponse } from "next/server";
-import { getFrontendAddress } from "@/lib/wallet-server";
+import { NextRequest, NextResponse } from "next/server";
+import { requireRequestWallet } from "@/lib/wallet-request";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { readChainLoanSummary } from "@/lib/loan-server";
 import { enrichChainSummaries } from "@/lib/loan-chain-enrich";
+import {
+  applyBorrowApprovalGate,
+  fetchLatestBorrowApproval,
+} from "@/lib/borrow-approval";
 import {
   filterValidLoanEvents,
   filterValidLzBroadcasts,
@@ -16,13 +20,17 @@ import type { ChainKey } from "@/lib/chains";
 
 const CHAINS: ChainKey[] = ["hub", "arbitrum", "base"];
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const wallet = getFrontendAddress();
+    const wallet = requireRequestWallet(req);
     const rawSummaries = await Promise.all(
       CHAINS.map((k) => readChainLoanSummary(k, wallet))
     );
-    const summaries = enrichChainSummaries(rawSummaries);
+    const borrowApproval = await fetchLatestBorrowApproval(wallet);
+    const summaries = applyBorrowApprovalGate(
+      enrichChainSummaries(rawSummaries),
+      borrowApproval
+    );
 
     const hub = summaries.find((s) => s.chainKey === "hub");
     const maxSpokeScore = Math.max(

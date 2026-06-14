@@ -18,31 +18,47 @@ export type ScoreResponse = Record<string, unknown> & {
   pipeline?: Record<string, unknown>;
 };
 
-export async function fetchWalletAddress(): Promise<string> {
-  const res = await fetch("/api/wallet");
-  if (!res.ok) throw new Error((await res.json()).error || "Failed to load wallet");
-  const data = await res.json();
-  return data.address as string;
+function walletHeaders(wallet: string, init?: RequestInit): RequestInit {
+  const headers = new Headers(init?.headers);
+  headers.set("x-wallet-address", wallet);
+  return { ...init, headers };
 }
 
-export async function fetchProfile(): Promise<{
+export type ScoreRunRecord = {
+  id?: string;
+  status?: string;
+  require_reclaim?: boolean;
+  reclaim_session_id?: string | null;
+  response?: Record<string, unknown> | null;
+  error_message?: string | null;
+  created_at?: string;
+};
+
+export async function fetchProfile(wallet: string): Promise<{
   profile: Record<string, unknown> | null;
   wallet: string;
   hasOnChainSbt: boolean;
   onChainScore: number | null;
   mintTxHash: string | null;
+  latestScoreRun: ScoreRunRecord | null;
 }> {
-  const res = await fetch("/api/profile");
+  const res = await fetch("/api/profile", walletHeaders(wallet));
   if (!res.ok) throw new Error((await res.json()).error || "Failed to load profile");
   return res.json();
 }
 
-export async function requestScore(body: ScoreRequestBody): Promise<ScoreResponse> {
-  const res = await fetch("/api/score", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+export async function requestScore(
+  wallet: string,
+  body: ScoreRequestBody
+): Promise<ScoreResponse> {
+  const res = await fetch(
+    "/api/score",
+    walletHeaders(wallet, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
+  );
   const data = await res.json();
   if (!res.ok) {
     const detail =
@@ -108,19 +124,28 @@ export async function pollReclaimSession(sessionId: string): Promise<ReclaimPoll
   };
 }
 
-export async function resetAccountCache(): Promise<Record<string, unknown>> {
-  const res = await fetch("/api/reset", { method: "POST" });
+export async function resetAccountCache(wallet: string): Promise<Record<string, unknown>> {
+  const res = await fetch(
+    "/api/reset",
+    walletHeaders(wallet, { method: "POST" })
+  );
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Reset failed");
   return data;
 }
 
-export async function mintSbt(scoreSnapshot?: Record<string, unknown>): Promise<Record<string, unknown>> {
-  const res = await fetch("/api/mint", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ score_snapshot: scoreSnapshot }),
-  });
+export async function mintSbt(
+  wallet: string,
+  scoreSnapshot?: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  const res = await fetch(
+    "/api/mint",
+    walletHeaders(wallet, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ score_snapshot: scoreSnapshot }),
+    })
+  );
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || data.detail?.reason || "Mint failed");
   return data;

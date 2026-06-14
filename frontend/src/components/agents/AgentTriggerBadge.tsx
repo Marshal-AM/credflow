@@ -17,15 +17,17 @@ export function AgentTriggerBadge({ source }: Props) {
   const label = LABELS[source] || source;
   const color =
     source === "scheduler"
-      ? "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200"
+      ? "bg-indigo-400/15 text-indigo-300"
       : source === "defender_sentinel"
-        ? "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200"
+        ? "bg-violet-400/15 text-violet-300"
         : source === "api_hook"
-        ? "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200"
-        : "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300";
+          ? "bg-sky-400/15 text-sky-300"
+          : "bg-muted text-muted-foreground";
 
   return (
-    <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${color}`}>
+    <span
+      className={`rounded-full px-2 py-0.5 font-mono text-[10px] font-[650] uppercase tracking-wider ${color}`}
+    >
       {label}
     </span>
   );

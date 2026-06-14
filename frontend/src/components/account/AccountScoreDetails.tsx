@@ -32,29 +32,31 @@ function Collapsible({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="rounded-lg border border-zinc-200 dark:border-zinc-800">
+    <div className="card-shell overflow-hidden">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium"
+        className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-[650] transition-colors hover:bg-muted/30"
       >
         {title}
-        <span className="text-zinc-400">{open ? "−" : "+"}</span>
+        <span className="text-muted-foreground">{open ? "−" : "+"}</span>
       </button>
-      {open && <div className="border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">{children}</div>}
+      {open && (
+        <div className="border-t border-border/60 px-4 py-3">{children}</div>
+      )}
     </div>
   );
 }
 
 function KeyValueTable({ rows }: { rows: [string, string | number][] }) {
-  if (!rows.length) return <p className="text-sm text-zinc-500">No data</p>;
+  if (!rows.length) return <p className="text-sm text-muted-foreground">No data</p>;
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <tbody>
           {rows.map(([k, v]) => (
-            <tr key={k} className="border-b border-zinc-100 dark:border-zinc-900">
-              <td className="py-1.5 pr-4 text-zinc-500">{labelize(k)}</td>
+            <tr key={k} className="border-b border-border/40">
+              <td className="py-1.5 pr-4 text-muted-foreground">{labelize(k)}</td>
               <td className="py-1.5 font-mono text-xs">{v}</td>
             </tr>
           ))}
@@ -105,24 +107,24 @@ export function AccountScoreDetails({ data }: Props) {
   return (
     <div className="space-y-4">
       {(defaultProb != null || defaultBps != null) && (
-        <div className="rounded-xl border border-zinc-200 p-6 dark:border-zinc-800">
-          <h3 className="font-semibold">Default risk (ML)</h3>
+        <div className="card-padded">
+          <h3 className="font-[650]">Default risk (ML)</h3>
           <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
             {defaultProb != null && (
               <p>
-                <span className="text-zinc-500">Default probability:</span>{" "}
+                <span className="text-muted-foreground">Default probability:</span>{" "}
                 <strong>{(defaultProb * 100).toFixed(2)}%</strong>
               </p>
             )}
             {defaultBps != null && (
               <p>
-                <span className="text-zinc-500">Default prob (bps):</span>{" "}
+                <span className="text-muted-foreground">Default prob (bps):</span>{" "}
                 <strong>{defaultBps}</strong>
               </p>
             )}
           </div>
           {Object.keys(computed).length > 0 && (
-            <div className="mt-3 text-xs text-zinc-500">
+            <div className="mt-3 text-xs text-muted-foreground">
               Formula: {String(formula.step_2_cred_score || "300 + (1 − p_default) × 550")}
               {computed.raw_cred_score_before_clamp != null && (
                 <span className="ml-2">
@@ -135,22 +137,22 @@ export function AccountScoreDetails({ data }: Props) {
       )}
 
       {Object.keys(sybilProbs).length > 0 && (
-        <div className="rounded-xl border border-zinc-200 p-6 dark:border-zinc-800">
-          <h3 className="font-semibold">Sybil probability breakdown</h3>
-          <div className="mt-3 space-y-2">
+        <div className="card-padded">
+          <h3 className="font-[650]">Sybil probability breakdown</h3>
+          <div className="mt-4 space-y-2">
             {(["low", "medium", "high"] as const).map((tier) => {
               const p = sybilProbs[tier] ?? 0;
               return (
                 <div key={tier} className="flex items-center gap-3 text-sm">
-                  <span className="w-16 capitalize text-zinc-500">{tier}</span>
-                  <div className="h-2 flex-1 overflow-hidden rounded bg-zinc-100 dark:bg-zinc-900">
+                  <span className="w-16 capitalize text-muted-foreground">{tier}</span>
+                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
                     <div
                       className={`h-full ${
                         tier === "high"
-                          ? "bg-red-500"
+                          ? "bg-red-400"
                           : tier === "medium"
-                            ? "bg-amber-500"
-                            : "bg-emerald-500"
+                            ? "bg-amber-400"
+                            : "bg-emerald-400"
                       }`}
                       style={{ width: `${Math.min(100, p * 100)}%` }}
                     />
@@ -164,27 +166,27 @@ export function AccountScoreDetails({ data }: Props) {
       )}
 
       {Object.keys(reclaim).length > 0 && (
-        <div className="rounded-xl border border-zinc-200 p-6 dark:border-zinc-800">
-          <h3 className="font-semibold">Reclaim verification</h3>
+        <div className="card-padded">
+          <h3 className="font-[650]">Reclaim verification</h3>
           <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
             <p>
-              <span className="text-zinc-500">Status:</span>{" "}
+              <span className="text-muted-foreground">Status:</span>{" "}
               <strong>{String(reclaim.status || "—")}</strong>
             </p>
             {reclaim.balance_inr_paise != null && (
               <p>
-                <span className="text-zinc-500">Balance (INR):</span>{" "}
+                <span className="text-muted-foreground">Balance (INR):</span>{" "}
                 ₹{(Number(reclaim.balance_inr_paise) / 100).toLocaleString()}
               </p>
             )}
             {reclaim.fx_rate_inr_per_usd != null && (
               <p>
-                <span className="text-zinc-500">FX rate:</span>{" "}
+                <span className="text-muted-foreground">FX rate:</span>{" "}
                 {Number(reclaim.fx_rate_inr_per_usd)} INR/USD ({String(reclaim.fx_source || "—")})
               </p>
             )}
             {reclaim.reclaim_proof_hash != null && (
-              <p className="col-span-full font-mono text-xs break-all text-zinc-500">
+              <p className="col-span-full font-mono text-xs break-all text-muted-foreground">
                 Proof hash: {String(reclaim.reclaim_proof_hash)}
               </p>
             )}
@@ -202,23 +204,23 @@ export function AccountScoreDetails({ data }: Props) {
 
       {topShap.length > 0 && (
         <Collapsible title={`SHAP drivers (top ${topShap.length})`} defaultOpen>
-          <p className="mb-3 text-xs text-zinc-500">
+          <p className="mb-3 text-xs text-muted-foreground">
             Positive SHAP → higher default risk; negative → lower default risk.
           </p>
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-xs text-zinc-500">
+              <tr className="text-left text-xs text-muted-foreground">
                 <th className="pb-2">Feature</th>
                 <th className="pb-2">SHAP</th>
               </tr>
             </thead>
             <tbody>
               {topShap.map(([k, v]) => (
-                <tr key={k} className="border-t border-zinc-100 dark:border-zinc-900">
+                <tr key={k} className="border-t border-border/40">
                   <td className="py-1.5">{labelize(k)}</td>
                   <td
                     className={`py-1.5 font-mono text-xs ${
-                      v > 0 ? "text-red-600" : "text-emerald-600"
+                      v > 0 ? "text-red-400" : "text-emerald-400"
                     }`}
                   >
                     {v > 0 ? "+" : ""}
@@ -241,15 +243,15 @@ export function AccountScoreDetails({ data }: Props) {
         <Collapsible title="Data sources">
           <div className="mb-3 grid gap-2 text-sm sm:grid-cols-3">
             <p>
-              <span className="text-zinc-500">Total sources:</span>{" "}
+              <span className="text-muted-foreground">Total sources:</span>{" "}
               {String(sourceSummary.total_sources ?? "—")}
             </p>
             <p>
-              <span className="text-zinc-500">With data:</span>{" "}
+              <span className="text-muted-foreground">With data:</span>{" "}
               {String(sourceSummary.sources_with_data ?? "—")}
             </p>
             <p>
-              <span className="text-zinc-500">Skipped:</span>{" "}
+              <span className="text-muted-foreground">Skipped:</span>{" "}
               {String(sourceSummary.sources_skipped ?? "—")}
             </p>
           </div>

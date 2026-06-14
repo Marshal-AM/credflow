@@ -1,4 +1,4 @@
-import { getFrontendAddress } from "@/lib/wallet-server";
+import { requireRequestWallet } from "@/lib/wallet-request";
 import { loadAgentRunsFromFiles } from "@/lib/agent-run-logs";
 
 export const dynamic = "force-dynamic";
@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 
 /** Server-Sent Events: live agent run logs from logs/agent-runs (no Supabase). */
 export async function GET(req: Request) {
-  const wallet = getFrontendAddress();
+  const wallet = requireRequestWallet(req);
   const url = new URL(req.url);
   const agentId = url.searchParams.get("agent_id") || undefined;
 

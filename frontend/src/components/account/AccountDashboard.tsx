@@ -1,267 +1,340 @@
 "use client";
 
-import type { ScoreResponse } from "@/lib/scoring-api";
-import { applyOnChainScore } from "@/lib/score-display";
-import { AccountScoreDetails } from "@/components/account/AccountScoreDetails";
-import { LayerZeroSyncPanel } from "@/components/loans/LayerZeroSyncPanel";
+import { useEffect, useMemo, type ReactNode } from "react";
+import type { ScoreResponse, ScoreRunRecord } from "@/lib/scoring-api";
+import { buildScoreRunDetailCards } from "@/lib/score-run-display";
+import { toast } from "@/lib/toast";
+import { CredScoreGauge } from "@/components/account/CredScoreGauge";
 
 type Props = {
-  wallet: string;
   data: ScoreResponse;
   profile?: Record<string, unknown> | null;
+  latestScoreRun?: ScoreRunRecord | null;
   hasOnChainSbt: boolean;
   onChainScore?: number | null;
   hasCachedScore: boolean;
   onMint: () => void;
   onRescore: () => void;
-  onResetCache: () => void;
+  onAddBank?: () => void;
   minting: boolean;
-  resetting: boolean;
   mintError?: string | null;
-  mintTx?: string | null;
-  mintTxHash?: string | null;
 };
 
-function Stat({ label, value }: { label: string; value: string | number }) {
+type ValueTone = "positive" | "negative" | "neutral";
+
+function toneClass(tone: ValueTone): string {
+  if (tone === "positive") return "text-success";
+  if (tone === "negative") return "text-destructive";
+  return "";
+}
+
+function WalletIcon({ className }: { className?: string }) {
   return (
-    <div className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
-      <p className="text-xs text-zinc-500">{label}</p>
-      <p className="mt-1 text-xl font-semibold">{value}</p>
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1" />
+      <path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4" />
+    </svg>
+  );
+}
+
+function BankIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="3" y1="21" x2="21" y2="21" />
+      <line x1="3" y1="10" x2="21" y2="10" />
+      <path d="M5 21V10M9 21V10M13 21V10M17 21V10" />
+      <path d="m2 10 10-7 10 7" />
+    </svg>
+  );
+}
+
+function Panel({
+  title,
+  subtitle,
+  children,
+  className = "",
+}: {
+  title: string;
+  subtitle?: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <section
+      className={`rounded-xl border border-border/50 bg-card/40 p-3 ${className}`}
+    >
+      <div className="mb-2">
+        <h3 className="section-label">{title}</h3>
+        {subtitle ? <p className="mt-0.5 text-[0.8125rem] text-muted-foreground">{subtitle}</p> : null}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function SourceCard({
+  icon: Icon,
+  label,
+  detail,
+  verified,
+}: {
+  icon: typeof WalletIcon;
+  label: string;
+  detail: string;
+  verified: boolean;
+}) {
+  return (
+    <div
+      className={`flex min-w-0 flex-1 items-center gap-3 rounded-lg border px-3 py-2.5 ${
+        verified
+          ? "border-primary/35 bg-primary/10"
+          : "border-border/50 bg-muted/15"
+      }`}
+    >
+      <div
+        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${
+          verified ? "bg-primary/20 text-primary" : "bg-muted/40 text-muted-foreground"
+        }`}
+      >
+        <Icon className="h-4 w-4" />
+      </div>
+      <div className="min-w-0">
+        <p className={`truncate text-sm font-[650] ${verified ? "text-foreground" : "text-muted-foreground"}`}>
+          {label}
+        </p>
+        <p
+          className={`mt-0.5 truncate text-xs ${
+            verified ? "text-primary" : "text-muted-foreground"
+          }`}
+        >
+          {detail}
+        </p>
+      </div>
     </div>
   );
 }
 
-function DataSourceBanner({
-  hasCachedScore,
-  hasOnChainSbt,
-  lastScoredAt,
+function MetricCard({
+  title,
+  lines,
 }: {
-  hasCachedScore: boolean;
-  hasOnChainSbt: boolean;
-  lastScoredAt?: string | null;
+  title: string;
+  lines: Array<{ label: string; value: string; tone?: ValueTone; href?: string }>;
 }) {
-  if (hasCachedScore) {
-    return (
-      <p className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-2 text-xs text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/50 dark:text-zinc-400">
-        ML feature breakdown from Supabase{" "}
-        <code className="text-[11px]">account_profiles</code>
-        {lastScoredAt ? ` (last scored ${new Date(lastScoredAt).toLocaleString()})` : ""}.
-        CredScore shown above is the live on-chain SBT score when minted.
-      </p>
-    );
-  }
-  if (hasOnChainSbt) {
-    return (
-      <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
-        On-chain SBT exists but there is no cached ML score in Supabase — Sybil and feature data are
-        missing until you run <strong>Build Your Score</strong> again.
-      </p>
-    );
-  }
-  return null;
+  return (
+    <article className="rounded-lg border border-border/45 bg-card/50 p-3">
+      <p className="section-label mb-2">{title}</p>
+      <div className="space-y-1.5">
+        {lines.map((line) => (
+          <div key={line.label} className="flex items-start justify-between gap-3 text-[0.8125rem] leading-snug">
+            <span className="shrink-0 text-muted-foreground">{line.label}</span>
+            {line.href ? (
+              <a
+                href={line.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`min-w-0 text-right font-[650] underline decoration-border/60 underline-offset-2 transition-colors hover:decoration-foreground ${toneClass(line.tone ?? "neutral")}`}
+                title={line.value}
+              >
+                {line.value.length > 28 ? `${line.value.slice(0, 14)}…${line.value.slice(-8)}` : line.value}
+              </a>
+            ) : (
+              <span
+                className={`min-w-0 text-right text-sm font-[650] break-words ${toneClass(line.tone ?? "neutral")}`}
+                title={line.value}
+              >
+                {line.value}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    </article>
+  );
 }
 
 export function AccountDashboard({
-  wallet,
   data,
   profile,
+  latestScoreRun,
   hasOnChainSbt,
   onChainScore,
   hasCachedScore,
   onMint,
   onRescore,
-  onResetCache,
+  onAddBank,
   minting,
-  resetting,
   mintError,
-  mintTx,
-  mintTxHash,
 }: Props) {
-  const display = applyOnChainScore(data, onChainScore, hasOnChainSbt);
+  const scoreResponse = (latestScoreRun?.response as ScoreResponse | undefined) ?? data;
   const credScore =
-    onChainScore ??
-    (display.cred_score as number) ??
-    (profile?.cred_score as number);
-  const mlScore = display.ml_cred_score as number | undefined;
-  const onChainFormula = display.on_chain_cred_score as number | undefined;
-  const sybil = (data.sybil_details as Record<string, unknown>) || {};
-  const pipeline = (data.pipeline as Record<string, unknown>) || {};
-  const sybilRisk = data.sybil_risk as string | undefined;
-  const displayMintTx =
-    mintTx ||
-    mintTxHash ||
-    (profile?.mint_tx_hash as string | undefined) ||
-    null;
-  const minted =
-    hasOnChainSbt ||
-    profile?.mint_status === "minted" ||
-    Boolean(mintTx);
-  const approved = data.approved !== false && (profile?.approved as boolean) !== false;
+    (scoreResponse.cred_score as number | undefined) ??
+    (data.cred_score as number | undefined) ??
+    (profile?.cred_score as number | undefined);
+  const score = typeof credScore === "number" ? credScore : null;
+  const balanceCents =
+    (scoreResponse.balance_usd_cents as number | undefined) ??
+    (data.balance_usd_cents as number | undefined) ??
+    (profile?.balance_usd_cents as number | undefined);
+  const bankVerified = (balanceCents ?? 0) > 0;
+  const walletVerified = hasCachedScore || hasOnChainSbt;
+  const minted = hasOnChainSbt || profile?.mint_status === "minted";
+  const approved = scoreResponse.approved !== false;
+
+  const detailCards = useMemo(
+    () =>
+      buildScoreRunDetailCards(scoreResponse, {
+        minted,
+      }),
+    [scoreResponse, minted]
+  );
+
+  const showMintAction = !minted && hasCachedScore && approved;
+  const showAddBankAction = !bankVerified && hasCachedScore && !!onAddBank;
+  const showActionsSection = showMintAction || showAddBankAction;
+
+  useEffect(() => {
+    if (hasOnChainSbt && !hasCachedScore) {
+      toast.warning(
+        "Your on-chain credential exists. Recalculate your score to refresh your full profile.",
+        "sbt-no-cache"
+      );
+    }
+  }, [hasOnChainSbt, hasCachedScore]);
+
+  useEffect(() => {
+    if (!approved && hasCachedScore) {
+      const reason = String(
+        scoreResponse.rejection_reason ||
+          data.rejection_reason ||
+          profile?.rejection_reason ||
+          "Score did not meet lending requirements"
+      );
+      toast.error(`Not eligible to borrow: ${reason}`, "not-approved");
+    }
+  }, [approved, hasCachedScore, scoreResponse.rejection_reason, data.rejection_reason, profile?.rejection_reason]);
+
+  useEffect(() => {
+    if (mintError) {
+      toast.error(mintError, "mint-error");
+    }
+  }, [mintError]);
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="rounded-xl border border-zinc-200 p-6 dark:border-zinc-800">
-          <p className="text-xs text-zinc-500">Account (FRONTEND_PRIVATE_KEY)</p>
-          <p className="mt-1 font-mono text-sm">{wallet}</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={onRescore}
-            className="rounded-lg border border-emerald-600 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400"
-          >
-            Rebuild score
-          </button>
-          <button
-            type="button"
-            disabled={resetting}
-            onClick={onResetCache}
-            className="rounded-lg border border-zinc-300 px-4 py-2 text-sm text-zinc-600 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-400"
-          >
-            {resetting ? "Resetting…" : "Reset Supabase cache"}
-          </button>
-        </div>
-      </div>
-
-      <DataSourceBanner
-        hasCachedScore={hasCachedScore}
-        hasOnChainSbt={hasOnChainSbt}
-        lastScoredAt={profile?.last_scored_at as string | undefined}
-      />
-
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Stat label="CredScore" value={credScore ?? "—"} />
-        <Stat label="ML score" value={mlScore ?? "—"} />
-        <Stat label="On-chain formula" value={onChainFormula ?? "—"} />
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Stat label="Borrow sub-score" value={(data.borrow_sub_score as number) ?? "—"} />
-        <Stat label="Wallet sub-score" value={(data.wallet_sub_score as number) ?? "—"} />
-      </div>
-
-      <div className="rounded-xl border border-zinc-200 p-6 dark:border-zinc-800">
-        <h3 className="font-semibold">Sybil analysis (R-GCN)</h3>
-        <p className="mt-1 text-xs text-zinc-500">
-          From ML API <code>sybil_risk</code> + <code>sybil_details</code> (graph model on tx
-          counterparties).
-        </p>
-        <div className="mt-3 grid gap-2 text-sm">
-          <p>
-            <span className="text-zinc-500">Risk:</span>{" "}
-            {sybilRisk ? (
-              <strong
-                className={
-                  sybilRisk === "high"
-                    ? "text-red-600"
-                    : sybilRisk === "medium"
-                      ? "text-amber-600"
-                      : "text-emerald-600"
-                }
+    <div className="account-dashboard">
+      {/*
+        Fixed-height workspace: fits below page title within the viewport.
+        Both columns share this height; only the right metrics pane scrolls.
+      */}
+      <div className="grid gap-3 xl:grid-cols-[1.05fr_1fr] xl:h-[calc(100svh-14.5rem)] xl:min-h-[26rem] xl:max-h-[44rem]">
+        {/* Left — gauge column, vertically centered in fixed panel */}
+        <div className="card-padded flex min-h-[18rem] flex-col items-center justify-center py-4 xl:min-h-0 xl:h-full">
+          {score != null ? (
+            <>
+              <div className="flex w-full max-w-sm flex-1 items-center justify-center xl:min-h-0">
+                <CredScoreGauge score={score} />
+              </div>
+              <button
+                type="button"
+                onClick={onRescore}
+                className="btn-primary mt-3 shrink-0 px-8 py-2.5 text-[0.9375rem]"
               >
-                {sybilRisk}
-              </strong>
-            ) : (
-              <span className="text-zinc-400">— (not scored)</span>
-            )}
-          </p>
-          <p>
-            <span className="text-zinc-500">Method:</span>{" "}
-            {sybil.method != null ? String(sybil.method) : "—"}
-          </p>
-          <p>
-            <span className="text-zinc-500">Unique counterparties:</span>{" "}
-            {sybil.unique_counterparties != null ? String(sybil.unique_counterparties) : "—"}
-          </p>
-          <p>
-            <span className="text-zinc-500">Defaulter links:</span>{" "}
-            {sybil.defaulter_links != null ? String(sybil.defaulter_links) : "—"}
-          </p>
-          {pipeline.sybil_analysis_ms != null && (
-            <p className="text-xs text-zinc-400">
-              Graph analysis completed in {String(pipeline.sybil_analysis_ms)}ms (parallel)
-            </p>
+                Recalculate Score
+              </button>
+            </>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <p className="section-label">CredScore</p>
+              <p className="mt-3 text-sm text-muted-foreground">Score not available yet</p>
+              <button
+                type="button"
+                onClick={onRescore}
+                className="btn-primary mt-4 px-8 py-2.5 text-[0.9375rem]"
+              >
+                Recalculate Score
+              </button>
+            </div>
           )}
         </div>
-      </div>
 
-      {hasCachedScore && <AccountScoreDetails data={display} />}
+        {/* Right — pinned header + scroll body + pinned footer */}
+        <div className="flex min-h-[22rem] min-w-0 flex-col gap-2 xl:min-h-0 xl:h-full">
+          <Panel title="Verification sources" className="shrink-0">
+            <div className="grid min-w-0 grid-cols-2 gap-1.5">
+              <SourceCard
+                icon={WalletIcon}
+                label="Wallet history"
+                detail={walletVerified ? "On-chain activity verified" : "Not connected"}
+                verified={walletVerified}
+              />
+              <SourceCard
+                icon={BankIcon}
+                label="Bank account"
+                detail={
+                  bankVerified
+                    ? `$${((balanceCents ?? 0) / 100).toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })} verified balance`
+                    : "Not connected"
+                }
+                verified={bankVerified}
+              />
+            </div>
+          </Panel>
 
-      {(data.balance_usd_cents as number) > 0 && (
-        <div className="rounded-xl border border-zinc-200 p-6 dark:border-zinc-800">
-          <h3 className="font-semibold">Bank balance (Reclaim)</h3>
-          <p className="mt-2 text-sm">
-            Verified USD capacity: ${((data.balance_usd_cents as number) / 100).toFixed(2)}
-          </p>
-        </div>
-      )}
-
-      {!approved && hasCachedScore && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200">
-          Not approved:{" "}
-          {String(data.rejection_reason || profile?.rejection_reason || "Score or Sybil check failed")}
-        </div>
-      )}
-
-      <div className="rounded-xl border border-zinc-200 p-6 dark:border-zinc-800">
-        <h3 className="font-semibold">Soulbound token</h3>
-        <p className="mt-1 text-xs text-zinc-500">
-          Mint status: Supabase <code>mint_status</code> + live{" "}
-          <code>hasProfile(wallet)</code> on Robinhood SBT contract. On-chain score from{" "}
-          <code>getProfile</code>.
-        </p>
-        {minted ? (
-          <div className="mt-3 space-y-2 text-sm">
-            <p className="text-emerald-600">
-              SBT minted on Robinhood hub
-              {hasOnChainSbt ? " (confirmed on-chain)" : " (Supabase only — RPC read failed?)"}
-            </p>
-            {onChainScore != null && (
-              <p>
-                On-chain score: <strong>{onChainScore}</strong>
-              </p>
-            )}
-            {displayMintTx ? (
-              <div className="mt-2 rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/40">
-                <p className="text-xs font-medium text-zinc-500">Mint transaction hash</p>
-                <p className="mt-1 font-mono text-xs break-all text-zinc-800 dark:text-zinc-200">
-                  {displayMintTx}
-                </p>
-              </div>
-            ) : (
-              <p className="text-xs text-zinc-400">
-                Mint tx hash not found — refresh the page to load from chain.
-              </p>
-            )}
-          </div>
-        ) : approved || !hasCachedScore ? (
-          <div className="mt-4">
-            <button
-              type="button"
-              disabled={minting || !hasCachedScore}
-              onClick={onMint}
-              className="rounded-lg bg-emerald-600 px-6 py-2.5 text-sm font-medium text-white disabled:opacity-50"
+          <section className="flex max-h-[26rem] min-h-[10rem] flex-1 flex-col overflow-hidden rounded-xl border border-border/50 bg-card/25 sm:max-h-[28rem] xl:max-h-none xl:min-h-0">
+            <header className="shrink-0 border-b border-border/40 px-3 py-2.5">
+              <p className="section-label">Profile details</p>
+            </header>
+            <div
+              className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2.5 py-2.5"
+              style={{ WebkitOverflowScrolling: "touch" }}
             >
-              {minting ? "Minting…" : "Mint Soulbound Token"}
-            </button>
-            {!hasCachedScore && (
-              <p className="mt-2 text-sm text-zinc-500">Run a score first before minting.</p>
-            )}
-            {mintError && <p className="mt-2 text-sm text-red-600">{mintError}</p>}
-          </div>
-        ) : (
-          <p className="mt-2 text-sm text-zinc-500">
-            Minting unavailable — score did not pass underwriting rules.
-          </p>
-        )}
+              {detailCards.length > 0 ? (
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {detailCards.map((card) => (
+                    <MetricCard key={card.id} title={card.title} lines={card.lines} />
+                  ))}
+                </div>
+              ) : (
+                <p className="px-1 py-6 text-center text-sm text-muted-foreground">
+                  No score run data yet. Recalculate your score to populate this panel.
+                </p>
+              )}
+            </div>
+          </section>
+
+          {showActionsSection ? (
+            <Panel title="Next steps" className="shrink-0">
+              <p className="mb-2 text-[0.8125rem] text-muted-foreground">
+                Complete these actions to unlock the full CredFlow experience.
+              </p>
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                {showMintAction ? (
+                  <button
+                    type="button"
+                    disabled={minting}
+                    onClick={onMint}
+                    className="btn-primary flex-1 disabled:opacity-50 sm:min-w-[12rem]"
+                  >
+                    {minting ? "Minting…" : "Mint credential"}
+                  </button>
+                ) : null}
+                {showAddBankAction ? (
+                  <button
+                    type="button"
+                    onClick={onAddBank}
+                    className="btn-secondary flex-1 sm:min-w-[12rem]"
+                  >
+                    Connect bank account
+                  </button>
+                ) : null}
+              </div>
+            </Panel>
+          ) : null}
+        </div>
       </div>
-
-      {Boolean(data.shap_cid) && (
-        <p className="text-xs text-zinc-400">SHAP IPFS: {String(data.shap_cid)}</p>
-      )}
-
-      <LayerZeroSyncPanel compact />
     </div>
   );
 }

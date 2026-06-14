@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getFrontendAddress } from "@/lib/wallet-server";
+import { requireRequestWallet } from "@/lib/wallet-request";
 import {
   getSupabaseAdmin,
   profileFromScoreResponse,
@@ -11,7 +11,7 @@ const SCORING_API = process.env.SCORING_API_URL || "http://localhost:8000";
 
 export async function POST(req: NextRequest) {
   try {
-    const wallet = getFrontendAddress();
+    const wallet = requireRequestWallet(req);
     const body = await req.json();
     const require_reclaim = Boolean(body.require_reclaim);
     const reuse_verified_reclaim = Boolean(body.reuse_verified_reclaim);

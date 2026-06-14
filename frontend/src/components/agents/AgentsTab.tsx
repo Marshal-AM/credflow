@@ -1,69 +1,45 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AgentCard } from "./AgentCard";
-import { AgentLogPanel } from "./AgentLogPanel";
-
-const AGENT_IDS = [
-  "underwriter",
-  "portfolio_monitor",
-  "liquidation",
-  "crosschain_sync",
-  "rate_optimizer",
-] as const;
-
-type AgentRun = {
-  id: string;
-  agent_id: string;
-  status: string;
-  trigger_source: string;
-  trigger_event: string | null;
-  started_at: string;
-  finished_at: string | null;
-  summary: string | null;
-};
-
-type LogLine = {
-  id: string;
-  run_id: string;
-  logged_at: string;
-  level: string;
-  message: string;
-  agent_id?: string;
-};
-
-function mapAgentsFromRuns(runs: AgentRun[]) {
-  return AGENT_IDS.map((id) => ({
-    agent_id: id,
-    last_run: runs.find((r) => r.agent_id === id) || null,
-  }));
-}
+import { AgentFeedBadge } from "./AgentFeedBadge";
+import { cardVariant, gridContainerClass, gridItemClass } from "./agent-grid-layout";
+import { agentViewTransitionName, withViewTransition } from "./view-transition";
+import {
+  AGENT_IDS,
+  AGENT_META,
+  logsForAgent,
+  mapAgentsFromRuns,
+  type AgentId,
+  type AgentRun,
+  type LogLine,
+} from "./agent-types";
+import { useWalletApi } from "@/hooks/use-wallet-api";
+import { ConnectWalletPrompt } from "@/components/wallet/ConnectWalletPrompt";
 
 export function AgentsTab() {
-  const [wallet, setWallet] = useState("");
+  const { address, isConnected, isConnecting, apiFetch } = useWalletApi();
   const [agents, setAgents] = useState<Array<{ agent_id: string; last_run: AgentRun | null }>>([]);
   const [runs, setRuns] = useState<AgentRun[]>([]);
   const [logs, setLogs] = useState<LogLine[]>([]);
-  const [sessionDir, setSessionDir] = useState<string | null>(null);
   const [streamStatus, setStreamStatus] = useState<"connecting" | "live" | "poll" | "error">(
     "connecting"
   );
-  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+  const [focusedId, setFocusedId] = useState<AgentId | null>(null);
   const [triggering, setTriggering] = useState<string | null>(null);
   const esRef = useRef<EventSource | null>(null);
 
   const applyPayload = useCallback((data: Record<string, unknown>) => {
-    if (typeof data.wallet === "string") setWallet(data.wallet);
     const nextRuns = (data.runs as AgentRun[]) || [];
     setRuns(nextRuns);
     setAgents((data.agents as typeof agents) || mapAgentsFromRuns(nextRuns));
     setLogs((data.logs as LogLine[]) || []);
-    setSessionDir((data.session_dir as string) || (data.sessionDir as string) || null);
   }, []);
 
   const loadOnce = useCallback(async () => {
+    if (!address) return false;
     try {
-      const res = await fetch("/api/agents");
+      const res = await apiFetch("/api/agents");
       const data = await res.json();
       applyPayload(data);
       return true;
@@ -71,19 +47,22 @@ export function AgentsTab() {
       setStreamStatus("error");
       return false;
     }
-  }, [applyPayload]);
+  }, [address, apiFetch, applyPayload]);
 
   useEffect(() => {
+    if (!address) return;
     let cancelled = false;
     let pollId: ReturnType<typeof setInterval> | null = null;
 
     void loadOnce();
 
+    const streamUrl = `/api/agents/stream?wallet=${encodeURIComponent(address)}`;
+
     if (typeof EventSource === "undefined") {
       setStreamStatus("poll");
       pollId = setInterval(() => void loadOnce(), 3000);
     } else {
-      const es = new EventSource("/api/agents/stream");
+      const es = new EventSource(streamUrl);
       esRef.current = es;
       setStreamStatus("connecting");
 
@@ -107,7 +86,7 @@ export function AgentsTab() {
       };
 
       es.onerror = () => {
-        if (cancelled) return;
+        if (!cancelled) return;
         setStreamStatus("poll");
         es.close();
         esRef.current = null;
@@ -121,12 +100,32 @@ export function AgentsTab() {
       esRef.current = null;
       if (pollId) clearInterval(pollId);
     };
-  }, [applyPayload, loadOnce]);
+  }, [address, applyPayload, loadOnce]);
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape" && focusedId) {
+        e.preventDefault();
+        withViewTransition(() => setFocusedId(null));
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [focusedId]);
+
+  function focusAgent(id: AgentId) {
+    withViewTransition(() => setFocusedId(id));
+  }
+
+  function minimizeGrid() {
+    withViewTransition(() => setFocusedId(null));
+  }
 
   async function trigger(agentId: string) {
+    if (!address) return;
     setTriggering(agentId);
     try {
-      await fetch("/api/agents/trigger", {
+      await apiFetch("/api/agents/trigger", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ agent_id: agentId }),
@@ -137,66 +136,76 @@ export function AgentsTab() {
     }
   }
 
-  const lastByAgent = new Map(agents.map((a) => [a.agent_id, a.last_run]));
+  const lastByAgent = useMemo(
+    () => new Map(agents.map((a) => [a.agent_id, a.last_run])),
+    [agents]
+  );
+
+  const logsByAgent = useMemo(() => {
+    const map = new Map<string, LogLine[]>();
+    for (const id of AGENT_IDS) {
+      map.set(id, logsForAgent(id, logs, runs));
+    }
+    return map;
+  }, [logs, runs]);
+
+  if (!isConnected && !isConnecting) {
+    return <ConnectWalletPrompt message="Connect your wallet to view agent activity" />;
+  }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
+    <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="text-sm text-zinc-600">
-          <p>
-            Agent activity for <span className="font-mono">{wallet || "…"}</span>
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
+          <p className="text-sm text-muted-foreground">
+            Each agent runs in the background and streams output to its own log.
           </p>
-          <p className="mt-1 text-xs text-zinc-500">
-            Logs stream from{" "}
-            <code className="text-[11px]">logs/agent-runs</code>
-            {sessionDir ? ` (${sessionDir.split(/[/\\]/).slice(-2).join("/")})` : ""} —{" "}
-            {streamStatus === "live"
-              ? "live"
-              : streamStatus === "poll"
-                ? "polling fallback"
-                : streamStatus}
-          </p>
+          <AgentFeedBadge status={streamStatus} />
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => void loadOnce()}
-            className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700"
-          >
+        <div className="flex items-center gap-2">
+          {focusedId && (
+            <button
+              type="button"
+              onClick={minimizeGrid}
+              className="rounded-full px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+            >
+              Show all
+            </button>
+          )}
+          <button type="button" onClick={() => void loadOnce()} className="btn-secondary text-sm">
             Refresh
           </button>
-          <button
-            type="button"
-            disabled={triggering === "portfolio_monitor"}
-            onClick={() => trigger("portfolio_monitor")}
-            className="rounded-lg border border-emerald-600 px-3 py-1.5 text-sm text-emerald-700 disabled:opacity-50"
-          >
-            Run monitor
-          </button>
-          <button
-            type="button"
-            disabled={triggering === "crosschain_sync"}
-            onClick={() => trigger("crosschain_sync")}
-            className="rounded-lg border border-emerald-600 px-3 py-1.5 text-sm text-emerald-700 disabled:opacity-50"
-          >
-            Run sync
-          </button>
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {AGENT_IDS.map((id) => (
-          <AgentCard
-            key={id}
-            agentId={id}
-            lastRun={lastByAgent.get(id) ?? null}
-            selected={selectedAgent === id}
-            onSelect={() => setSelectedAgent(selectedAgent === id ? null : id)}
-          />
-        ))}
-      </div>
+      <div className={gridContainerClass(focusedId)}>
+        {AGENT_IDS.map((id, index) => {
+          const meta = AGENT_META[id];
+          const lastRun = lastByAgent.get(id) ?? null;
+          const isRunning = triggering === id || lastRun?.status === "running";
+          const variant = cardVariant(id, focusedId);
 
-      <AgentLogPanel logs={logs} runs={runs} filterAgentId={selectedAgent} />
+          return (
+            <div
+              key={id}
+              data-agent-id={id}
+              className={gridItemClass(id, focusedId, index)}
+              style={{ viewTransitionName: agentViewTransitionName(id) }}
+            >
+              <AgentCard
+                agentId={id}
+                lastRun={lastRun}
+                logs={logsByAgent.get(id) ?? []}
+                variant={variant}
+                running={isRunning}
+                onActivate={() => focusAgent(id)}
+                onMinimize={variant === "focused" ? minimizeGrid : undefined}
+                onRun={meta.canTrigger ? () => void trigger(id) : undefined}
+              />
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

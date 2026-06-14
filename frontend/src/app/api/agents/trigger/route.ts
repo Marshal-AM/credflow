@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getFrontendAddress } from "@/lib/wallet-server";
+import { requireRequestWallet } from "@/lib/wallet-request";
 import { triggerAgent } from "@/lib/agent-client";
 
 export async function POST(req: NextRequest) {
@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
     if (!agentId) {
       return NextResponse.json({ error: "agent_id required" }, { status: 400 });
     }
-    const wallet = getFrontendAddress();
+    const wallet = requireRequestWallet(req);
     const result = await triggerAgent(agentId, wallet);
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: 500 });

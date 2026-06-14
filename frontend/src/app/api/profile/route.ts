@@ -1,6 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createPublicClient, http } from "viem";
-import { getFrontendAddress } from "@/lib/wallet-server";
+import { requireRequestWallet } from "@/lib/wallet-request";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { fetchSbtMintTxHash } from "@/lib/sbt-chain";
 import { patchScoreSnapshot } from "@/lib/score-display";
@@ -40,9 +40,9 @@ const SBT_ABI = [
   },
 ] as const;
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const wallet = getFrontendAddress();
+    const wallet = requireRequestWallet(req);
     const supabase = getSupabaseAdmin();
     let profile: Record<string, unknown> | null = null;
 
@@ -144,12 +144,25 @@ export async function GET() {
       }
     }
 
+    let latestScoreRun: Record<string, unknown> | null = null;
+    if (supabase) {
+      const { data: run } = await supabase
+        .from("score_runs")
+        .select("id, status, require_reclaim, reclaim_session_id, response, error_message, created_at")
+        .eq("wallet_address", wallet.toLowerCase())
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      latestScoreRun = run as Record<string, unknown> | null;
+    }
+
     return NextResponse.json({
       wallet,
       profile,
       hasOnChainSbt,
       onChainScore,
       mintTxHash,
+      latestScoreRun,
     });
   } catch (err) {
     return NextResponse.json(

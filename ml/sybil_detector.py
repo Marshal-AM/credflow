@@ -1,8 +1,6 @@
 """R-GCN Sybil detector — transaction graph analysis at underwriting time."""
 
-import json
 import logging
-import os
 from pathlib import Path
 from typing import Any
 
@@ -11,26 +9,52 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from ml.constants import SYBIL_MODEL_PATH
+from ml.on_chain_blacklist import fetch_on_chain_risk_addresses
 
 logger = logging.getLogger(__name__)
 
-KNOWN_DEFAULTERS: set[str] = set(
-    a.strip().lower()
-    for a in os.environ.get("KNOWN_DEFAULTER_ADDRESSES", "").split(",")
-    if a.strip()
-)
+
+def extract_graph_addresses(wallet_address: str, alchemy_state: dict) -> set[str]:
+    """All wallet addresses appearing in the sybil transfer graph."""
+    wallet = wallet_address.lower()
+    addresses = {wallet}
+    for tx in alchemy_state.get("recent_transactions", []) or []:
+        frm = (tx.get("from") or "").lower()
+        to = (tx.get("to") or "").lower()
+        if frm:
+            addresses.add(frm)
+        if to:
+            addresses.add(to)
+    return addresses
+
+
+def resolve_sybil_risk_addresses(
+    wallet_address: str,
+    alchemy_state: dict,
+    risk_addresses: set[str] | None = None,
+    *,
+    known_defaulters: set[str] | None = None,
+) -> set[str]:
+    """On-chain hub/spoke blacklist + defaulters; tests may inject risk_addresses."""
+    override = risk_addresses if risk_addresses is not None else known_defaulters
+    if override is not None:
+        return {a.strip().lower() for a in override if a.strip()}
+    return fetch_on_chain_risk_addresses(extract_graph_addresses(wallet_address, alchemy_state))
 
 
 def build_transaction_graph(
     wallet_address: str,
     alchemy_state: dict,
+    risk_addresses: set[str] | None = None,
     known_defaulters: set[str] | None = None,
 ) -> dict:
     """
     Build a wallet interaction graph from Alchemy transfer history.
     Returns node features, edge index, and metadata for inference/heuristics.
     """
-    defaulters = known_defaulters or KNOWN_DEFAULTERS
+    defaulters = resolve_sybil_risk_addresses(
+        wallet_address, alchemy_state, risk_addresses, known_defaulters=known_defaulters
+    )
     wallet = wallet_address.lower()
     transfers = alchemy_state.get("recent_transactions", []) or []
     lifetime_tx_count = int(alchemy_state.get("tx_count", 0) or 0)
@@ -212,10 +236,16 @@ def run_sybil_check(
     wallet_address: str,
     alchemy_state: dict,
     model_path: str = SYBIL_MODEL_PATH,
+    risk_addresses: set[str] | None = None,
     known_defaulters: set[str] | None = None,
 ) -> dict:
     """Run Sybil detection; returns risk level low/medium/high."""
-    graph = build_transaction_graph(wallet_address, alchemy_state, known_defaulters)
+    graph = build_transaction_graph(
+        wallet_address,
+        alchemy_state,
+        risk_addresses=risk_addresses,
+        known_defaulters=known_defaulters,
+    )
 
     if graph["defaulter_links"] > 0:
         return {
@@ -294,7 +324,7 @@ def generate_synthetic_graphs(n_samples: int = 200, seed: int = 42) -> list[dict
             }
         else:
             wallet = f"0x{hex(i)[2:].zfill(40)}"
-            defaulter = list(KNOWN_DEFAULTERS)[0] if KNOWN_DEFAULTERS else "0x" + "d" * 40
+            defaulter = "0x" + "d" * 40
             alchemy = {
                 "recent_transactions": [
                     {"from": defaulter, "to": wallet, "hash": f"0xdefin{i:064x}"},
@@ -303,7 +333,10 @@ def generate_synthetic_graphs(n_samples: int = 200, seed: int = 42) -> list[dict
                 "tx_count": 2,
             }
 
-        graph = build_transaction_graph(wallet, alchemy)
+        if label == 2:
+            graph = build_transaction_graph(wallet, alchemy, risk_addresses={defaulter})
+        else:
+            graph = build_transaction_graph(wallet, alchemy, risk_addresses=set())
         graph["label"] = label
         samples.append(graph)
 
