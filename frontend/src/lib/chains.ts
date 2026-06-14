@@ -68,15 +68,27 @@ export const chainIdByKey: Record<ChainKey, number> = {
   base: baseSepolia.id,
 };
 
+/** Normalize tx hash for explorers (Robinhood expects 0x prefix). */
+export function normalizeTxHash(hash: string): string {
+  const trimmed = hash.trim();
+  if (!trimmed) return trimmed;
+  if (trimmed.startsWith("0x") || trimmed.startsWith("0X")) {
+    return `0x${trimmed.slice(2).toLowerCase()}`;
+  }
+  return `0x${trimmed.toLowerCase()}`;
+}
+
 /** Block explorer tx URL for a supported chain. */
 export function txExplorerUrl(chainKey: ChainKey, txHash: string): string | null {
+  const normalized = normalizeTxHash(txHash);
+  if (!normalized.startsWith("0x") || normalized.length < 10) return null;
   switch (chainKey) {
     case "hub":
-      return `${robinhoodExplorerBase}/tx/${txHash}`;
+      return `${robinhoodExplorerBase}/tx/${normalized}`;
     case "arbitrum":
-      return `https://sepolia.arbiscan.io/tx/${txHash}`;
+      return `https://sepolia.arbiscan.io/tx/${normalized}`;
     case "base":
-      return `https://sepolia.basescan.org/tx/${txHash}`;
+      return `https://sepolia.basescan.org/tx/${normalized}`;
     default:
       return null;
   }

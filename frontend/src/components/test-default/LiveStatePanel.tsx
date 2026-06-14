@@ -2,7 +2,7 @@
 
 import type { DefaultTestStatus } from "@/lib/test-default-server";
 import type { StepResult } from "@/lib/test-default/flow-steps";
-import { txExplorerUrl } from "@/lib/chains";
+import { txExplorerUrl, normalizeTxHash } from "@/lib/chains";
 
 function bpsToPct(bps: number | null): string {
   if (bps == null) return "—";
@@ -148,7 +148,8 @@ export function TxList({ txs }: { txs: string[] }) {
   return (
     <ul className="mt-2 flex flex-wrap gap-2">
       {txs.map((tx) => {
-        const href = txExplorerUrl("hub", tx);
+        const normalized = normalizeTxHash(tx);
+        const href = txExplorerUrl("hub", normalized);
         return (
           <li key={tx}>
             <a
@@ -156,9 +157,9 @@ export function TxList({ txs }: { txs: string[] }) {
               target="_blank"
               rel="noopener noreferrer"
               className="btn-outline-primary inline-flex items-center gap-1.5 px-2.5 py-1 font-mono text-[11px] no-underline"
-              title={tx}
+              title={normalized}
             >
-              {shortTxHash(tx)}
+              {shortTxHash(normalized)}
               <span aria-hidden className="text-muted-foreground">
                 ↗
               </span>

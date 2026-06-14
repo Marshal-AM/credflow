@@ -28,9 +28,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 GRAPH_DEPTH = int(os.environ.get("GRAPH_ANALYSIS_DEPTH", "1"))
-GRAPH_MAX_WALLETS = int(os.environ.get("GRAPH_ANALYSIS_MAX_WALLETS", "20") or "20")
+GRAPH_MAX_WALLETS = int(os.environ.get("GRAPH_ANALYSIS_MAX_WALLETS", "10") or "10")
 LIQUIDATION_MAX_LINKED_WALLETS = int(
-    os.environ.get("LIQUIDATION_MAX_LINKED_WALLETS", "20") or "20"
+    os.environ.get("LIQUIDATION_MAX_LINKED_WALLETS", "10") or "10"
 )
 LIQUIDATION_THRESHOLD = int(os.environ.get("LIQUIDATION_LTV_BPS", "8500"))
 
