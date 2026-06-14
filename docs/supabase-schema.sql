@@ -1,4 +1,7 @@
 -- CredFlow frontend cache — run in Supabase SQL editor
+--
+-- Existing projects: add liquidation graph cache
+-- alter table account_profiles add column if not exists liquidation_snapshot jsonb;
 
 create table if not exists account_profiles (
   wallet_address text primary key,
@@ -23,6 +26,7 @@ create table if not exists account_profiles (
   score_snapshot jsonb,
   last_scored_at timestamptz,
   minted_at timestamptz,
+  liquidation_snapshot jsonb,
   updated_at timestamptz default now()
 );
 

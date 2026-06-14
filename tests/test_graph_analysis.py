@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 import networkx as nx
 
 from ml.graph_analysis import (
+    cap_linked_wallets,
     check_existing_credflow_loans,
     get_transaction_counterparties,
     identify_linked_wallets,
@@ -81,6 +82,18 @@ def test_identify_linked_wallets_funded_defaulter():
 
     assert funder in reasons
     assert reasons[funder] == "funded_defaulter"
+
+
+def test_cap_linked_wallets_prefers_high_confidence():
+    linked = [
+        {"wallet": f"0x{'a' * 40}", "confidence": "low", "value": 99},
+        {"wallet": f"0x{'b' * 40}", "confidence": "high", "value": 0.01},
+        {"wallet": f"0x{'c' * 40}", "confidence": "medium", "value": 50},
+    ]
+    capped = cap_linked_wallets(linked, 2)
+    assert len(capped) == 2
+    assert capped[0]["confidence"] == "high"
+    assert capped[1]["confidence"] == "medium"
 
 
 def test_check_existing_credflow_loans_flags_active():

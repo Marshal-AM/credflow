@@ -131,7 +131,7 @@ def is_hub_risk_address(address: str) -> bool:
             _risk_cache[normalized] = True
             return True
         profile = sbt.functions.getProfile(checksum).call()
-        if not bool(profile[8]):  # exists
+        if not bool(sbt.functions.hasProfile(checksum).call()):
             _risk_cache[normalized] = False
             return False
         default_count = int(profile[5])  # defaultCount in CreditProfile

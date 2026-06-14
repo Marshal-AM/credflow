@@ -209,8 +209,7 @@ def whitelist_wallet(wallet: str, agent: CredFlowAgent | None = None) -> dict[st
         except Exception:
             continue
 
-    profile = agent.sbt.functions.getProfile(wallet).call()
-    if not bool(profile[8]):
+    if not agent.sbt.functions.hasProfile(wallet).call():
         if was_blacklisted:
             tx = agent.send_tx(agent.sbt.functions.removeFromBlacklist(wallet))
             spoke_txs = _clear_spoke_blacklist(wallet, 0)
@@ -244,6 +243,7 @@ def whitelist_wallet(wallet: str, agent: CredFlowAgent | None = None) -> dict[st
             }
         return {"wallet": wallet, "status": "no_profile"}
 
+    profile = agent.sbt.functions.getProfile(wallet).call()
     default_count_before = int(profile[5])
     score = int(profile[0])
 

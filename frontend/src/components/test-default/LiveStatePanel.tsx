@@ -2,6 +2,7 @@
 
 import type { DefaultTestStatus } from "@/lib/test-default-server";
 import type { StepResult } from "@/lib/test-default/flow-steps";
+import { txExplorerUrl } from "@/lib/chains";
 
 function bpsToPct(bps: number | null): string {
   if (bps == null) return "—";
@@ -153,15 +154,34 @@ export function LiveStatePanel({
   );
 }
 
+function shortTxHash(tx: string): string {
+  if (tx.length < 14) return tx;
+  return `${tx.slice(0, 10)}…${tx.slice(-6)}`;
+}
+
 export function TxList({ txs }: { txs: string[] }) {
   if (!txs.length) return null;
   return (
-    <ul className="mt-2 space-y-1 font-mono text-xs text-muted-foreground">
-      {txs.map((tx) => (
-        <li key={tx} className="break-all">
-          {tx}
-        </li>
-      ))}
+    <ul className="mt-2 flex flex-wrap gap-2">
+      {txs.map((tx) => {
+        const href = txExplorerUrl("hub", tx);
+        return (
+          <li key={tx}>
+            <a
+              href={href ?? undefined}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-outline-primary inline-flex items-center gap-1.5 px-2.5 py-1 font-mono text-[11px] no-underline"
+              title={tx}
+            >
+              {shortTxHash(tx)}
+              <span aria-hidden className="text-muted-foreground">
+                ↗
+              </span>
+            </a>
+          </li>
+        );
+      })}
     </ul>
   );
 }

@@ -344,6 +344,31 @@ def identify_linked_wallets(
     return unique_linked
 
 
+def cap_linked_wallets(linked: list[dict], max_wallets: int) -> list[dict]:
+    """Keep the strongest linked-wallet candidates up to max_wallets."""
+    if max_wallets <= 0 or len(linked) <= max_wallets:
+        return linked
+
+    confidence_rank = {"high": 0, "medium": 1, "low": 2}
+
+    def sort_key(item: dict) -> tuple[int, float, str]:
+        conf = confidence_rank.get(str(item.get("confidence", "")).lower(), 3)
+        try:
+            value = float(item.get("value") or 0)
+        except (TypeError, ValueError):
+            value = 0.0
+        return (conf, -value, str(item.get("wallet", "")).lower())
+
+    capped = sorted(linked, key=sort_key)[:max_wallets]
+    logger.info(
+        "Linked wallets capped | before=%s after=%s max=%s",
+        len(linked),
+        len(capped),
+        max_wallets,
+    )
+    return capped
+
+
 def get_lending_contract():
     """Return a web3 lending contract instance for the hub deployment."""
     lending_address = os.environ.get("CREDFLOW_LENDING_ADDRESS", "").strip()

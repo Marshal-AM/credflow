@@ -12,6 +12,7 @@ from web3 import Web3
 from agents.base import CredFlowAgent, SpokeAgent
 from agents.groq_brain import review_liquidation_blacklist
 from ml.graph_analysis import (
+    cap_linked_wallets,
     check_existing_credflow_loans,
     get_transaction_counterparties,
     identify_linked_wallets,
@@ -27,7 +28,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 GRAPH_DEPTH = int(os.environ.get("GRAPH_ANALYSIS_DEPTH", "1"))
-GRAPH_MAX_WALLETS = int(os.environ.get("GRAPH_ANALYSIS_MAX_WALLETS", "15") or "15")
+GRAPH_MAX_WALLETS = int(os.environ.get("GRAPH_ANALYSIS_MAX_WALLETS", "20") or "20")
+LIQUIDATION_MAX_LINKED_WALLETS = int(
+    os.environ.get("LIQUIDATION_MAX_LINKED_WALLETS", "20") or "20"
+)
 LIQUIDATION_THRESHOLD = int(os.environ.get("LIQUIDATION_LTV_BPS", "8500"))
 
 
@@ -96,6 +100,7 @@ class LiquidationAgent:
             max_wallets=GRAPH_MAX_WALLETS,
         )
         linked = identify_linked_wallets(borrower, graph)
+        linked = cap_linked_wallets(linked, LIQUIDATION_MAX_LINKED_WALLETS)
         at_risk = check_existing_credflow_loans(linked, lending_contract=lending)
 
         verdict = review_liquidation_blacklist(borrower, linked)

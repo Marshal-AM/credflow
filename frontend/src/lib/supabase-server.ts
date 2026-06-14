@@ -35,7 +35,14 @@ export type AccountProfileRow = {
   score_snapshot: Record<string, unknown> | null;
   last_scored_at: string | null;
   minted_at: string | null;
+  liquidation_snapshot: LiquidationSnapshot | null;
   updated_at: string | null;
+};
+
+export type LiquidationSnapshot = {
+  borrower: string;
+  blacklisted: string[];
+  saved_at?: string;
 };
 
 export function profileFromScoreResponse(

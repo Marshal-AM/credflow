@@ -371,6 +371,9 @@ async def agents_liquidate(req: LiquidateBody, request: Request):
 
         result = await loop.run_in_executor(_executor, _run)
         emit_liquidation_details(run, result)
+        from agents.liquidation_snapshot import snapshot_from_liquidation_result
+
+        snapshot_from_liquidation_result(result)
         txs = [t for t in [result.get("liquidate_tx"), result.get("blacklist_tx")] if t]
         lz = result.get("lz_broadcast_tx")
         if isinstance(lz, list):
@@ -534,6 +537,9 @@ async def agents_unblacklist(req: WalletBody, request: Request):
         result = await loop.run_in_executor(
             _executor, partial(unblacklist_wallet, req.wallet_address)
         )
+        from agents.liquidation_snapshot import clear_liquidation_snapshot
+
+        clear_liquidation_snapshot(req.wallet_address)
         run.finish(success=True, summary=result.get("status", "done"), result=result)
         return {"run_id": run.run_id, **result}
     except Exception as exc:

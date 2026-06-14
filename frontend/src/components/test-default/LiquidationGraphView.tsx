@@ -15,7 +15,7 @@ function nodeClasses(role: PositionedWalletNode["role"]): string {
     case "borrower":
       return "border-primary/50 bg-primary/10 text-foreground";
     case "blacklisted":
-      return "border-destructive/40 bg-destructive/10 text-foreground";
+      return "border-red-500 bg-red-600/40 text-red-50 shadow-[0_0_0_1px_color-mix(in_oklch,red_35%,transparent)]";
     case "at_risk":
       return "border-amber-400/40 bg-amber-400/10 text-foreground";
     default:

@@ -32,6 +32,14 @@ def _is_nonce_error(exc: BaseException) -> bool:
     )
 
 
+def _nonce_from_error(exc: BaseException) -> int | None:
+    """Robinhood/geth errors often include `state: N` — the next nonce to use."""
+    import re
+
+    m = re.search(r"state:\s*(\d+)", str(exc))
+    return int(m.group(1)) if m else None
+
+
 def send_contract_tx(
     w3,
     account,
@@ -87,6 +95,9 @@ def send_contract_tx(
                 last_exc = exc
                 if _is_nonce_error(exc) and attempt < max_retries - 1:
                     _NEXT_NONCE.pop(key, None)
+                    hint = _nonce_from_error(exc)
+                    if hint is not None:
+                        _NEXT_NONCE[key] = hint
                     delay = 0.35 * (attempt + 1)
                     logger.warning(
                         "Nonce race on %s (attempt %s/%s), retrying in %.1fs: %s",

@@ -2,6 +2,13 @@ import { formatEther, formatUnits } from "viem";
 import { getPublicClient, readChainLoanSummary } from "@/lib/loan-server";
 import { contractsByChain, LENDING_ABI, OAPP_ABI, SBT_ABI } from "@/lib/contracts";
 import { isHubWalletBlacklisted } from "@/lib/wallet-blacklist";
+import { getSupabaseAdmin } from "@/lib/supabase-server";
+import {
+  parseLiquidationSnapshot,
+  type LiquidationSnapshot,
+} from "@/lib/test-default/liquidation-snapshot";
+
+export type { LiquidationSnapshot };
 
 export type DefaultTestStatus = {
   wallet: string;
@@ -29,7 +36,24 @@ export type DefaultTestStatus = {
     hasActiveLoan: boolean;
     liquidatable: boolean;
   };
+  liquidationSnapshot: LiquidationSnapshot | null;
 };
+
+async function readLiquidationSnapshot(
+  wallet: string
+): Promise<LiquidationSnapshot | null> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return null;
+
+  const { data, error } = await supabase
+    .from("account_profiles")
+    .select("liquidation_snapshot")
+    .eq("wallet_address", wallet.toLowerCase())
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return parseLiquidationSnapshot(data.liquidation_snapshot);
+}
 
 export async function readDefaultTestStatus(wallet: `0x${string}`): Promise<DefaultTestStatus> {
   const hubSummary = await readChainLoanSummary("hub", wallet);
@@ -90,7 +114,8 @@ export async function readDefaultTestStatus(wallet: `0x${string}`): Promise<Defa
     hubExplicitBlacklisted
   );
 
-  const spokes = await Promise.all(
+  const [spokes, liquidationSnapshot] = await Promise.all([
+    Promise.all(
     (["arbitrum", "base"] as const).map(async (chainKey) => {
       const spoke = await readChainLoanSummary(chainKey, wallet);
       const spokeCfg = contractsByChain[chainKey];
@@ -111,7 +136,9 @@ export async function readDefaultTestStatus(wallet: `0x${string}`): Promise<Defa
         lzLoanActive: spoke.lzLoanActive,
       };
     })
-  );
+    ),
+    hubBlacklisted ? readLiquidationSnapshot(wallet) : Promise.resolve(null),
+  ]);
 
   return {
     wallet,
@@ -137,5 +164,6 @@ export async function readDefaultTestStatus(wallet: `0x${string}`): Promise<Defa
       hasActiveLoan: Boolean(loanId && hubSummary.loan?.active),
       liquidatable: ltvBps != null && ltvBps >= liquidationThresholdBps,
     },
+    liquidationSnapshot,
   };
 }

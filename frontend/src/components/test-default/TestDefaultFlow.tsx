@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { DefaultTestStatus } from "@/lib/test-default-server";
 import { toast } from "@/lib/toast";
 import {
@@ -19,6 +19,10 @@ import {
   type WalletGraphEdge,
 } from "@/lib/test-default/liquidation-graph";
 import { usePrefersReducedMotion, sleep } from "@/hooks/use-prefers-reduced-motion";
+import {
+  snapshotGraphSummary,
+  snapshotToGraphResult,
+} from "@/lib/test-default/liquidation-snapshot";
 import { FlowStepNode } from "./FlowStepNode";
 import { LiquidationGraphView } from "./LiquidationGraphView";
 import { DefaultScenarioBlocked } from "./DefaultScenarioBlocked";
@@ -255,6 +259,26 @@ export function TestDefaultFlow({
     !flowInSession && (eligibility.state === "loading" || eligibility.state === "blocked");
   const canRun = eligibility.state === "ready" && Boolean(loanId) && !running;
 
+  const persistedGraph = useMemo(() => {
+    const snapshot = status?.liquidationSnapshot;
+    if (!snapshot || !status) return null;
+    const raw = snapshotToGraphResult(snapshot);
+    const { nodes, edges } = buildLiquidationGraph(raw, status.wallet);
+    if (nodes.length <= 1) return null;
+    const positioned = layoutWalletGraph(nodes, edges);
+    return {
+      positioned,
+      edges,
+      summary: snapshotGraphSummary(snapshot),
+    };
+  }, [status]);
+
+  const showBlacklistedGraph =
+    showBlocked &&
+    eligibility.state === "blocked" &&
+    status?.hub.hubBlacklisted &&
+    persistedGraph != null;
+
   return (
     <section className="card-padded">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
@@ -292,7 +316,27 @@ export function TestDefaultFlow({
         eligibility.state === "loading" ? (
           <DefaultScenarioBlocked reason="" loading />
         ) : (
-          <DefaultScenarioBlocked reason={eligibility.reason} hint={eligibility.hint} />
+          <DefaultScenarioBlocked
+            reason={eligibility.reason}
+            hint={eligibility.hint}
+            graph={
+              showBlacklistedGraph ? (
+                <div className="space-y-2">
+                  <p className="text-xs font-[650] text-foreground">{persistedGraph.summary}</p>
+                  <LiquidationGraphView
+                    nodes={persistedGraph.positioned}
+                    edges={persistedGraph.edges}
+                    visibleNodeCount={persistedGraph.positioned.length}
+                    visibleEdgeCount={persistedGraph.edges.length}
+                    compact={false}
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Red nodes were blacklisted as linked to your wallet after default.
+                  </p>
+                </div>
+              ) : undefined
+            }
+          />
         )
       ) : (
         <ol className="list-none pl-0">
