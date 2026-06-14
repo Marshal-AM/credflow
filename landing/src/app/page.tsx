@@ -88,7 +88,7 @@ const trustItems = [
 
 const heroWords = ["score", "records", "trust"];
 
-const CREDFLOW_DASHBOARD_URL = "https://credflow-dashboard.vercel.app";
+const CREDFLOW_DASHBOARD_URL = "https://credflow-dashboard-three.vercel.app";
 
 function ClientEffects() {
   useEffect(() => {
@@ -445,7 +445,7 @@ export default function Home() {
           target="_blank"
           rel="noopener noreferrer"
         >
-          Try CredFlow Now!
+          Launch App
         </a>
         <button
           className="nav-menu-toggle"
@@ -613,7 +613,7 @@ export default function Home() {
               target="_blank"
               rel="noopener noreferrer"
             >
-              Try CredFlow Now!
+              Try CredFlow
             </a>
             <a href="mailto:hello@credflow.xyz">Contact</a>
           </div>

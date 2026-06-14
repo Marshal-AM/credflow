@@ -639,11 +639,11 @@ p {
 }
 
 .flow-section {
-  padding-bottom: calc(var(--space-4xl) + var(--space-xl));
+  padding-bottom: 2rem;
 }
 
 .flow-track {
-  min-height: 190svh;
+  min-height: 162svh;
 }
 
 .flow-sticky {
@@ -651,7 +651,7 @@ p {
   top: 104px;
   display: grid;
   align-content: start;
-  min-height: calc(100svh - 104px);
+  min-height: auto;
   padding-bottom: var(--space-lg);
 }
 
