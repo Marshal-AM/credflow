@@ -58,7 +58,6 @@ Live deployment addresses. Click any address to open the chain explorer.
 | WETH | Spoke collateral token | [0x1dF462e2712496373A347f8ad10802a5E95f053D](https://sepolia.arbiscan.io/address/0x1dF462e2712496373A347f8ad10802a5E95f053D) |
 | USDC | Spoke borrow asset | [0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d](https://sepolia.arbiscan.io/address/0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d) |
 | Mainnet Chainlink ETH/USD (mirror source) | Price source pushed to spoke feed | [0x639Fe6ab55C921f74e7fac1ee960C0B6293ba612](https://arbiscan.io/address/0x639Fe6ab55C921f74e7fac1ee960C0B6293ba612) |
-| CredScoreSBT | Not deployed on spokes (hub only) | — |
 
 ### Spoke — Base Sepolia
 
@@ -72,7 +71,6 @@ Live deployment addresses. Click any address to open the chain explorer.
 | WETH | Canonical Base Sepolia WETH | [0x4200000000000000000000000000000000000006](https://sepolia.basescan.org/address/0x4200000000000000000000000000000000000006) |
 | USDC | Spoke borrow asset | [0x036CbD53842c5426634e7929541eC2318f3dCF7e](https://sepolia.basescan.org/address/0x036CbD53842c5426634e7929541eC2318f3dCF7e) |
 | Mainnet Chainlink ETH/USD (mirror source) | Price source pushed to spoke feed | [0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70](https://basescan.org/address/0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70) |
-| CredScoreSBT | Not deployed on spokes (hub only) | — |
 
 ---
 
