@@ -12,6 +12,7 @@ import {
 import type { useSendTransaction, useWriteContract } from "wagmi";
 import { chainIdByKey, type ChainKey } from "@/lib/chains";
 import { ERC20_ABI, WETH_ABI } from "@/lib/contracts";
+import { sendTransactionWithGas, writeContractWithGas } from "@/lib/wallet-tx";
 
 export type PrepWalletStepId =
   | "arbitrum-activity"
@@ -335,7 +336,7 @@ async function writeAndWait(
   chainId: number,
   args: WriteContractArgs
 ): Promise<Hash> {
-  const hash = await runner.writeContractAsync({
+  const hash = await writeContractWithGas(runner.publicClient, runner.writeContractAsync, {
     ...args,
     chainId,
   } as Parameters<PrepRunner["writeContractAsync"]>[0]);
@@ -350,7 +351,11 @@ async function sendAndWait(
   to: Address,
   value: bigint
 ): Promise<Hash> {
-  const hash = await runner.sendTransactionAsync({ to, value, chainId });
+  const hash = await sendTransactionWithGas(runner.publicClient, runner.sendTransactionAsync, {
+    to,
+    value,
+    chainId,
+  });
   await runner.publicClient.waitForTransactionReceipt({ hash });
   await waitAfterTx();
   return hash;

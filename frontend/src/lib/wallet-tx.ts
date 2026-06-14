@@ -1,9 +1,10 @@
 import type { Hash, PublicClient, WalletClient, WriteContractParameters } from "viem";
-import type { useWriteContract } from "wagmi";
+import type { useSendTransaction, useWriteContract } from "wagmi";
 
 const chainLocks = new Map<number, Promise<unknown>>();
 
 type WriteContractAsync = ReturnType<typeof useWriteContract>["writeContractAsync"];
+type SendTransactionAsync = ReturnType<typeof useSendTransaction>["sendTransactionAsync"];
 
 function withChainLock<T>(chainId: number, fn: () => Promise<T>): Promise<T> {
   const prev = chainLocks.get(chainId) ?? Promise.resolve();
@@ -94,6 +95,43 @@ export async function writeContractWithGas(
             }
           : {}),
       } as WalletWriteParams);
+    } catch (err) {
+      lastErr = err;
+      if (isRetryableTxError(err) && attempt < retries - 1) {
+        await new Promise((r) => setTimeout(r, 350 * (attempt + 1)));
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  throw lastErr instanceof Error ? lastErr : new Error("Transaction failed");
+}
+
+type SendTransactionParams = Parameters<SendTransactionAsync>[0];
+
+/** sendTransaction with live fee estimation — same EIP-1559 fix as writeContractWithGas. */
+export async function sendTransactionWithGas(
+  publicClient: PublicClient,
+  sendTransactionAsync: SendTransactionAsync,
+  params: SendTransactionParams,
+  options?: { retries?: number }
+): Promise<Hash> {
+  const retries = options?.retries ?? 4;
+  let lastErr: unknown;
+
+  for (let attempt = 0; attempt < retries; attempt++) {
+    try {
+      const gas = await buildContractGasFees(publicClient, { attempt });
+      return await sendTransactionAsync({
+        ...params,
+        ...(gas
+          ? {
+              maxFeePerGas: gas.maxFeePerGas,
+              maxPriorityFeePerGas: gas.maxPriorityFeePerGas,
+            }
+          : {}),
+      } as SendTransactionParams);
     } catch (err) {
       lastErr = err;
       if (isRetryableTxError(err) && attempt < retries - 1) {
