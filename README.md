@@ -473,6 +473,8 @@ Groq never signs transactions. It only influences whether an agent proceeds, who
 
 ## Credit Scoring System
 
+<img width="1444" height="670" alt="WhatsApp Image 2026-06-15 at 05 13 33" src="https://github.com/user-attachments/assets/3c1ea72c-3ca5-44ff-bd54-c59458621fb8" />
+
 This is CredFlow's product core. We do not guess creditworthiness from wallet age alone — we rebuild a **multi-protocol financial picture**, optionally anchor it with **bank-verified capacity**, and produce a score the rest of the app (and all five agents) trust. Every borrow quote, approval gate, SBT field, and cross-chain sync traces back to this pipeline.
 
 The scoring API ingests multi-chain wallet and protocol history, runs ML inference, optionally verifies bank balance via Reclaim zkTLS, commits the result on-chain as an SBT (via the underwriter agent), and mirrors the score to every lending market via cross-chain sync.
@@ -859,6 +861,8 @@ interest = borrowedAmount * interestRate * elapsedSeconds / (365 days * 10000)
 
 ## Borrowing Logic
 
+<img width="978" height="391" alt="WhatsApp Image 2026-06-15 at 05 14 01" src="https://github.com/user-attachments/assets/eee5deaa-e43f-4dc7-b79e-7634e11f6340" />
+
 Your CredScore only matters if it changes how you borrow. The **Loans** tab turns score into concrete terms — max LTV, interest rate, and required collateral — then submits on-chain `requestLoan` transactions. On hub borrow, the **cross-chain sync agent** immediately locks spoke markets via LayerZero.
 
 Before borrow, the API reads score, blacklist status, and active loan state on Robinhood testnet, Arbitrum Sepolia, and Base Sepolia. A Robinhood loan locks borrowing on the other chains via LayerZero until repaid — the **cross-chain sync agent** enforces one loan per identity.
@@ -979,6 +983,8 @@ Hub repay triggers **`sync_wallet_repaid_with_score()`** in `agents/sync_service
 
 ## Scenario: Price Goes Down
 
+<img width="1155" height="642" alt="WhatsApp Image 2026-06-15 at 05 16 09" src="https://github.com/user-attachments/assets/619d733c-0e27-4f75-a5e5-2462da6d27b5" />
+
 CredFlow does not set and forget loans after disbursement. The **portfolio monitor agent** polls every active loan on every chain every five minutes. If collateral value drops and LTV rises, the same agent stack that underwrote you can warn on-chain, liquidate, blacklist linked sybil wallets, and sync defaults globally.
 
 When ETH price falls, collateral value drops and **LTV rises** — even if the borrower is not overdue. The **portfolio monitor agent** polls every active loan every five minutes; at LTV ≥ 75% it emits on-chain health warnings, and at LTV ≥ 85% it hands off to the **liquidation agent**, which seizes collateral and triggers **cross-chain sync** default broadcasts.
@@ -1043,6 +1049,8 @@ The borrower cannot borrow again (`defaultCount > 0` on hub; blacklisted on spok
 ---
 
 ## Scenario: Default and Overdue Loans
+
+<img width="1161" height="494" alt="WhatsApp Image 2026-06-15 at 05 16 42" src="https://github.com/user-attachments/assets/1556b43a-4daa-45e8-8bb2-cd0224462d46" />
 
 Calendar discipline matters too. Contracts record due dates; **agents enforce them** — grace periods, liquidation, sybil graph analysis, and cross-chain blacklist broadcasts — so one defaulted borrower cannot quietly open a fresh loan on another chain.
 
