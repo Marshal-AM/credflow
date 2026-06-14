@@ -320,15 +320,25 @@ def _score_sync(
         return result, features, source_data, w_feat, b_feat, {"wallet_analysis_ms": ms}
 
     def _sybil_path() -> tuple[dict, dict]:
+        from ml.sybil_detector import resolve_sybil_risk_addresses
         from ml.sybil_graph import stream_wallet_graph
 
         t_s = time.perf_counter()
+        risk_addresses = resolve_sybil_risk_addresses(wallet_address, alchemy_state)
+        if risk_addresses:
+            logger.info(
+                "  sybil on-chain risk addresses: %s",
+                ", ".join(sorted(risk_addresses)[:8])
+                + ("…" if len(risk_addresses) > 8 else ""),
+            )
         _emit(
             emit,
             "step",
             {"id": "sybil_graph", "status": "running", "label": "Mapping wallet neighborhood"},
         )
-        for graph_event in stream_wallet_graph(wallet_address, alchemy_state):
+        for graph_event in stream_wallet_graph(
+            wallet_address, alchemy_state, risk_addresses=risk_addresses
+        ):
             if graph_event["type"] == "graph_node":
                 _emit(emit, "graph_node", graph_event["node"])
             elif graph_event["type"] == "graph_edge":
@@ -340,7 +350,9 @@ def _score_sync(
             "step",
             {"id": "sybil_rgcn", "status": "running", "label": "Running R-GCN sybil screening"},
         )
-        sybil = run_sybil_check(wallet_address, alchemy_state)
+        sybil = run_sybil_check(
+            wallet_address, alchemy_state, risk_addresses=risk_addresses
+        )
         _emit(emit, "sybil_result", sybil)
         _emit(emit, "step", {"id": "sybil_graph", "status": "done"})
         _emit(emit, "step", {"id": "sybil_rgcn", "status": "done"})

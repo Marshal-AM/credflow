@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Iterator
 
-from ml.sybil_detector import KNOWN_DEFAULTERS
+from ml.sybil_detector import resolve_sybil_risk_addresses
 
 MAX_GRAPH_NODES = 20
 
@@ -26,6 +26,7 @@ def _role_for(addr: str, wallet: str, defaulters: set[str]) -> str:
 def stream_wallet_graph(
     wallet_address: str,
     alchemy_state: dict,
+    risk_addresses: set[str] | None = None,
     known_defaulters: set[str] | None = None,
     *,
     max_nodes: int = MAX_GRAPH_NODES,
@@ -34,7 +35,9 @@ def stream_wallet_graph(
     Yield graph_node / graph_edge events while parsing Alchemy transfers.
     Caps visible nodes; always includes the hub wallet.
     """
-    defaulters = known_defaulters or KNOWN_DEFAULTERS
+    defaulters = resolve_sybil_risk_addresses(
+        wallet_address, alchemy_state, risk_addresses, known_defaulters=known_defaulters
+    )
     wallet = wallet_address.lower()
     transfers = alchemy_state.get("recent_transactions", []) or []
     lifetime_tx_count = int(alchemy_state.get("tx_count", 0) or 0)
@@ -141,13 +144,16 @@ def stream_wallet_graph(
 def collect_wallet_graph(
     wallet_address: str,
     alchemy_state: dict,
+    risk_addresses: set[str] | None = None,
     known_defaulters: set[str] | None = None,
 ) -> dict[str, Any]:
     """Collect full serializable graph payload (nodes, edges, meta)."""
     nodes: list[dict[str, Any]] = []
     edges: list[dict[str, Any]] = []
     meta: dict[str, Any] = {}
-    for event in stream_wallet_graph(wallet_address, alchemy_state, known_defaulters):
+    for event in stream_wallet_graph(
+        wallet_address, alchemy_state, risk_addresses, known_defaulters=known_defaulters
+    ):
         if event["type"] == "graph_node":
             nodes.append(event["node"])
         elif event["type"] == "graph_edge":

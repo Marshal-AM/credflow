@@ -18,7 +18,7 @@ def test_organic_wallet_low_risk():
             {"from": "0x" + "c" * 40, "to": wallet},
         ]
     }
-    result = run_sybil_check(wallet, alchemy)
+    result = run_sybil_check(wallet, alchemy, risk_addresses=set())
     assert result["sybil_risk"] in ("low", "medium")
 
 
@@ -40,6 +40,7 @@ def test_build_transaction_graph_structure():
     graph = build_transaction_graph(
         "0x" + "1" * 40,
         {"recent_transactions": [{"from": "0x" + "1" * 40, "to": "0x" + "2" * 40}]},
+        risk_addresses=set(),
     )
     assert graph["x"].shape[0] >= 1
     assert graph["edge_index"].shape[0] == 2
@@ -56,7 +57,7 @@ def test_rgcn_inference_uses_model():
     with tempfile.TemporaryDirectory() as tmp:
         model_path = str(Path(tmp) / "sybil_test.pt")
         train_sybil_model(n_samples=60, model_path=model_path, epochs=15)
-        result = run_sybil_check(wallet, alchemy, model_path=model_path)
+        result = run_sybil_check(wallet, alchemy, model_path=model_path, risk_addresses=set())
         assert result["method"] == "rgcn"
         assert "sybil_probs" in result
         assert set(result["sybil_probs"]) == {"low", "medium", "high"}
@@ -73,7 +74,7 @@ def test_funded_low_activity_wallet_is_low_risk():
             for i in range(32)
         ],
     }
-    result = run_sybil_check(wallet, alchemy)
+    result = run_sybil_check(wallet, alchemy, risk_addresses=set())
     assert result["sybil_risk"] == "low"
 
 
@@ -92,7 +93,7 @@ def test_spray_pattern_medium_or_high_heuristic():
     }
     with tempfile.TemporaryDirectory() as tmp:
         model_path = str(Path(tmp) / "missing.pt")
-        result = run_sybil_check(wallet, alchemy, model_path=model_path)
+        result = run_sybil_check(wallet, alchemy, model_path=model_path, risk_addresses=set())
         assert result["method"] == "heuristic"
         assert result["sybil_risk"] in ("medium", "high")
 
@@ -107,6 +108,6 @@ def test_rgcn_high_risk_synthetic_cluster():
     with tempfile.TemporaryDirectory() as tmp:
         model_path = str(Path(tmp) / "sybil_test.pt")
         train_sybil_model(n_samples=120, model_path=model_path, epochs=25)
-        result = run_sybil_check(wallet, alchemy, model_path=model_path)
+        result = run_sybil_check(wallet, alchemy, model_path=model_path, risk_addresses=set())
         assert result["method"] == "rgcn"
         assert result["sybil_risk"] in ("low", "medium", "high")
