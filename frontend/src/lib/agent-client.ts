@@ -3,6 +3,9 @@ import type { ChainKey } from "@/lib/chains";
 import { isChainTxSuccessful } from "@/lib/lz-broadcast";
 
 const SCORING_API = process.env.SCORING_API_URL || "http://localhost:8000";
+const SCORE_FETCH_TIMEOUT_MS = Number(
+  process.env.SCORING_FETCH_TIMEOUT_MS || "600000"
+);
 
 export type PostRepayPipelineResult = {
   old_score: number | null;
@@ -419,6 +422,7 @@ async function requestPostRepayScore(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(SCORE_FETCH_TIMEOUT_MS),
   });
   const data = await res.json();
   return { res, data };
@@ -595,14 +599,26 @@ export async function runPostRepayPipeline(params: {
     scoreResult = { ok: false, error: msg };
   }
 
-  const underwrite = await triggerUnderwriteRescore(wallet, {
-    scoreSnapshot,
-    repayChain: chainKey,
-    repayTx,
-    loanId,
-  });
+  const underwrite =
+    scoreSnapshot?.status === "complete"
+      ? await triggerUnderwriteRescore(wallet, {
+          scoreSnapshot,
+          repayChain: chainKey,
+          repayTx,
+          loanId,
+        })
+      : {
+          ok: false,
+          error: scoreSnapshot
+            ? `score_status_${scoreSnapshot.status ?? "unknown"}`
+            : "score_incomplete_skip_underwrite",
+        };
   if (!underwrite.ok) {
-    errors.push(`underwrite: ${underwrite.error}`);
+    if (underwrite.error !== "score_incomplete_skip_underwrite") {
+      errors.push(`underwrite: ${underwrite.error}`);
+    } else {
+      errors.push("underwrite: skipped — post-repay score did not complete");
+    }
   } else if (typeof underwrite.data?.cred_score === "number") {
     newScore = underwrite.data.cred_score;
   }

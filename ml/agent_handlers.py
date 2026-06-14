@@ -145,6 +145,12 @@ async def agents_underwrite(req: UnderwriteAgentBody, request: Request):
         return {"run_id": run.run_id, **result}
     except HTTPException:
         raise
+    except httpx.TimeoutException as exc:
+        run.finish(success=False, summary="scoring_timed_out", error=str(exc))
+        raise HTTPException(
+            status_code=504,
+            detail=f"Scoring API timed out after {os.environ.get('SCORING_HTTP_TIMEOUT_SEC', '600')}s",
+        ) from exc
     except Exception as exc:
         run.finish(success=False, summary=str(exc), error=str(exc))
         raise HTTPException(status_code=500, detail=str(exc)) from exc

@@ -29,6 +29,12 @@ BORDERLINE_LOW = int(os.environ.get("UNDERWRITER_BORDERLINE_LOW", "480"))
 BORDERLINE_HIGH = int(os.environ.get("UNDERWRITER_BORDERLINE_HIGH", "520"))
 RECLAIM_POLL_SEC = int(os.environ.get("RECLAIM_POLL_SEC", "5"))
 RECLAIM_POLL_MAX = int(os.environ.get("RECLAIM_POLL_MAX", "180"))
+SCORE_HTTP_TIMEOUT_SEC = float(os.environ.get("SCORING_HTTP_TIMEOUT_SEC", "1000"))
+
+
+def _score_http_timeout() -> httpx.Timeout:
+    """Scoring runs can take several minutes (indexer + sybil graph)."""
+    return httpx.Timeout(SCORE_HTTP_TIMEOUT_SEC, connect=30.0)
 
 
 def _clamp_uint16(value: int) -> int:
@@ -60,7 +66,11 @@ def _fetch_score_data(
     if reclaim_session_id:
         payload["reclaim_session_id"] = reclaim_session_id
         payload["require_reclaim"] = True
-    resp = client.post(f"{SCORING_API_URL}/score", json=payload, timeout=120.0)
+    resp = client.post(
+        f"{SCORING_API_URL}/score",
+        json=payload,
+        timeout=_score_http_timeout(),
+    )
     resp.raise_for_status()
     return resp.json()
 
@@ -117,12 +127,13 @@ def underwrite_wallet(
     if score_data is None:
         require_reclaim = False if rescore else None
         logger.info(
-            "Calling scoring API for %s (rescore=%s reclaim=%s)",
+            "Calling scoring API for %s (rescore=%s reclaim=%s timeout=%ss)",
             wallet,
             rescore,
             require_reclaim if require_reclaim is not None else _reclaim_enabled(),
+            SCORE_HTTP_TIMEOUT_SEC,
         )
-        with httpx.Client(timeout=120.0) as client:
+        with httpx.Client(timeout=_score_http_timeout()) as client:
             score_data = _fetch_score_data(
                 client,
                 wallet,
@@ -138,6 +149,13 @@ def underwrite_wallet(
             "reason": "Score snapshot incomplete",
             "score_status": score_data.get("status"),
         }
+    else:
+        logger.info(
+            "Using provided score snapshot for %s (rescore=%s cred_score=%s)",
+            wallet,
+            rescore,
+            score_data.get("cred_score"),
+        )
 
     cred_score = int(score_data.get("on_chain_cred_score") or score_data["cred_score"])
     floor_cred = score_data.get("floor_cred_score")
