@@ -7,6 +7,7 @@ import { AgentsTab } from "@/components/agents/AgentsTab";
 import { TestDefaultTab } from "@/components/test-default/TestDefaultTab";
 import { PrepWalletTab } from "@/components/prep-wallet/PrepWalletTab";
 import { AppNavbar } from "./AppNavbar";
+import { ScoreFlowGuardProvider, useScoreFlowGuard } from "@/contexts/ScoreFlowGuardContext";
 import { readAppTab, STORAGE_KEYS, writeStorage, type AppTab } from "@/lib/ui-persistence";
 
 export type { AppTab };
@@ -19,9 +20,10 @@ const TABS: { id: AppTab; label: string; subtitle: string }[] = [
   { id: "test-default", label: "Test Default", subtitle: "Liquidation and default scenario testing" },
 ];
 
-export function AppShell() {
+function AppShellInner() {
   const [tab, setTab] = useState<AppTab>("account");
   const [ready, setReady] = useState(false);
+  const { requestNavigation } = useScoreFlowGuard();
 
   useLayoutEffect(() => {
     setTab(readAppTab());
@@ -29,8 +31,11 @@ export function AppShell() {
   }, []);
 
   function changeTab(next: AppTab) {
-    setTab(next);
-    writeStorage(STORAGE_KEYS.tab, next);
+    if (next === tab) return;
+    requestNavigation(() => {
+      setTab(next);
+      writeStorage(STORAGE_KEYS.tab, next);
+    });
   }
 
   const active = TABS.find((t) => t.id === tab)!;
@@ -56,5 +61,13 @@ export function AppShell() {
         </div>
       </main>
     </div>
+  );
+}
+
+export function AppShell() {
+  return (
+    <ScoreFlowGuardProvider>
+      <AppShellInner />
+    </ScoreFlowGuardProvider>
   );
 }

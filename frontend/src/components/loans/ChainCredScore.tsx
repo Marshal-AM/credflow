@@ -15,7 +15,7 @@ export function ChainCredScore({ score, eligible, chainLabel }: Props) {
       <div className="rounded-xl border border-border/50 bg-muted/20 px-5 py-4">
         <p className="section-label">CredScore on {chainLabel}</p>
         <p className="mt-2 text-sm text-muted-foreground">
-          No score synced to this chain yet. Mint your credential or borrow on the hub first.
+          No CredScore yet. Build your score on the dashboard first.
         </p>
       </div>
     );

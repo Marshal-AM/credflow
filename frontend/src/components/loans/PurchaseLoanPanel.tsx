@@ -29,7 +29,8 @@ export function PurchaseLoanPanel({ onSuccess }: Props) {
   const { isConnected } = useAccount();
   const { apiFetch } = useWalletApi();
   const { writeContractAsync } = useWriteContract();
-  const { chainOptions, selectedChainKey, setSelectedChainKey, selectedChain } = useLoansChain();
+  const { chainOptions, selectedChainKey, setSelectedChainKey, selectedChain, displayCredScore } =
+    useLoansChain();
   const [borrowAmount, setBorrowAmount] = useState("0.5");
   const [durationDays, setDurationDays] = useState("30");
   const [busy, setBusy] = useState(false);
@@ -151,7 +152,7 @@ export function PurchaseLoanPanel({ onSuccess }: Props) {
       ) : (
         <>
           <ChainCredScore
-            score={selectedChain.score}
+            score={displayCredScore ?? 0}
             eligible={selectedChain.eligible}
             chainLabel={selectedChain.label}
           />

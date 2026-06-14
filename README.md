@@ -1,8 +1,12 @@
 # CredFlow
 
-**Undercollateralized lending powered by cross-chain credit scores.**
+**An Undercollateralized lending Protocol powered by cross-chain credit scores.**
 
-CredFlow is a hub-and-spoke lending protocol: credit lives on **Robinhood Chain testnet** (hub), borrowing is available on the hub and on **Arbitrum Sepolia** / **Base Sepolia** spokes, and state is synchronized via **LayerZero V2**. An ML scoring pipeline, five Python agents, and a Next.js frontend orchestrate the full borrower lifecycle.
+CredFlow turns rich financial signals into a portable **CredScore** (300–850) that unlocks **undercollateralized loans**. Connect a wallet and we reconstruct your full DeFi footprint — Aave and Morpho repay history, Alchemy transfer graphs, sybil-risk analysis, and **37 ML features** — in minutes. No on-chain history yet? Link a bank account via **Reclaim zkTLS** and get an accurate score from verified balance and capacity, the same way traditional credit uses cash-flow signals.
+
+Once scored, you mint a soulbound **CredScore SBT** and borrow with less collateral than standard over-collateralized DeFi. **Five autonomous agents** power the rest of the application: underwriting and minting credit, syncing your score to every market where you might borrow, watching every open loan, liquidating bad debt, and tuning pool rates — so borrowers get a complete product, not a static score widget.
+
+Borrowing is available on **Robinhood Chain testnet**, **Arbitrum Sepolia**, and **Base Sepolia**. Credit state travels cross-chain via **LayerZero V2** so one underwritten identity cannot double-borrow across markets.
 
 ---
 
@@ -110,7 +114,7 @@ Source of truth: `docs/addresses.json`, `docs/spoke-arbitrum-addresses.json`, `d
    - [Liquidation Agent and Cross-Chain Blacklist](#liquidation-agent-and-cross-chain-blacklist)
 8. [LayerZero Cross-Chain Messaging](#layerzero-cross-chain-messaging)
    - [Why LayerZero](#why-layerzero)
-   - [Hub-and-Spoke Topology](#hub-and-spoke-topology)
+   - [Cross-Chain Credit Topology](#cross-chain-credit-topology)
    - [CredFlowOApp Contract](#credflowoapp-contract)
    - [Message Types and Spoke State](#message-types-and-spoke-state)
    - [Message Flow by Lifecycle Event](#message-flow-by-lifecycle-event)
@@ -126,7 +130,13 @@ Source of truth: `docs/addresses.json`, `docs/spoke-arbitrum-addresses.json`, `d
 
 ## Introduction
 
-CredFlow enables **undercollateralized borrowing** by combining multi-chain DeFi history, machine learning, optional off-chain bank verification, and a portable credit registry synchronized across chains. A borrower builds a score on the Robinhood hub, mints an on-chain SBT, and borrows USDG on the hub or USDC on spokes with less collateral than a fully collateralized DeFi loan would require.
+CredFlow is a **credit-first lending product**. The experience starts with knowing the borrower — not with picking a chain or pooling liquidity.
+
+**For experienced Web3 users**, we ingest an unusually deep wallet picture: multi-protocol borrow and repay events (Aave V3, Morpho Blue, CredFlow itself), Alchemy-powered transfer graphs, activity windows, liquidation history, and graph-based sybil detection. That becomes a FICO-like CredScore with SHAP explainability on IPFS.
+
+**For users new to Web3**, the same product works without fabricated on-chain history. Optional **Reclaim zkTLS** bank verification adds verified balance and capacity into the on-chain score formula — so thin wallets are not automatically rejected.
+
+Once approved, the score is committed as a **CredScore SBT** and drives real loan terms: LTV tiers, interest rates, and collateral requirements far below typical 150%+ DeFi over-collateralization. **Five Python agents** run everything that should not require manual ops — mint and update credit on-chain, propagate score and loan state across chains, poll health every five minutes, liquidate defaults and blacklist sybil rings, and adjust pool rates as utilization shifts.
 
 The main UI uses a **server-side wallet** (`FRONTEND_PRIVATE_KEY` in `frontend/.env.local`) — the Next.js backend signs score, mint, borrow, and repay transactions. Legacy panels still reference wagmi/MetaMask, but the primary tabs (`AppShell`) route through `/api/wallet` and `/api/profile`.
 
@@ -134,7 +144,7 @@ The main UI uses a **server-side wallet** (`FRONTEND_PRIVATE_KEY` in `frontend/.
 
 Robinhood Chain is a **permissionless, EVM-compatible Layer-2** built on **Arbitrum** technology. It is designed for financial-grade on-chain infrastructure: tokenized real-world assets (equities, ETFs, private assets), 24/7 trading, self-custody via Robinhood Wallet, and bridging into Ethereum DeFi liquidity.
 
-CredFlow chose Robinhood testnet as the **credit hub** for concrete technical reasons:
+CredFlow anchors **on-chain credit issuance** on Robinhood testnet — where the CredScore SBT lives and where the underwriter agent mints and updates borrower profiles — for concrete technical reasons:
 
 | Capability | How CredFlow uses it |
 |------------|---------------------|
@@ -144,30 +154,37 @@ CredFlow chose Robinhood testnet as the **credit hub** for concrete technical re
 | **Official LayerZero V2** | Robinhood testnet is an officially supported LZ chain (EID **40451**, EndpointV2 deployed by LayerZero Labs) — no custom endpoint deployment required |
 | **Faucet ecosystem** | Native ETH gas + Paxos USDG faucet for testnet liquidity |
 | **RWA / lending focus** | Robinhood positions the chain for decentralized lending and tokenized assets — aligned with CredFlow's credit-scoring lending model |
-| **Bridge to Ethereum DeFi** | Hub credit can gate borrowing on established L2 spokes (Arbitrum, Base) where users already have Aave/Morpho history |
+| **Bridge to Ethereum DeFi** | The same CredScore that gates Robinhood borrowing also syncs to Arbitrum and Base — where users already have Aave/Morpho history indexed into their score |
 
 Chain parameters: **Chain ID 46630**, RPC `https://rpc.testnet.chain.robinhood.com`, explorer `explorer.testnet.chain.robinhood.com`.
 
 ### Current Scenario
 
-Traditional DeFi lending is **over-collateralized**: you post more collateral than you borrow, regardless of your repayment history. That model works for permissionless pools but fails for undercollateralized credit because:
+Traditional DeFi lending is **over-collateralized**: you post more collateral than you borrow, regardless of your repayment history. That model works for permissionless pools but fails for credit that actually reflects who you are as a borrower:
 
-1. **Thin on-chain history** — new wallets have no signal; bots can fabricate minimal activity.
-2. **No portable credit** — repaying on Arbitrum does not help you borrow on Base or Robinhood.
-3. **Siloed risk** — each chain's lending pool cannot see loans active elsewhere.
-4. **No off-chain capacity signal** — bank balance and income are ignored unless manually verified.
+1. **Thin or empty wallet history** — new wallets have no signal; bots can fabricate minimal activity. CredFlow's bank path (Reclaim) and deep wallet indexing address both extremes.
+2. **No portable credit** — repaying on Arbitrum does not help you borrow on Base or Robinhood unless something carries your score with you.
+3. **Siloed risk** — each chain's lending pool cannot see loans active elsewhere, enabling double-borrows against the same identity.
+4. **Off-chain capacity ignored** — bank balance and income are invisible unless cryptographically verified and folded into the score.
 
-Borrowers with strong multi-protocol repayment behavior still face 150%+ collateral requirements. There is no cross-chain "credit report" that travels with the wallet.
+Borrowers with strong multi-protocol repayment behavior still face 150%+ collateral requirements. There is no cross-chain credit report that travels with the wallet — and no product that treats **wallet depth + optional bank proof + automated enforcement** as one system.
 
 ### The CredFlow Solution
 
-CredFlow addresses this with a **hub-and-spoke architecture**:
+CredFlow connects deep credit intelligence to automated loan operations:
 
-- **Hub (Robinhood)** — source of truth for credit: `CredScoreSBT`, `CredScoreEngine`, hub lending in USDG.
-- **Spokes (Arbitrum Sepolia, Base Sepolia)** — local USDC lending using `CredFlowOApp` as a mirrored credit registry.
-- **ML scoring API** — XGBoost + Sybil detection + optional Reclaim bank proof; 37 on-chain-derived features from Aave, Morpho, CredFlow, and Alchemy.
-- **LayerZero V2** — propagates score updates, loan-active locks, repaid clears, and default blacklists hub → spokes.
-- **Five Python agents** — underwrite, sync, monitor, liquidate, and optimize rates; triggered by scheduler or Next.js API hooks.
+1. **Wallet-native credit report** — Indexers pull Aave V3, Morpho Blue, CredFlow loan history, and Alchemy wallet telemetry across Arbitrum, Base, and Robinhood testnet. An XGBoost model scores default probability; R-GCN sybil detection flags wash trading and linked-wallet fraud. SHAP explanations land on IPFS for transparency.
+
+2. **Bank path for Web3 newcomers** — Reclaim Protocol verifies bank balance through zkTLS without exposing credentials. The on-chain score formula blends ML default risk with verified off-chain capacity so thin wallets are not automatically rejected.
+
+3. **Portable CredScore SBT** — Approved borrowers mint a soulbound token storing score, sub-scores, loan status, and blacklist state. One underwritten identity, one credit record.
+
+4. **Undercollateralized borrowing** — Score maps to LTV tiers (40–85%) and rate tiers. Borrow USDG on Robinhood testnet or USDC on Arbitrum/Base with collateral requirements far below standard DeFi norms.
+
+5. **Five agents, always on** — The underwriter commits credit on-chain. Cross-chain sync keeps every lending market aligned with your latest score and loan state. Portfolio monitor watches LTV and overdue grace. Liquidation agent seizes collateral, blacklists sybil rings, and broadcasts defaults. Rate optimizer adjusts pool pricing as utilization moves.
+
+6. **Cross-chain credit sync** — LayerZero V2 propagates score updates, active-loan locks, repaid clears, and default blacklists from the authoritative credit registry to Arbitrum and Base lending contracts — preventing double-borrows and stale scores without duplicating underwriting on each chain.
+
 - **Supabase** — persists profiles, score runs, loan events, and LayerZero broadcast audit rows.
 
 ### System Architecture
@@ -240,7 +257,7 @@ flowchart TB
 
 ### Full Borrower Journey
 
-End-to-end path from zero credit to repaid loan, with agents annotated at each step:
+From first score to repaid loan — every stage below is powered by the scoring pipeline (wallet + optional bank), on-chain SBT credit, and the five agents at the moments that matter:
 
 ```mermaid
 flowchart LR
@@ -302,6 +319,16 @@ flowchart LR
 ---
 
 ## The Five Agents
+
+CredFlow is **agent-driven**. Scoring computes a number; agents **act** on it — minting SBTs, signing LayerZero broadcasts, polling live LTV, liquidating bad loans, and tuning rates. Without them, the product would be a static score dashboard; with them, credit stays current and enforced across every chain for the entire borrower lifecycle.
+
+| Agent | Product role |
+|-------|----------------|
+| **Underwriter** | Turns an approved score into on-chain credit — mints and updates the CredScore SBT |
+| **Cross-chain sync** | Carries score, loan-active, repaid, and default state to every borrow market |
+| **Portfolio monitor** | Watches every open loan for LTV breaches and calendar overdue |
+| **Liquidation** | Seizes collateral, records defaults, blacklists sybil rings, triggers cross-chain default |
+| **Rate optimizer** | Adjusts pool base rates as utilization shifts |
 
 Agents live in `agents/`. HTTP endpoints mount on the ML API at `/agents/*` via `ml/agent_handlers.py`. Scheduled agents run through `npm run agents:serve` (`agents/scheduler.py`).
 
@@ -598,7 +625,9 @@ Groq never signs transactions. It only influences whether an agent proceeds, who
 
 ## Credit Scoring System
 
-Credit scoring is the core differentiator. CredFlow ingests multi-chain wallet and protocol history, runs ML inference, optionally verifies bank balance via Reclaim zkTLS, commits the result on-chain as an SBT, and mirrors the score to spokes via LayerZero.
+This is CredFlow's product core. We do not guess creditworthiness from wallet age alone — we rebuild a **multi-protocol financial picture**, optionally anchor it with **bank-verified capacity**, and produce a score the rest of the app (and all five agents) trust. Every borrow quote, approval gate, SBT field, and cross-chain sync traces back to this pipeline.
+
+The scoring API ingests multi-chain wallet and protocol history, runs ML inference, optionally verifies bank balance via Reclaim zkTLS, commits the result on-chain as an SBT (via the underwriter agent), and mirrors the score to every lending market via cross-chain sync.
 
 ### End-to-End Pipeline
 
@@ -1035,9 +1064,11 @@ interest = borrowedAmount * interestRate * elapsedSeconds / (365 days * 10000)
 
 ## Borrowing Logic
 
+Your CredScore only matters if it changes how you borrow. The **Loans** tab turns score into concrete terms — max LTV, interest rate, and required collateral — then submits on-chain `requestLoan` transactions. Display score is resolved from Supabase (same source as the dashboard); on-chain eligibility uses the live credit registry on each chain.
+
 Borrowing is initiated from the **Loans** tab → `PurchaseLoanPanel` → `POST /api/loans/borrow`. The server wallet (`FRONTEND_PRIVATE_KEY`) signs all on-chain transactions via `frontend/src/lib/loan-server.ts`.
 
-Before borrow, the API reads score, blacklist status, and active loan state on hub and both spokes. Hub loans lock spoke borrowing via LayerZero until repaid.
+Before borrow, the API reads score, blacklist status, and active loan state on Robinhood testnet, Arbitrum Sepolia, and Base Sepolia. A Robinhood loan locks borrowing on the other chains via LayerZero until repaid — the cross-chain sync agent enforces one loan per identity.
 
 ```mermaid
 flowchart TB
@@ -1147,6 +1178,8 @@ The **underwriter does not run on borrow** — only `crosschain_sync`.
 
 ## Repayment Logic
 
+Repaying is where credit **compounds**. A successful repay triggers rescoring, SBT updates, and cross-chain unlock — the underwriter and cross-chain sync agents run automatically so improved repayment behavior updates every market. Good repayment history is exactly the signal the 37-feature model is built to reward.
+
 Repayment is initiated from `RepayLoanPanel` → `POST /api/loans/repay` → `repayLoan()` in `loan-server.ts`, followed by `runPostRepayPipeline()` in `agent-client.ts`.
 
 ### On-Chain Repay
@@ -1235,6 +1268,8 @@ flowchart LR
 ---
 
 ## Scenario: Price Goes Down
+
+CredFlow does not set and forget loans after disbursement. The **portfolio monitor agent** polls every active loan on every chain every five minutes. If collateral value drops and LTV rises, the same agent stack that underwrote you can warn on-chain, liquidate, blacklist linked sybil wallets, and sync defaults globally.
 
 When ETH price falls, collateral value drops and **LTV rises** — even if the borrower is not overdue. Contracts react to LTV; agents watch continuously and act when thresholds are breached.
 
@@ -1332,6 +1367,8 @@ The borrower cannot borrow again (`defaultCount > 0` on hub; blacklisted on spok
 
 ## Scenario: Default and Overdue Loans
 
+Calendar discipline matters too. Contracts record due dates; **agents enforce them** — grace periods, liquidation, sybil graph analysis, and cross-chain blacklist broadcasts — so one defaulted borrower cannot quietly open a fresh loan on another chain.
+
 Missing a due date and experiencing a price crash are different triggers that can both end in liquidation. Contracts store `dueTime` but do not enforce it — **agents enforce calendar default**.
 
 ```mermaid
@@ -1421,21 +1458,25 @@ crash_eth_oracle(target_price)  # agent must own feed or deployer key
 
 ## LayerZero Cross-Chain Messaging
 
-LayerZero is the **cross-chain nervous system** of CredFlow. The hub (Robinhood testnet) owns the authoritative credit record in `CredScoreSBT`. Spokes (Arbitrum Sepolia, Base Sepolia) need that credit state — score, loan lock, blacklist — without minting their own SBTs or trusting off-chain APIs. LayerZero V2 delivers signed, verifiable messages hub → spoke so `CredFlowSpokeLending` can enforce the same rules locally.
+Your CredScore should follow you wherever you borrow. Robinhood testnet holds the authoritative **CredScore SBT**, but many users' DeFi history and preferred borrow markets live on Arbitrum and Base. LayerZero V2 carries verified credit state — score, active-loan lock, repaid clear, default blacklist — so every lending contract enforces the **same underwritten identity** without trusting a centralized API or duplicating the scoring pipeline on each chain.
+
+LayerZero is the **cross-chain delivery layer** for CredFlow credit. Robinhood testnet owns the authoritative record in `CredScoreSBT`. Arbitrum Sepolia and Base Sepolia need that state — score, loan lock, blacklist — without minting their own SBTs. LayerZero V2 delivers signed, verifiable messages so `CredFlowSpokeLending` can enforce the same rules locally.
 
 ### Why LayerZero
 
-Without LZ, a borrower could:
+Without cross-chain sync, a borrower could:
 
-1. Mint an SBT and score 720 on Robinhood hub.
-2. Borrow on Arbitrum spoke using a stale or fabricated local score.
-3. Take a **second** loan on Base while a hub loan is active.
+1. Mint a CredScore SBT at 720 on Robinhood testnet.
+2. Borrow on Arbitrum using a stale or fabricated local score — ignoring the wallet history and underwriting that produced the real score.
+3. Take a **second** loan on Base while a Robinhood loan is still active.
 
-CredFlow prevents this by mirroring hub state into each spoke's `CredFlowOApp`. Spoke lending reads `ICredFlowCreditRegistry` (`getScore`, `isLoanActive`, `isBlacklisted`) — all backed by LZ-delivered state, not user claims.
+CredFlow prevents this by mirroring authoritative credit state into each chain's `CredFlowOApp`. Lending contracts read `ICredFlowCreditRegistry` (`getScore`, `isLoanActive`, `isBlacklisted`) — all backed by LayerZero-delivered state from the underwriter and sync agents, not user claims.
 
 Robinhood testnet is an **official LayerZero V2 chain** (EID 40451). No custom endpoint deployment — CredFlow wires peers to Arbitrum Sepolia (40231) and Base Sepolia (40245) using standard EndpointV2 contracts.
 
-### Hub-and-Spoke Topology
+### Cross-Chain Credit Topology
+
+Credit is **issued once** on Robinhood testnet (CredScore SBT + underwriter agent) and **mirrored** to Arbitrum and Base lending markets via LayerZero. Users experience one CredScore; contracts on each chain read the same synchronized state.
 
 ```mermaid
 flowchart TB
@@ -1468,7 +1509,7 @@ flowchart TB
   EP -->|_lzReceive| AOApp2
 ```
 
-**Direction:** Hub → spokes only. Spokes never broadcast back to hub. All credit mutations originate on hub (SBT + lending); spokes are read replicas updated by LZ.
+**Direction:** Robinhood testnet → Arbitrum and Base only. Remote chains never broadcast back. All credit mutations originate where the SBT lives (underwriter agent); other markets are synchronized read replicas updated by the cross-chain sync agent via LayerZero.
 
 ### Chain and Endpoint Reference
 
@@ -1658,6 +1699,8 @@ If LZ fails silently, hub and spoke **diverge**. The UI treats hub loan existenc
 
 ## Contracts Overview
 
+Smart contracts implement the on-chain half of CredFlow's credit product: the SBT that stores your score, lending pools that honor score-based LTV tiers, and the LayerZero registry that keeps every chain aligned with what the agents underwrote.
+
 High-level roles of each Solidity module in `contracts/`.
 
 ### CredScoreSBT
@@ -1738,7 +1781,7 @@ Interface implemented by `CredFlowOApp` on spokes: `getScore()`, `isBlacklisted(
 
 ## Agent-Contract Interaction Matrix
 
-This matrix maps **which agent touches which contract**, with what function, and whether LayerZero is involved. Use it as a quick reference when tracing a borrower action end-to-end.
+The five agents are how CredFlow's credit intelligence becomes on-chain reality. This matrix maps **which agent touches which contract**, with what function, and whether LayerZero is involved — use it when tracing a borrower action from score → mint → borrow → repay → default.
 
 ### Write Access Matrix
 
@@ -1842,16 +1885,17 @@ flowchart LR
 
 ## Conclusion
 
-CredFlow demonstrates **undercollateralized lending with portable cross-chain credit**:
+CredFlow is a **credit product powered by depth, not collateral size alone**:
 
-- A **Robinhood hub** anchors credit in an SBT and USDG lending market on a financial-grade L2 with official LayerZero support.
-- **Arbitrum and Base spokes** let borrowers access USDC liquidity where they already have DeFi history.
-- A **37-feature XGBoost model** plus **R-GCN Sybil detection** and optional **Reclaim zkTLS** bank proof produce a score that reflects real repayment behavior — not just collateral size.
-- **Five agents** automate underwriting, cross-chain sync, health monitoring, liquidation, and rate management.
-- **LayerZero V2** keeps spoke registries consistent: scores, loan locks, repaid clears, and default blacklists propagate hub → spokes without duplicating credit logic.
+- **Wallet intelligence** — 37 ML features from Aave, Morpho, CredFlow loan history, and Alchemy transfer graphs, plus R-GCN sybil detection and SHAP explainability.
+- **Bank path for newcomers** — Reclaim zkTLS folds verified bank balance into the on-chain score formula so Web3-new users can get an accurate CredScore without years of DeFi history.
+- **Portable CredScore SBT** — one soulbound credit identity on Robinhood testnet, synced to every borrow market.
+- **Undercollateralized loans** — score-driven LTV tiers (40–85%) and rate tiers on Robinhood (USDG), Arbitrum (USDC), and Base (USDC).
+- **Five agents** — underwriter, cross-chain sync, portfolio monitor, liquidation, and rate optimizer automate minting, propagation, health checks, enforcement, and pool economics around the clock.
+- **LayerZero V2** — keeps every lending contract aligned with the same score, loan lock, repaid clear, and default blacklist — no double-borrows, no stale credit.
 
 The system is live on testnet. Production hardening would add explicit calendar-overdue liquidation in contracts, persistent grace state, mainnet oracle feeds, and wallet-connect UX alongside the server-side demo wallet.
 
 ---
 
-*CredFlow — cross-chain credit for the next era of on-chain lending.*
+*CredFlow — deep credit intelligence and autonomous agents for the next era of on-chain lending.*

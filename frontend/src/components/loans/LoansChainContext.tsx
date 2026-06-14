@@ -15,6 +15,7 @@ import { readBorrowChain, STORAGE_KEYS, writeStorage } from "@/lib/ui-persistenc
 type LoansChainContextValue = {
   chains: ChainSummary[];
   loanEvents: LoanEvent[];
+  displayCredScore: number | null;
   selectedChainKey: string | null;
   setSelectedChainKey: (chainKey: string | null) => void;
   selectedChain: ChainSummary | null;
@@ -27,11 +28,13 @@ const LoansChainContext = createContext<LoansChainContextValue | null>(null);
 export function LoansChainProvider({
   chains,
   loanEvents,
+  displayCredScore,
   reload,
   children,
 }: {
   chains: ChainSummary[];
   loanEvents: LoanEvent[];
+  displayCredScore: number | null;
   reload: () => Promise<void>;
   children: ReactNode;
 }) {
@@ -67,6 +70,7 @@ export function LoansChainProvider({
     () => ({
       chains,
       loanEvents,
+      displayCredScore,
       selectedChainKey,
       setSelectedChainKey,
       selectedChain,
@@ -76,6 +80,7 @@ export function LoansChainProvider({
     [
       chains,
       loanEvents,
+      displayCredScore,
       selectedChainKey,
       setSelectedChainKey,
       selectedChain,

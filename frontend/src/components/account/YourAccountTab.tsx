@@ -13,7 +13,9 @@ import {
   type ScoreResponse,
   type ScoreRunRecord,
 } from "@/lib/scoring-api";
+import { scoreDataFromLatestRun } from "@/lib/display-cred-score";
 import { applyOnChainScore } from "@/lib/score-display";
+import { useScoreFlowNavigationGuard } from "@/hooks/use-score-flow-navigation-guard";
 import { toast } from "@/lib/toast";
 import { useWalletApi } from "@/hooks/use-wallet-api";
 import { ConnectWalletPrompt } from "@/components/wallet/ConnectWalletPrompt";
@@ -48,15 +50,6 @@ function profileToScoreData(profile: Record<string, unknown>): ScoreResponse {
   };
 }
 
-function scoreDataFromLatestRun(run: ScoreRunRecord | null | undefined): ScoreResponse | null {
-  const response = run?.response;
-  if (!response || typeof response !== "object") return null;
-  if (response.status === "complete" || typeof response.cred_score === "number") {
-    return response as ScoreResponse;
-  }
-  return null;
-}
-
 export function YourAccountTab() {
   const { address, isConnected, isConnecting } = useWalletApi();
   const [phase, setPhase] = useState<Phase>("loading");
@@ -80,6 +73,16 @@ export function YourAccountTab() {
   const reclaimWindowRef = useRef<Window | null>(null);
   const lastErrorToast = useRef<string | null>(null);
   const pollAbort = useRef(false);
+
+  const scoringInProgress =
+    phase !== "loading" &&
+    phase !== "error" &&
+    (phase === "empty" || scoreFlowView !== "dashboard") &&
+    (scoreFlowView === "choose" ||
+      scoreFlowView === "calculating" ||
+      scoreFlowView === "reclaim");
+
+  useScoreFlowNavigationGuard(scoringInProgress);
 
   const openReclaimPortal = useCallback((url: string): boolean => {
     if (!url) return false;

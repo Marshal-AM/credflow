@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, type ReactNode } from "react";
 import type { ScoreResponse, ScoreRunRecord } from "@/lib/scoring-api";
+import { resolveDisplayCredScore } from "@/lib/display-cred-score";
 import { buildScoreRunDetailCards } from "@/lib/score-run-display";
 import { toast } from "@/lib/toast";
 import { CredScoreGauge } from "@/components/account/CredScoreGauge";
@@ -167,11 +168,11 @@ export function AccountDashboard({
   onAddBank,
 }: Props) {
   const scoreResponse = (latestScoreRun?.response as ScoreResponse | undefined) ?? data;
-  const credScore =
-    (scoreResponse.cred_score as number | undefined) ??
-    (data.cred_score as number | undefined) ??
-    (profile?.cred_score as number | undefined);
-  const score = typeof credScore === "number" ? credScore : null;
+  const score = resolveDisplayCredScore({
+    latestScoreRun,
+    scoreData: data,
+    profile,
+  });
   const balanceCents =
     (scoreResponse.balance_usd_cents as number | undefined) ??
     (data.balance_usd_cents as number | undefined) ??

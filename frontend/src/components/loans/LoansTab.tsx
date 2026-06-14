@@ -84,6 +84,7 @@ export function LoansTab() {
   const { address, isConnected, isConnecting, apiFetch } = useWalletApi();
   const [subTab, setSubTab] = useState<LoanSubTab>("purchase");
   const [chains, setChains] = useState<ChainSummary[]>([]);
+  const [displayCredScore, setDisplayCredScore] = useState<number | null>(null);
   const [loanEvents, setLoanEvents] = useState<LoanEvent[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -99,6 +100,7 @@ export function LoansTab() {
   const load = useCallback(async () => {
     if (!address) {
       setChains([]);
+      setDisplayCredScore(null);
       setLoanEvents([]);
       setLoading(false);
       return;
@@ -108,6 +110,9 @@ export function LoansTab() {
       const res = await apiFetch("/api/loans");
       const data = await res.json();
       setChains(data.chains || []);
+      setDisplayCredScore(
+        typeof data.displayCredScore === "number" ? data.displayCredScore : null
+      );
       setLoanEvents((data.loan_events as LoanEvent[]) || []);
     } catch {
       /* ignore */
@@ -125,7 +130,12 @@ export function LoansTab() {
   }
 
   return (
-    <LoansChainProvider chains={chains} loanEvents={loanEvents} reload={load}>
+    <LoansChainProvider
+      chains={chains}
+      loanEvents={loanEvents}
+      displayCredScore={displayCredScore}
+      reload={load}
+    >
       <LoansTabInner
         subTab={subTab}
         changeSubTab={changeSubTab}

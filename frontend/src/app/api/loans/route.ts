@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireRequestWallet } from "@/lib/wallet-request";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
+import { fetchDisplayCredScore } from "@/lib/display-cred-score-server";
 import { readChainLoanSummary } from "@/lib/loan-server";
 import { enrichChainSummaries } from "@/lib/loan-chain-enrich";
 import {
@@ -23,9 +24,10 @@ const CHAINS: ChainKey[] = ["hub", "arbitrum", "base"];
 export async function GET(req: NextRequest) {
   try {
     const wallet = requireRequestWallet(req);
-    const rawSummaries = await Promise.all(
-      CHAINS.map((k) => readChainLoanSummary(k, wallet))
-    );
+    const [rawSummaries, displayCredScore] = await Promise.all([
+      Promise.all(CHAINS.map((k) => readChainLoanSummary(k, wallet))),
+      fetchDisplayCredScore(wallet),
+    ]);
     const borrowApproval = await fetchLatestBorrowApproval(wallet);
     const summaries = applyBorrowApprovalGate(
       enrichChainSummaries(rawSummaries),
@@ -99,6 +101,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       wallet,
+      displayCredScore,
       chains: summaries.map((s) => ({
         ...s,
         activeLoanId: s.activeLoanId.toString(),
