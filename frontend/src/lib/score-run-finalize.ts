@@ -3,6 +3,7 @@ import {
   triggerSyncScore,
   type AutoUnderwriteResult,
 } from "@/lib/agent-client";
+import { scoreMeetsUnderwriteCriteria, underwriteTargetScore } from "@/lib/score-display";
 import { getSupabaseAdmin, profileFromScoreResponse } from "@/lib/supabase-server";
 
 export type ScoreRunFinalizeResult = {
@@ -60,11 +61,9 @@ export async function finalizeCompleteScoreRun(
     const lzScore =
       typeof underwrite.data?.cred_score === "number"
         ? underwrite.data.cred_score
-        : typeof data.cred_score === "number"
-          ? (data.cred_score as number)
-          : null;
+        : underwriteTargetScore(data);
 
-    if (lzScore != null && lzScore > 0 && data.approved !== false) {
+    if (lzScore != null && lzScore > 0 && scoreMeetsUnderwriteCriteria(data)) {
       const triggerEvent =
         underwrite.data?.onchain === "mintSBT" || underwrite.data?.onchain === "mintScore"
           ? "score_mint"

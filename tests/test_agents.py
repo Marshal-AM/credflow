@@ -16,7 +16,7 @@ from agents.groq_brain import (
     review_underwriting,
 )
 from agents.lz_options import build_lz_options
-from agents.underwriter_agent import _is_borderline
+from agents.underwriter_agent import _is_borderline, _resolve_onchain_cred_score
 
 
 def test_build_lz_options_encoding():
@@ -29,6 +29,62 @@ def test_borderline_detection():
     assert _is_borderline(490, "low") is True
     assert _is_borderline(600, "medium") is False
     assert _is_borderline(500, "medium") is True
+
+
+def test_resolve_onchain_cred_score_prefers_ml_over_floor():
+    """Post-repay floor is display-only; underwriter writes fresh ML score."""
+    floored = {
+        "cred_score": 830,
+        "on_chain_cred_score": 830,
+        "ml_cred_score": 791,
+        "floor_cred_score": 830,
+        "score_floored": True,
+    }
+    assert _resolve_onchain_cred_score(floored) == 791
+
+    reclaim = {
+        "cred_score": 720,
+        "on_chain_cred_score": 720,
+        "ml_cred_score": 791,
+        "reclaim_proof_hash": "0xabc",
+    }
+    assert _resolve_onchain_cred_score(reclaim) == 720
+
+
+def test_rescore_updates_when_ml_differs_from_on_chain():
+    """Floored snapshot must still trigger updateScore when hub score differs."""
+    mock_agent = MagicMock()
+    mock_agent.sbt.functions.isBlacklisted.return_value.call.return_value = False
+    mock_agent.sbt.functions.hasProfile.return_value.call.return_value = True
+    mock_agent.sbt.functions.getProfile.return_value.call.return_value = (830, 60, 90, "QmTest")
+    mock_agent.score_engine = None
+    mock_agent.send_tx = MagicMock(return_value="0xdeadbeef")
+
+    score_payload = {
+        "status": "complete",
+        "cred_score": 830,
+        "on_chain_cred_score": 830,
+        "ml_cred_score": 791,
+        "floor_cred_score": 830,
+        "score_floored": True,
+        "sybil_risk": "medium",
+        "approved": True,
+        "borrow_sub_score": 60,
+        "wallet_sub_score": 90,
+        "shap_cid": "QmTest",
+        "model_breakdown": {},
+        "default_prob_bps": 200,
+        "balance_usd_cents": 0,
+    }
+
+    from agents.underwriter_agent import underwrite_wallet
+
+    result = underwrite_wallet(mock_agent, "0x2514844F312c02Ae3C9d4fEb40db4eC8830b6844", rescore=True, score_data=score_payload)
+
+    assert result["action"] == "approve"
+    assert result["cred_score"] == 791
+    assert result["onchain"] == "updateScore"
+    mock_agent.send_tx.assert_called_once()
 
 
 def test_groq_fallback_underwriting():

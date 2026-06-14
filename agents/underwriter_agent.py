@@ -41,6 +41,16 @@ def _clamp_uint16(value: int) -> int:
     return max(0, min(65535, int(value)))
 
 
+def _resolve_onchain_cred_score(score_data: dict) -> int:
+    """Authoritative hub SBT score — ML output unless reclaim formula applies."""
+    if score_data.get("reclaim_proof_hash") or score_data.get("reclaim"):
+        return int(score_data.get("on_chain_cred_score") or score_data["cred_score"])
+    ml = score_data.get("ml_cred_score")
+    if ml is not None:
+        return int(ml)
+    return int(score_data.get("on_chain_cred_score") or score_data["cred_score"])
+
+
 def _reclaim_enabled() -> bool:
     return os.environ.get("RECLAIM_ENABLED", "0").strip() in ("1", "true", "yes")
 
@@ -157,12 +167,8 @@ def underwrite_wallet(
             score_data.get("cred_score"),
         )
 
-    cred_score = int(score_data.get("on_chain_cred_score") or score_data["cred_score"])
-    floor_cred = score_data.get("floor_cred_score")
-    if floor_cred is not None and cred_score < int(floor_cred):
-        cred_score = int(floor_cred)
+    cred_score = _resolve_onchain_cred_score(score_data)
     sybil_risk = score_data.get("sybil_risk", "low")
-    approved = score_data.get("approved", False)
     borrow_sub = _clamp_uint16(score_data.get("borrow_sub_score", 0))
     wallet_sub = _clamp_uint16(score_data.get("wallet_sub_score", 0))
     shap_cid = str(score_data.get("shap_cid", ""))
@@ -212,13 +218,6 @@ def underwrite_wallet(
                     "sybil_risk": sybil_risk,
                     "groq": groq_narrative,
                 }
-    elif not approved:
-        return {
-            "wallet": wallet,
-            "action": "reject",
-            "reason": score_data.get("rejection_reason", "Not approved"),
-            "cred_score": cred_score,
-        }
 
     if has_profile and rescore:
         profile = agent.sbt.functions.getProfile(wallet).call()

@@ -1,4 +1,5 @@
 import { getSupabaseAdmin, profileFromScoreResponse } from "@/lib/supabase-server";
+import { underwriteTargetScore } from "@/lib/score-display";
 import type { ChainKey } from "@/lib/chains";
 import { isChainTxSuccessful } from "@/lib/lz-broadcast";
 
@@ -127,12 +128,18 @@ export async function autoUnderwriteAfterScore(
     hasOnChainProfile?: boolean;
   }
 ): Promise<AutoUnderwriteResult> {
+  const { scoreMeetsUnderwriteCriteria, snapshotForUnderwrite } = await import(
+    "@/lib/score-display"
+  );
+
   if (scoreData.status !== "complete") {
     return { ok: false, skipped: true, reason: "score_incomplete" };
   }
-  if (scoreData.approved === false) {
-    return { ok: false, skipped: true, reason: "not_approved" };
+  if (!scoreMeetsUnderwriteCriteria(scoreData)) {
+    return { ok: false, skipped: true, reason: "criteria_not_met" };
   }
+
+  const snapshot = snapshotForUnderwrite(scoreData);
 
   const { hubHasSbtProfile, fetchSbtMintTxHash } = await import("@/lib/sbt-chain");
   const hasProfile =
@@ -156,7 +163,7 @@ export async function autoUnderwriteAfterScore(
     wallet_address: wallet,
     rescore: hasProfile,
     reclaim_session_id: reclaimSessionId,
-    score_snapshot: scoreData,
+    score_snapshot: snapshot,
     trigger_source: "api_hook",
     trigger_event: hasProfile ? "score_rescore" : "score_mint",
   });
@@ -599,31 +606,26 @@ export async function runPostRepayPipeline(params: {
     scoreResult = { ok: false, error: msg };
   }
 
-  const underwrite =
+  const underwrite: AutoUnderwriteResult =
     scoreSnapshot?.status === "complete"
-      ? await triggerUnderwriteRescore(wallet, {
-          scoreSnapshot,
-          repayChain: chainKey,
-          repayTx,
-          loanId,
-        })
-      : {
-          ok: false,
-          error: scoreSnapshot
-            ? `score_status_${scoreSnapshot.status ?? "unknown"}`
-            : "score_incomplete_skip_underwrite",
-        };
-  if (!underwrite.ok) {
-    if (underwrite.error !== "score_incomplete_skip_underwrite") {
-      errors.push(`underwrite: ${underwrite.error}`);
-    } else {
+      ? await autoUnderwriteAfterScore(wallet, scoreSnapshot)
+      : { ok: false, skipped: true, reason: "score_incomplete" };
+
+  if (underwrite.skipped) {
+    if (underwrite.reason === "score_incomplete") {
       errors.push("underwrite: skipped — post-repay score did not complete");
     }
+  } else if (!underwrite.ok) {
+    errors.push(`underwrite: ${underwrite.error}`);
   } else if (typeof underwrite.data?.cred_score === "number") {
     newScore = underwrite.data.cred_score;
   }
 
-  const lzScore = underwrite.data?.cred_score ?? newScore ?? undefined;
+  const lzScore =
+    underwrite.data?.cred_score ??
+    (scoreSnapshot ? underwriteTargetScore(scoreSnapshot) : null) ??
+    newScore ??
+    undefined;
   let lz_sync = await triggerSyncLoanRepaid(
     wallet,
     repayTx,
@@ -647,12 +649,19 @@ export async function runPostRepayPipeline(params: {
   let supabaseSaved = false;
   if (supabase && scoreSnapshot && scoreResult?.ok) {
     const profile = profileFromScoreResponse(wallet, scoreSnapshot);
+    const chainScore =
+      typeof underwrite.data?.cred_score === "number"
+        ? underwrite.data.cred_score
+        : underwriteTargetScore(scoreSnapshot) ?? profile.cred_score;
     const { error } = await supabase.from("account_profiles").upsert({
       ...profile,
-      sbt_score_on_chain:
-        typeof underwrite.data?.cred_score === "number"
-          ? underwrite.data.cred_score
-          : profile.cred_score,
+      ...(typeof chainScore === "number"
+        ? {
+            cred_score: chainScore,
+            on_chain_cred_score: chainScore,
+            sbt_score_on_chain: chainScore,
+          }
+        : {}),
     });
     if (error) {
       errors.push(`supabase: ${error.message}`);
