@@ -3,8 +3,10 @@
 import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import { PurchaseLoanPanel } from "./PurchaseLoanPanel";
 import { ActiveLoansPanel } from "./ActiveLoansPanel";
-import { RepayLoanPanel } from "./RepayLoanPanel";
-import type { ChainSummary } from "./loans-types";
+import { LoanHistoryPanel } from "./LoanHistoryPanel";
+import { ChainSelect } from "./ChainSelect";
+import { LoansChainProvider, useLoansChain } from "./LoansChainContext";
+import type { ChainSummary, LoanEvent } from "./loans-types";
 import { useWalletApi } from "@/hooks/use-wallet-api";
 import { ConnectWalletPrompt } from "@/components/wallet/ConnectWalletPrompt";
 import {
@@ -17,49 +19,21 @@ import {
 const SUB_TABS: { id: LoanSubTab; label: string }[] = [
   { id: "purchase", label: "Borrow" },
   { id: "active", label: "Active loans" },
-  { id: "repay", label: "Repay" },
+  { id: "history", label: "History" },
 ];
 
-export function LoansTab() {
-  const { address, isConnected, isConnecting, apiFetch } = useWalletApi();
-  const [subTab, setSubTab] = useState<LoanSubTab>("purchase");
-  const [chains, setChains] = useState<ChainSummary[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useLayoutEffect(() => {
-    setSubTab(readLoanSubTab());
-  }, []);
-
-  function changeSubTab(next: LoanSubTab) {
-    setSubTab(next);
-    writeStorage(STORAGE_KEYS.loansSubTab, next);
-  }
-
-  const load = useCallback(async () => {
-    if (!address) {
-      setChains([]);
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    try {
-      const res = await apiFetch("/api/loans");
-      const data = await res.json();
-      setChains(data.chains || []);
-    } catch {
-      /* ignore */
-    } finally {
-      setLoading(false);
-    }
-  }, [address, apiFetch]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  if (!isConnected && !isConnecting) {
-    return <ConnectWalletPrompt message="Connect your wallet to borrow and repay loans" />;
-  }
+function LoansTabInner({
+  subTab,
+  changeSubTab,
+  loading,
+  onRefresh,
+}: {
+  subTab: LoanSubTab;
+  changeSubTab: (tab: LoanSubTab) => void;
+  loading: boolean;
+  onRefresh: () => void;
+}) {
+  const { chainOptions, selectedChainKey, setSelectedChainKey } = useLoansChain();
 
   return (
     <div className="space-y-6">
@@ -76,9 +50,19 @@ export function LoansTab() {
             </button>
           ))}
         </div>
-        <button type="button" onClick={load} className="btn-secondary text-sm">
-          Refresh
-        </button>
+        <div className="flex flex-wrap items-center gap-3">
+          {chainOptions.length > 0 && (
+            <ChainSelect
+              options={chainOptions}
+              value={selectedChainKey}
+              onChange={setSelectedChainKey}
+              placeholder="Select chain"
+            />
+          )}
+          <button type="button" onClick={onRefresh} className="btn-secondary text-sm">
+            Refresh
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -87,13 +71,67 @@ export function LoansTab() {
         </div>
       ) : (
         <>
-          {subTab === "purchase" && (
-            <PurchaseLoanPanel chains={chains} onSuccess={load} />
-          )}
-          {subTab === "active" && <ActiveLoansPanel chains={chains} />}
-          {subTab === "repay" && <RepayLoanPanel chains={chains} onSuccess={load} />}
+          {subTab === "purchase" && <PurchaseLoanPanel onSuccess={onRefresh} />}
+          {subTab === "active" && <ActiveLoansPanel onSuccess={onRefresh} />}
+          {subTab === "history" && <LoanHistoryPanel />}
         </>
       )}
     </div>
+  );
+}
+
+export function LoansTab() {
+  const { address, isConnected, isConnecting, apiFetch } = useWalletApi();
+  const [subTab, setSubTab] = useState<LoanSubTab>("purchase");
+  const [chains, setChains] = useState<ChainSummary[]>([]);
+  const [loanEvents, setLoanEvents] = useState<LoanEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useLayoutEffect(() => {
+    setSubTab(readLoanSubTab());
+  }, []);
+
+  function changeSubTab(next: LoanSubTab) {
+    setSubTab(next);
+    writeStorage(STORAGE_KEYS.loansSubTab, next);
+  }
+
+  const load = useCallback(async () => {
+    if (!address) {
+      setChains([]);
+      setLoanEvents([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await apiFetch("/api/loans");
+      const data = await res.json();
+      setChains(data.chains || []);
+      setLoanEvents((data.loan_events as LoanEvent[]) || []);
+    } catch {
+      /* ignore */
+    } finally {
+      setLoading(false);
+    }
+  }, [address, apiFetch]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  if (!isConnected && !isConnecting) {
+    return <ConnectWalletPrompt message="Connect your wallet to borrow and repay loans" />;
+  }
+
+  return (
+    <LoansChainProvider chains={chains} loanEvents={loanEvents} reload={load}>
+      <LoansTabInner
+        subTab={subTab}
+        changeSubTab={changeSubTab}
+        loading={loading}
+        onRefresh={load}
+      />
+    </LoansChainProvider>
   );
 }

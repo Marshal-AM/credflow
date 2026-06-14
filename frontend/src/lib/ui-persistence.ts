@@ -8,9 +8,9 @@ export const STORAGE_KEYS = {
   borrowChain: "credflow-borrow-chain",
 } as const;
 
-export type LoanSubTab = "purchase" | "active" | "repay";
+export type LoanSubTab = "purchase" | "active" | "history";
 
-const LOAN_SUB_TABS: LoanSubTab[] = ["purchase", "active", "repay"];
+const LOAN_SUB_TABS: LoanSubTab[] = ["purchase", "active", "history"];
 
 export function isAppTab(value: string | null | undefined): value is AppTab {
   return !!value && (APP_TABS as string[]).includes(value);
@@ -45,6 +45,7 @@ export function readAppTab(): AppTab {
 
 export function readLoanSubTab(): LoanSubTab {
   const saved = readStorage(STORAGE_KEYS.loansSubTab);
+  if (saved === "repay") return "history";
   return isLoanSubTab(saved) ? saved : "purchase";
 }
 

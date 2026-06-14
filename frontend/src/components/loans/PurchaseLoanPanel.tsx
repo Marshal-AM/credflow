@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   useAccount,
   useWaitForTransactionReceipt,
@@ -9,7 +9,8 @@ import {
 import { BorrowChainPicker } from "./ChainSelect";
 import { ChainCredScore } from "./ChainCredScore";
 import { LoansPanelShell } from "./LoansPanelShell";
-import type { ChainSummary, CollateralQuote } from "./loans-types";
+import { useLoansChain } from "./LoansChainContext";
+import type { CollateralQuote } from "./loans-types";
 import { contractsByChain } from "@/lib/contracts";
 import type { ChainKey } from "@/lib/chains";
 import { useEnsureChain } from "@/hooks/use-ensure-chain";
@@ -17,18 +18,16 @@ import { useWalletApi } from "@/hooks/use-wallet-api";
 import { clientBorrowLoan, formatCollateralEth } from "@/lib/loan-client";
 import { COLLATERAL_SYMBOL } from "@/lib/chain-logos";
 import { toast } from "@/lib/toast";
-import { readBorrowChain, STORAGE_KEYS, writeStorage } from "@/lib/ui-persistence";
 
 type Props = {
-  chains: ChainSummary[];
   onSuccess: () => void;
 };
 
-export function PurchaseLoanPanel({ chains, onSuccess }: Props) {
+export function PurchaseLoanPanel({ onSuccess }: Props) {
   const { isConnected } = useAccount();
   const { apiFetch } = useWalletApi();
   const { writeContractAsync } = useWriteContract();
-  const [selectedChainKey, setSelectedChainKey] = useState<string | null>(null);
+  const { chainOptions, selectedChainKey, setSelectedChainKey, selectedChain } = useLoansChain();
   const [borrowAmount, setBorrowAmount] = useState("0.5");
   const [durationDays, setDurationDays] = useState("30");
   const [busy, setBusy] = useState(false);
@@ -38,40 +37,9 @@ export function PurchaseLoanPanel({ chains, onSuccess }: Props) {
   const [pendingHash, setPendingHash] = useState<`0x${string}` | undefined>();
   const { isLoading: confirming } = useWaitForTransactionReceipt({ hash: pendingHash });
 
-  const selectedChain = useMemo(
-    () => chains.find((c) => c.chainKey === selectedChainKey) ?? null,
-    [chains, selectedChainKey]
-  );
-
   const chainKey = selectedChainKey as ChainKey | null;
   const cfg = chainKey ? contractsByChain[chainKey] : null;
   const { ensureChain } = useEnsureChain(chainKey ?? "hub");
-
-  const chainOptions = useMemo(
-    () => chains.map((c) => ({ chainKey: c.chainKey, label: c.label })),
-    [chains]
-  );
-
-  useLayoutEffect(() => {
-    const saved = readBorrowChain();
-    if (saved) setSelectedChainKey(saved);
-  }, []);
-
-  useEffect(() => {
-    if (chains.length === 0) return;
-    if (selectedChainKey && !chains.some((c) => c.chainKey === selectedChainKey)) {
-      setSelectedChainKey(null);
-      return;
-    }
-    if (selectedChainKey) {
-      writeStorage(STORAGE_KEYS.borrowChain, selectedChainKey);
-    }
-  }, [chains, selectedChainKey]);
-
-  function handleChainChange(chainKey: string | null) {
-    setSelectedChainKey(chainKey);
-    if (chainKey) writeStorage(STORAGE_KEYS.borrowChain, chainKey);
-  }
 
   const loadQuote = useCallback(async () => {
     if (!selectedChain || !selectedChain.eligible || selectedChain.score <= 0) {
@@ -170,16 +138,9 @@ export function PurchaseLoanPanel({ chains, onSuccess }: Props) {
   const borrowSymbol = cfg?.borrowSymbol ?? "—";
 
   return (
-    <LoansPanelShell
-      title="Borrow"
-      chainOptions={chainOptions}
-      selectedChainKey={selectedChainKey}
-      onChainChange={handleChainChange}
-      chainPlaceholder="Switch chain"
-      showChainSelect={Boolean(selectedChainKey)}
-    >
+    <LoansPanelShell title="Borrow" chainOptions={[]} selectedChainKey={null} onChainChange={() => {}} showChainSelect={false}>
       {!selectedChainKey ? (
-        <BorrowChainPicker options={chainOptions} onSelect={handleChainChange} />
+        <BorrowChainPicker options={chainOptions} onSelect={setSelectedChainKey} />
       ) : !selectedChain ? (
         <p className="text-sm text-muted-foreground">Loading chain details…</p>
       ) : (

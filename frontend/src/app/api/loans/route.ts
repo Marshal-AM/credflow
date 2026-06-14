@@ -80,7 +80,7 @@ export async function GET(req: NextRequest) {
           .select("*")
           .eq("wallet_address", wallet.toLowerCase())
           .order("created_at", { ascending: false })
-          .limit(20),
+          .limit(100),
         supabase
           .from("layerzero_broadcasts")
           .select("*")

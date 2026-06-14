@@ -10,6 +10,20 @@ export type LoanData = {
   active: boolean;
 };
 
+export type LoanEvent = {
+  id: string;
+  wallet_address: string;
+  chain_key: string;
+  loan_id: number | null;
+  event_type: string;
+  borrow_amount: string | null;
+  collateral_amount: string | null;
+  borrow_token: string | null;
+  tx_hash: string;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+};
+
 export type ChainSummary = {
   chainKey: string;
   label: string;
