@@ -356,10 +356,10 @@ main {
   grid-template-columns: minmax(560px, 1.12fr) minmax(360px, 0.88fr);
   align-items: center;
   width: min(100%, var(--page-max));
-  min-height: calc(100svh - 76px);
+  min-height: min(calc(100svh - 76px), 860px);
   margin: 0 auto;
   gap: clamp(var(--space-lg), 3.2vw, var(--space-3xl));
-  padding: var(--space-xl) var(--page-gutter) var(--space-4xl);
+  padding: var(--space-xl) var(--page-gutter) 2rem;
 }
 
 .hero-copy,
@@ -464,6 +464,13 @@ p {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-sm);
+}
+
+.hero-actions .cta-primary,
+.hero-actions .cta-secondary {
+  min-height: 52px;
+  padding-inline: var(--space-xl);
+  font-size: var(--text-md);
 }
 
 .cta-primary,

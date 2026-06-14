@@ -8,7 +8,6 @@ import {
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-export const maxDuration = 600;
 
 export async function POST(req: NextRequest) {
   try {

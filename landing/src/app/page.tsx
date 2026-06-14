@@ -88,6 +88,8 @@ const trustItems = [
 
 const heroWords = ["score", "records", "trust"];
 
+const CREDFLOW_DASHBOARD_URL = "https://credflow-dashboard.vercel.app";
+
 function ClientEffects() {
   useEffect(() => {
     const lenis = new Lenis({
@@ -437,7 +439,14 @@ export default function Home() {
           <a href="#preview">Preview</a>
           <a href="#access">Access</a>
         </nav>
-        <a className="nav-action" href="#access">Request access</a>
+        <a
+          className="nav-action"
+          href={CREDFLOW_DASHBOARD_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Try CredFlow Now!
+        </a>
         <button
           className="nav-menu-toggle"
           type="button"
@@ -457,7 +466,14 @@ export default function Home() {
             <a href="#access" onClick={closeMobileMenu}>Access</a>
           </div>
           <div className="mobile-menu__actions">
-            <a href="#access" onClick={closeMobileMenu}>Request access</a>
+            <a
+              href={CREDFLOW_DASHBOARD_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={closeMobileMenu}
+            >
+              Try CredFlow Now!
+            </a>
           </div>
         </div>
       </header>
@@ -472,8 +488,20 @@ export default function Home() {
             CredFlow uses wallet history and bank-record proofs to build a credit score that can unlock better borrowing terms.
           </p>
           <div className="hero-actions">
-            <a className="cta-primary" href="#access">Request access</a>
-            <a className="cta-secondary" href="#why">See why</a>
+            <a
+              className="cta-primary"
+              href={CREDFLOW_DASHBOARD_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Try CredFlow Now!
+            </a>
+            <a
+              className="cta-secondary"
+              href="#why"
+            >
+              See why
+            </a>
           </div>
         </div>
         <HeroCreditNetwork />
@@ -547,7 +575,14 @@ export default function Home() {
         <div data-reveal>
           <p>Borrow beyond collateral.</p>
           <span>Try CredFlow with a borrower profile built from wallet history or verified bank records.</span>
-          <a className="try-now" href="#top">Try now</a>
+          <a
+            className="try-now"
+            href={CREDFLOW_DASHBOARD_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Try CredFlow Now!
+          </a>
         </div>
       </section>
 
@@ -573,7 +608,13 @@ export default function Home() {
           </div>
           <div>
             <span>Access</span>
-            <a href="#access">Request access</a>
+            <a
+              href={CREDFLOW_DASHBOARD_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Try CredFlow Now!
+            </a>
             <a href="mailto:hello@credflow.xyz">Contact</a>
           </div>
         </div>
