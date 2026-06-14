@@ -1,12 +1,21 @@
 # CredFlow
 
-**An Undercollateralized lending Protocol powered by cross-chain credit scores.**
+**An undercollateralized lending protocol powered by cross-chain credit scores.**
 
-CredFlow turns rich financial signals into a portable **CredScore** (300–850) that unlocks **undercollateralized loans**. Connect a wallet and we reconstruct your full DeFi footprint — Aave and Morpho repay history, Alchemy transfer graphs, sybil-risk analysis, and **37 ML features** — in minutes. No on-chain history yet? Link a bank account via **Reclaim zkTLS** and get an accurate score from verified balance and capacity, the same way traditional credit uses cash-flow signals.
+## Important Links
 
-Once scored, you mint a soulbound **CredScore SBT** and borrow with less collateral than standard over-collateralized DeFi. **Five autonomous agents** power the rest of the application: underwriting and minting credit, syncing your score to every market where you might borrow, watching every open loan, liquidating bad debt, and tuning pool rates — so borrowers get a complete product, not a static score widget.
+| Resource | Link |
+|----------|------|
+| Demo video | [HackQuest — CredFlow](https://www.hackquest.io/projects/CredFlow) |
+| Live app | [credflow-tau.vercel.app](https://credflow-tau.vercel.app) |
+| Dashboard | [credflow-dashboard-three.vercel.app](https://credflow-dashboard-three.vercel.app) |
+| Pitch deck | [Canva pitch deck](https://canva.link/uze7wmvnpxxwnwk) |
 
-Borrowing is available on **Robinhood Chain testnet**, **Arbitrum Sepolia**, and **Base Sepolia**. Credit state travels cross-chain via **LayerZero V2** so one underwritten identity cannot double-borrow across markets.
+CredFlow turns rich financial signals into a portable **CredScore** (300–850) that unlocks **undercollateralized loans**. Connect a wallet and we reconstruct your full DeFi footprint — Aave and Morpho repay history, Alchemy transfer graphs, sybil-risk analysis, and **37 ML features** — in minutes. No on-chain history yet? Link a bank account via **Reclaim zkTLS** and get an accurate score from verified balance and capacity.
+
+**Five autonomous agents power every part of the live experience** — they are not optional infrastructure; they *are* how CredFlow operates after scoring. The **underwriter** mints and updates on-chain credit; **cross-chain sync** keeps every borrow market aligned via LayerZero; the **portfolio monitor** watches loan health every five minutes; the **liquidation agent** enforces defaults and sybil blacklists; and the **rate optimizer** adjusts pool pricing from utilization. Scoring produces a number; the agents make it a product.
+
+Once approved, you mint a soulbound **CredScore SBT** and borrow with less collateral than standard over-collateralized DeFi. Borrowing is available on **Robinhood Chain testnet**, **Arbitrum Sepolia**, and **Base Sepolia**. Credit state travels cross-chain via **LayerZero V2** so one underwritten identity cannot double-borrow across markets.
 
 ---
 
@@ -21,8 +30,6 @@ Live deployment addresses. Click any address to open the chain explorer.
 | Robinhood Chain testnet (hub) | 46630 | 40451 | [explorer.testnet.chain.robinhood.com](https://explorer.testnet.chain.robinhood.com) |
 | Arbitrum Sepolia (spoke) | 421614 | 40231 | [sepolia.arbiscan.io](https://sepolia.arbiscan.io) |
 | Base Sepolia (spoke) | 84532 | 40245 | [sepolia.basescan.org](https://sepolia.basescan.org) |
-
-Source of truth: `docs/addresses.json`, `docs/spoke-arbitrum-addresses.json`, `docs/spoke-base-addresses.json`.
 
 ### Hub — Robinhood Chain Testnet
 
@@ -71,6 +78,7 @@ Source of truth: `docs/addresses.json`, `docs/spoke-arbitrum-addresses.json`, `d
 
 ## Table of Contents
 
+0. [Important Links](#important-links)
 1. [Introduction](#introduction)
    - [Why Robinhood Chain Testnet](#why-robinhood-chain-testnet)
    - [Current Scenario](#current-scenario)
@@ -136,7 +144,7 @@ CredFlow is a **credit-first lending product**. The experience starts with knowi
 
 **For users new to Web3**, the same product works without fabricated on-chain history. Optional **Reclaim zkTLS** bank verification adds verified balance and capacity into the on-chain score formula — so thin wallets are not automatically rejected.
 
-Once approved, the score is committed as a **CredScore SBT** and drives real loan terms: LTV tiers, interest rates, and collateral requirements far below typical 150%+ DeFi over-collateralization. **Five Python agents** run everything that should not require manual ops — mint and update credit on-chain, propagate score and loan state across chains, poll health every five minutes, liquidate defaults and blacklist sybil rings, and adjust pool rates as utilization shifts.
+Once approved, the score is committed as a **CredScore SBT** and drives real loan terms: LTV tiers, interest rates, and collateral requirements far below typical 150%+ DeFi over-collateralization. From that point forward, **five Python agents** run the product — minting and updating credit on-chain, propagating score and loan state across chains, polling health every five minutes, liquidating defaults, blacklisting sybil rings, and adjusting pool rates. See [The Five Agents](#the-five-agents) for what each one does and when it runs.
 
 The main UI uses a **server-side wallet** (`FRONTEND_PRIVATE_KEY` in `frontend/.env.local`) — the Next.js backend signs score, mint, borrow, and repay transactions. Legacy panels still reference wagmi/MetaMask, but the primary tabs (`AppShell`) route through `/api/wallet` and `/api/profile`.
 
@@ -181,11 +189,9 @@ CredFlow connects deep credit intelligence to automated loan operations:
 
 4. **Undercollateralized borrowing** — Score maps to LTV tiers (40–85%) and rate tiers. Borrow USDG on Robinhood testnet or USDC on Arbitrum/Base with collateral requirements far below standard DeFi norms.
 
-5. **Five agents, always on** — The underwriter commits credit on-chain. Cross-chain sync keeps every lending market aligned with your latest score and loan state. Portfolio monitor watches LTV and overdue grace. Liquidation agent seizes collateral, blacklists sybil rings, and broadcasts defaults. Rate optimizer adjusts pool pricing as utilization moves.
+5. **Five agents, always on** — See [The Five Agents](#the-five-agents). They commit credit, sync cross-chain state, monitor loans, liquidate defaults, and tune rates — the product cannot run without them.
 
-6. **Cross-chain credit sync** — LayerZero V2 propagates score updates, active-loan locks, repaid clears, and default blacklists from the authoritative credit registry to Arbitrum and Base lending contracts — preventing double-borrows and stale scores without duplicating underwriting on each chain.
-
-- **Supabase** — persists profiles, score runs, loan events, and LayerZero broadcast audit rows.
+6. **Cross-chain credit sync** — LayerZero V2 propagates score updates, active-loan locks, repaid clears, and default blacklists to Arbitrum and Base lending contracts.
 
 ### System Architecture
 
@@ -255,54 +261,11 @@ flowchart TB
   Liq --> Lending
 ```
 
+**Supabase** persists profiles, score runs, loan events, and agent audit logs. **Five agents** (center of the diagram) connect scoring output to on-chain credit and cross-chain enforcement — see [The Five Agents](#the-five-agents).
+
 ### Full Borrower Journey
 
-From first score to repaid loan — every stage below is powered by the scoring pipeline (wallet + optional bank), on-chain SBT credit, and the five agents at the moments that matter:
-
-```mermaid
-flowchart LR
-  subgraph phase1 ["Build Credit"]
-    P1["Prep Wallet optional"]
-    P2["POST score"]
-    P3["Reclaim optional"]
-    P4["Mint SBT"]
-  end
-
-  subgraph phase2 ["Borrow"]
-    B1["Hub or Spoke borrow"]
-    B2["crosschain_sync on hub"]
-  end
-
-  subgraph phase3 ["Active Loan"]
-    M1["portfolio_monitor 300s"]
-    M2["rate_optimizer 3600s"]
-  end
-
-  subgraph phase4 ["Close"]
-    R1["repayLoan"]
-    R2["rescore and underwriter"]
-    R3["crosschain_sync repaid"]
-  end
-
-  subgraph phase5 ["Stress Path"]
-    S1["LTV rises or overdue"]
-    S2["liquidation_agent"]
-    S3["MSG_DEFAULT"]
-  end
-
-  P1 --> P2
-  P2 --> P3
-  P3 --> P4
-  P4 -->|"underwriter and sync-score"| B1
-  B1 --> B2
-  B2 --> M1
-  M1 --> R1
-  R1 --> R2
-  R2 --> R3
-  M1 -->|"LTV at least 85pct or grace expired"| S1
-  S1 --> S2
-  S2 --> S3
-```
+From first score to repaid loan — every stage is powered by the scoring pipeline (wallet + optional bank), on-chain SBT credit, and the five agents at the moments that matter:
 
 | Stage | User action | Contracts touched | Agents invoked |
 |-------|-------------|-------------------|----------------|
@@ -339,39 +302,6 @@ Agents live in `agents/`. HTTP endpoints mount on the ML API at `/agents/*` via 
 **Wallet:** `AGENT_PRIVATE_KEY` (same agent wallet as LZ broadcasts)
 
 The underwriter is the **credit decision and on-chain commit** agent — the only agent that writes to `CredScoreSBT` and `CredScoreEngine`.
-
-```mermaid
-sequenceDiagram
-  participant FE as Mint API
-  participant API as Underwrite endpoint
-  participant UW as underwriter_agent
-  participant Score as scoring_api
-  participant Groq as groq_brain
-  participant Engine as CredScoreEngine
-  participant SBT as CredScoreSBT
-  participant Sync as crosschain_sync
-
-  FE->>API: underwrite_wallet(wallet)
-  API->>UW: start
-  UW->>SBT: isBlacklisted(wallet)?
-  alt SBT exists and not rescore
-    UW-->>API: skip already minted
-  else
-    UW->>Score: fetch score or use snapshot
-    UW->>UW: hard rules sybil and score floor
-    alt score 480-520
-      UW->>Groq: review_underwriting()
-      Groq-->>UW: approve reject or manual_review
-    end
-    alt Reclaim enabled
-      UW->>Engine: mintScore(defaultProbBps, balanceCents, proofHash)
-      Engine->>SBT: mintSBT or updateScore
-    else
-      UW->>SBT: mintSBT or updateScore directly
-    end
-    UW->>Sync: triggerSyncScore via caller
-  end
-```
 
 **`underwrite_wallet()` step-by-step:**
 
@@ -438,20 +368,6 @@ Each scheduler cycle on each chain:
    - If overdue: `start_grace(loan_id)` — 48h in-memory countdown.
    - If LTV ≥ 85% OR grace expired: instantiate `LiquidationAgent` and call `execute_liquidation()`.
 
-```mermaid
-flowchart TB
-  SCHED["scheduler every 300s"] --> MON["portfolio_monitor.run_once"]
-  MON --> SCAN["scan active loans"]
-  SCAN --> LOOP["for each loan_id"]
-  LOOP --> LTV["getCurrentLTV"]
-  LOOP --> DUE["check dueTime overdue"]
-  LTV --> GROQ["Groq escalation verdict"]
-  DUE --> GRACE["start_grace if overdue"]
-  GROQ --> HW["emitHealthWarning if LTV at least 75pct"]
-  GROQ --> LIQ{"LTV at least 85pct or grace expired?"}
-  LIQ -->|yes| LA["liquidation_agent.execute_liquidation"]
-```
-
 ### Liquidation Agent
 
 **File:** `agents/liquidation_agent.py`  
@@ -485,19 +401,6 @@ On spoke liquidation: steps 5–7 run on spoke lending for step 5, but LZ broadc
 **Wallet:** `AGENT_PRIVATE_KEY`
 
 The rate optimizer is CredFlow's **macro-pricing daemon** — it adjusts the hub lending pool's `baseRate` based on utilization, independent of any individual borrower's score tier rate.
-
-```mermaid
-flowchart TB
-  SCHED["scheduler every 3600s"] --> RO["rate_optimizer.run_once"]
-  RO --> READ["Read CredFlowLP utilization"]
-  RO --> RATE["Read CredFlowLending baseRate"]
-  READ --> GROQ["Groq review_rate_adjustment"]
-  GROQ --> RULES["Hard rules util above 80pct or below 50pct"]
-  RULES --> CLAMP["Clamp MIN 200 MAX 2000 bps"]
-  CLAMP --> TX{"rate changed?"}
-  TX -->|yes| SET["lending.setBaseRate newRate"]
-  TX -->|no| SKIP["no_change logged"]
-```
 
 **`run_once()` step-by-step:**
 
@@ -538,61 +441,6 @@ Agent runs are logged to local files and surfaced in the frontend Agents tab (`/
 ### Agent Lifecycle Map
 
 Which agent runs at each system event — contracts only execute what agents (or users) sign:
-
-```mermaid
-flowchart TB
-  subgraph events ["User and System Events"]
-    E1["Score complete"]
-    E2["SBT mint"]
-    E3["Hub borrow"]
-    E4["Hub repay"]
-    E5["Scheduler 300s"]
-    E6["Scheduler 3600s"]
-    E7["LTV stress or overdue"]
-  end
-
-  subgraph agents ["Agents"]
-    SYNC["crosschain_sync"]
-    UW["underwriter"]
-    MON["portfolio_monitor"]
-    LIQ["liquidation_agent"]
-    RATE["rate_optimizer"]
-  end
-
-  subgraph onchain ["On-Chain Effects"]
-    O1["OApp broadcastScore"]
-    O2["SBT mintScore"]
-    O3["OApp broadcastLoanActive"]
-    O4["OApp broadcastRepaid and score"]
-    O5["emitHealthWarning"]
-    O6["liquidate and recordDefault"]
-    O7["setBaseRate"]
-    O8["OApp broadcastDefault"]
-  end
-
-  E1 --> SYNC
-  SYNC --> O1
-  E2 --> UW
-  UW --> O2
-  E2 --> SYNC
-  SYNC --> O1
-  E3 --> SYNC
-  SYNC --> O3
-  E4 --> UW
-  E4 --> SYNC
-  SYNC --> O4
-  E5 --> MON
-  MON --> O5
-  E5 --> MON
-  MON --> LIQ
-  LIQ --> O6
-  E6 --> RATE
-  RATE --> O7
-  E7 --> MON
-  MON --> LIQ
-  LIQ --> O6
-  LIQ --> O8
-```
 
 | Event | Agent(s) | Signed transactions | LayerZero messages |
 |-------|----------|---------------------|-------------------|
@@ -726,30 +574,6 @@ Traditional bank verification requires sharing statements or API keys. Reclaim u
 - `proof_hash` — SHA-256 of the proof payload, committed on-chain at SBT mint
 
 No username, password, or full statement is persisted in CredFlow.
-
-```mermaid
-sequenceDiagram
-  participant UI as Account Tab
-  participant API as scoring_api.py
-  participant RCL as reclaim_service.py
-  participant Portal as Reclaim Portal
-  participant Bank as User Bank
-  participant Engine as CredScoreEngine
-
-  UI->>API: POST /score require_reclaim=true
-  API->>RCL: create_session(wallet, callback_url)
-  RCL-->>UI: reclaim_url + session_id
-  UI->>Portal: User opens portal in browser
-  Portal->>Bank: zkTLS session proof
-  Bank-->>Portal: Balance fields
-  Portal->>API: POST /receive-proof
-  API->>RCL: verify + parse balance_inr
-  RCL->>RCL: inr_to_usd_cents + proof_hash
-  UI->>API: POST /score again with session_id
-  API->>API: compute_on_chain_cred_score()
-  API-->>UI: on_chain_cred_score + approved
-  Note over Engine: Underwriter later calls mintScore with proof_hash
-```
 
 #### Session Lifecycle
 
@@ -919,21 +743,6 @@ Undercollateralized lending fails if attackers spin up fresh wallets with fabric
 
 **Early hard reject:** If the target wallet has any direct transfer link to a known defaulter/blacklisted address (`defaulter_links > 0`), sybil risk is immediately **`high`** — no model inference needed.
 
-```mermaid
-flowchart TB
-  A[Alchemy recent_transactions] --> B[build_transaction_graph]
-  C[On-chain blacklist fetch] --> B
-  B --> D{defaulter_links > 0?}
-  D -->|yes| E[sybil_risk = high]
-  D -->|no| F{sybil_model.pt exists?}
-  F -->|no| G[Heuristic rules]
-  F -->|yes| H[RGCNSybilDetector inference]
-  H --> I[softmax → low/medium/high]
-  G --> I
-  I --> J[organic_floor check]
-  J --> K[Final sybil verdict]
-```
-
 #### R-GCN Model Architecture
 
 `RGCNSybilDetector` (`ml/sybil_detector.py`) uses **Relational Graph Convolutional Networks** (PyTorch Geometric):
@@ -1000,21 +809,7 @@ Two sybil farm shapes the heuristics and model learn to detect:
 
 ### Underwriter and SBT Mint
 
-After scoring completes in the UI (`YourAccountTab` → Build Score → Score Complete), the **underwriter agent** commits credit on-chain. This is separate from the ML scoring API — scoring computes; underwriter decides and writes.
-
-```mermaid
-flowchart TB
-  SCORE[Score complete approved=true] --> MINT[User clicks Mint SBT]
-  MINT --> API[POST /api/mint]
-  API --> UW[underwriter_agent.underwrite_wallet]
-  UW --> RULES{Hard rules pass?}
-  RULES -->|no| REJECT[Return reject reason]
-  RULES -->|yes| GROQ{Score 480-520?}
-  GROQ -->|yes| LLM[Groq review_underwriting]
-  GROQ -->|no| WRITE[On-chain mint]
-  LLM --> WRITE
-  WRITE --> SYNC[triggerSyncScore crosschain_sync]
-```
+After scoring completes in the UI (`YourAccountTab` → Build Score → Score Complete), the **underwriter agent** commits credit on-chain. Scoring computes; the underwriter decides and writes, then **cross-chain sync** mirrors the result.
 
 **What gets written to `CredScoreSBT`:**
 
@@ -1064,26 +859,9 @@ interest = borrowedAmount * interestRate * elapsedSeconds / (365 days * 10000)
 
 ## Borrowing Logic
 
-Your CredScore only matters if it changes how you borrow. The **Loans** tab turns score into concrete terms — max LTV, interest rate, and required collateral — then submits on-chain `requestLoan` transactions. Display score is resolved from Supabase (same source as the dashboard); on-chain eligibility uses the live credit registry on each chain.
+Your CredScore only matters if it changes how you borrow. The **Loans** tab turns score into concrete terms — max LTV, interest rate, and required collateral — then submits on-chain `requestLoan` transactions. On hub borrow, the **cross-chain sync agent** immediately locks spoke markets via LayerZero.
 
-Borrowing is initiated from the **Loans** tab → `PurchaseLoanPanel` → `POST /api/loans/borrow`. The server wallet (`FRONTEND_PRIVATE_KEY`) signs all on-chain transactions via `frontend/src/lib/loan-server.ts`.
-
-Before borrow, the API reads score, blacklist status, and active loan state on Robinhood testnet, Arbitrum Sepolia, and Base Sepolia. A Robinhood loan locks borrowing on the other chains via LayerZero until repaid — the cross-chain sync agent enforces one loan per identity.
-
-```mermaid
-flowchart TB
-  UI[PurchaseLoanPanel] --> API[POST /api/loans/borrow]
-  API --> BOR[borrowLoan]
-  BOR --> PREP[WETH deposit + approve]
-  PREP --> RL[requestLoan on lending contract]
-  RL -->|hub| SBT_SET[SBT.setLoanActive]
-  RL -->|hub only| LZ_HOOK[triggerSyncLoanCreated]
-  LZ_HOOK --> SYNC_AGENT[crosschain_sync agent]
-  SYNC_AGENT --> LZ_SCORE[broadcastScore x2]
-  SYNC_AGENT --> LZ_LOAN[broadcastLoanActive x2]
-  LZ_SCORE --> SPOKES[Arbitrum + Base OApp]
-  LZ_LOAN --> SPOKES
-```
+Before borrow, the API reads score, blacklist status, and active loan state on Robinhood testnet, Arbitrum Sepolia, and Base Sepolia. A Robinhood loan locks borrowing on the other chains via LayerZero until repaid — the **cross-chain sync agent** enforces one loan per identity.
 
 ### Collateral and LTV Tiers
 
@@ -1151,28 +929,7 @@ After `requestLoan()` succeeds on the hub, `frontend/src/lib/agent-client.ts` ca
 
 On each spoke, `_lzReceive` sets `loanActiveMirror[borrower] = true`. `CredFlowSpokeLending.requestLoan()` then rejects that wallet with `"Cross-chain loan active"` until hub repay delivers `MSG_REPAID`.
 
-```mermaid
-sequenceDiagram
-  participant FE as agent-client.ts
-  participant API as POST /agents/sync-loan
-  participant Sync as sync_wallet_loan_active
-  participant Agent as CredFlowAgent AGENT_PRIVATE_KEY
-  participant OApp as Hub CredFlowOApp
-  participant LZ as LayerZero V2
-  participant Spoke as Spoke CredFlowOApp
-
-  FE->>API: event=created wallet=0x...
-  API->>Sync: sync_wallet_loan_active(wallet)
-  Sync->>Agent: broadcastScore Arb + Base
-  Agent->>OApp: broadcastScore eid 40231, 40245
-  OApp->>LZ: MSG_SCORE_UPDATE
-  Sync->>Agent: broadcastLoanActive Arb + Base
-  Agent->>OApp: broadcastLoanActive
-  OApp->>LZ: MSG_LOAN_ACTIVE
-  LZ->>Spoke: _lzReceive loanActiveMirror=true
-```
-
-The **underwriter does not run on borrow** — only `crosschain_sync`.
+The **underwriter does not run on borrow** — only **cross-chain sync**.
 
 ---
 
@@ -1200,25 +957,7 @@ The borrower must hold sufficient borrow tokens + approve the lending contract. 
 
 ### Post-Repay Pipeline
 
-`runPostRepayPipeline()` in `agent-client.ts` orchestrates three agents after on-chain repay:
-
-```mermaid
-sequenceDiagram
-  participant FE as repay route
-  participant Pipe as runPostRepayPipeline
-  participant Score as scoring_api POST /score
-  participant UW as underwriter_agent
-  participant Sync as crosschain_sync
-
-  FE->>Pipe: hub repay confirmed
-  Pipe->>Score: rescore with floor_cred_score
-  Score-->>Pipe: new cred_score
-  Pipe->>UW: POST /agents/underwrite rescore=true
-  UW->>UW: CredScoreEngine/SBT updateScore
-  Pipe->>Sync: triggerSyncLoanRepaid
-  Sync->>Sync: broadcastScore + broadcastRepaid
-  Note over Sync: MSG_REPAID clears loanActiveMirror on spokes
-```
+`runPostRepayPipeline()` in `agent-client.ts` orchestrates three agents after on-chain repay: **scoring API** (rescore) → **underwriter** (SBT update) → **cross-chain sync** (score + repaid broadcasts).
 
 **Step 1 — Re-score (`scoring_api.py`):** Full indexer + XGBoost + Sybil run again. `floor_cred_score` prevents the new score from dropping far below the pre-repay score — repaying should not punish the borrower.
 
@@ -1234,36 +973,7 @@ Repayment is a **positive credit event** — improved `repay_ratio` and complete
 
 ### LayerZero Unlock
 
-Hub repay triggers **`sync_wallet_repaid_with_score()`** in `agents/sync_service.py`. See [LayerZero Cross-Chain Messaging](#layerzero-cross-chain-messaging) for the full repaid/default message spec and `lz_clear_pending` recovery.
-
-1. Reads updated score from SBT (or uses score passed from post-repay pipeline).
-2. Signs `broadcastScore([40231, 40245], wallet, newScore, lzOptions)` — two hub txs.
-3. Signs `broadcastRepaid([40231, 40245], wallet, lzOptions)` — two more hub txs.
-4. Each tx pays LZ native fee; logs EID + tx hash to `AgentRunLogger`.
-
-On spokes, `_lzReceive` for `MSG_REPAID`:
-
-```solidity
-loanActiveMirror[wallet] = false;
-```
-
-Spoke borrowing is unblocked. If LZ delivery lags, `triggerClearSpokeLoanActive()` sends repaid-only broadcast as fallback — agent signs `broadcastRepaid` without score refresh to clear stale `loanActiveMirror`.
-
-```mermaid
-flowchart LR
-  REPAY[repayLoan on hub] --> PIPE[runPostRepayPipeline]
-  PIPE --> SCORE[scoring_api rescore]
-  PIPE --> UW[underwriter rescore=true]
-  PIPE --> SYNC[crosschain_sync]
-  SYNC --> BS[broadcastScore]
-  SYNC --> BR[broadcastRepaid]
-  BS --> ARB[Arbitrum OApp]
-  BS --> BASE[Base OApp]
-  BR --> ARB
-  BR --> BASE
-  ARB --> UNLOCK[loanActiveMirror = false]
-  BASE --> UNLOCK
-```
+Hub repay triggers **`sync_wallet_repaid_with_score()`** in `agents/sync_service.py`. The **cross-chain sync agent** signs `broadcastScore` and `broadcastRepaid` to Arbitrum and Base; spokes set `loanActiveMirror[wallet] = false`. If LZ delivery lags, `triggerClearSpokeLoanActive()` sends a repaid-only broadcast as fallback. Full message spec: [LayerZero Cross-Chain Messaging](#layerzero-cross-chain-messaging).
 
 ---
 
@@ -1271,23 +981,7 @@ flowchart LR
 
 CredFlow does not set and forget loans after disbursement. The **portfolio monitor agent** polls every active loan on every chain every five minutes. If collateral value drops and LTV rises, the same agent stack that underwrote you can warn on-chain, liquidate, blacklist linked sybil wallets, and sync defaults globally.
 
-When ETH price falls, collateral value drops and **LTV rises** — even if the borrower is not overdue. Contracts react to LTV; agents watch continuously and act when thresholds are breached.
-
-```mermaid
-flowchart TB
-  ORACLE[ETH price drops] --> LTV[getCurrentLTV rises]
-  LTV --> MON[portfolio_monitor every 300s]
-  MON --> READ[Read LTV + dueTime per loan]
-  READ --> GROQ[Groq review_monitor_escalation]
-  GROQ --> HW{LTV >= 75%?}
-  HW -->|yes| WARN[emitHealthWarning on-chain]
-  GROQ --> LIQ_CHK{LTV >= 85%?}
-  LIQ_CHK -->|yes| LIQ[liquidation_agent]
-  LIQ --> LIQ_TX[lending.liquidate]
-  LIQ --> GRAPH[graph_analysis linked wallets]
-  LIQ --> BL[blacklistLinkedWallets]
-  LIQ --> LZ[broadcastDefault MSG_DEFAULT]
-```
+When ETH price falls, collateral value drops and **LTV rises** — even if the borrower is not overdue. The **portfolio monitor agent** polls every active loan every five minutes; at LTV ≥ 75% it emits on-chain health warnings, and at LTV ≥ 85% it hands off to the **liquidation agent**, which seizes collateral and triggers **cross-chain sync** default broadcasts.
 
 ### LTV Monitoring
 
@@ -1301,24 +995,7 @@ LTV_bps = (borrowedAmount + interest) * 10000 / collateralValueUSD
 
 ### Portfolio Monitor Agent in Action
 
-**File:** `agents/portfolio_monitor.py`  
-**Scheduler:** `agents/scheduler.py` every **300 seconds** on hub, Arbitrum, and Base
-
-Each cycle, `_monitor_loan()` runs per active loan:
-
-1. **`_scan_active_loans()`** — iterates `loanCounter` or scans `LoanCreated` events for `loan.active == true`.
-2. **`lending.loans(loanId).call()`** — reads borrower, `dueTime`, `maxLTV`.
-3. **`lending.getCurrentLTV(loanId).call()`** — live LTV from current oracle price.
-4. **`review_monitor_escalation()`** (Groq) — inputs: `loan_id`, `borrower`, `ltv_bps`, `max_ltv_bps`, `days_to_due`, `overdue`. Returns `escalate`, `severity`, `flag_liquidation`. Fallback when Groq unavailable: escalate if `ltv >= 8000` or overdue.
-5. **Health warning path** — if `ltv >= 7500` and `should_emit_warning()` (1-hour dedupe per loan/LTV):
-   - Agent signs `lending.emitHealthWarning(loanId)` — on-chain event only, no fund movement.
-   - `record_warning(loan_id, ltv)` in `agents/state.py`.
-6. **Liquidation handoff** — if `ltv >= 8500` and Groq `flag_liquidation`, OR `grace_expired(loan_id)`:
-   - Instantiates `LiquidationAgent` with hub agent + spoke agent (if monitoring spoke chain).
-   - Calls `execute_liquidation(loan_id)`.
-   - `clear_grace(loan_id)` on success.
-
-The monitor uses `AGENT_PRIVATE_KEY` for `emitHealthWarning` and delegates liquidation to the liquidation agent on the same chain where the loan lives.
+See [Portfolio Monitor Agent](#portfolio-monitor-agent) for the full scan loop. On each 300s cycle per chain, the monitor reads live LTV and `dueTime`, optionally consults Groq, emits health warnings at 75% LTV, and delegates to the **liquidation agent** at 85% LTV or after grace expiry.
 
 ### Health Warnings
 
@@ -1369,22 +1046,7 @@ The borrower cannot borrow again (`defaultCount > 0` on hub; blacklisted on spok
 
 Calendar discipline matters too. Contracts record due dates; **agents enforce them** — grace periods, liquidation, sybil graph analysis, and cross-chain blacklist broadcasts — so one defaulted borrower cannot quietly open a fresh loan on another chain.
 
-Missing a due date and experiencing a price crash are different triggers that can both end in liquidation. Contracts store `dueTime` but do not enforce it — **agents enforce calendar default**.
-
-```mermaid
-flowchart TB
-  DUE[dueTime passed] --> MON[portfolio_monitor detects overdue]
-  MON --> GRACE[start_grace 48h in agents/state.py]
-  GRACE --> WAIT{Borrower repays?}
-  WAIT -->|yes| REPAY[repayLoan + underwriter rescore + LZ repaid]
-  WAIT -->|no after 48h| EXP[grace_expired = true]
-  EXP --> MON2[portfolio_monitor next cycle]
-  MON2 --> LIQ[liquidation_agent force_grace=True]
-  LIQ --> CRASH[ensure_liquidatable oracle crash testnet]
-  CRASH --> LIQ_TX[liquidate on-chain]
-  LIQ --> GRAPH[graph_analysis + Groq blacklist]
-  LIQ --> LZ[broadcastDefault crosschain_sync]
-```
+Missing a due date and experiencing a price crash are different triggers that can both end in liquidation. Contracts store `dueTime` but do not enforce it — the **portfolio monitor** starts a 48h grace period, then the **liquidation agent** and **cross-chain sync** enforce default if the borrower does not repay.
 
 ### Calendar Overdue vs On-Chain Enforcement
 
@@ -1458,9 +1120,7 @@ crash_eth_oracle(target_price)  # agent must own feed or deployer key
 
 ## LayerZero Cross-Chain Messaging
 
-Your CredScore should follow you wherever you borrow. Robinhood testnet holds the authoritative **CredScore SBT**, but many users' DeFi history and preferred borrow markets live on Arbitrum and Base. LayerZero V2 carries verified credit state — score, active-loan lock, repaid clear, default blacklist — so every lending contract enforces the **same underwritten identity** without trusting a centralized API or duplicating the scoring pipeline on each chain.
-
-LayerZero is the **cross-chain delivery layer** for CredFlow credit. Robinhood testnet owns the authoritative record in `CredScoreSBT`. Arbitrum Sepolia and Base Sepolia need that state — score, loan lock, blacklist — without minting their own SBTs. LayerZero V2 delivers signed, verifiable messages so `CredFlowSpokeLending` can enforce the same rules locally.
+Your CredScore should follow you wherever you borrow. Robinhood testnet holds the authoritative **CredScore SBT**; Arbitrum and Base hold USDC lending markets that read mirrored state via LayerZero V2 — score, active-loan lock, repaid clear, default blacklist — all delivered by the **cross-chain sync** and **liquidation** agents so every contract enforces the same underwritten identity.
 
 ### Why LayerZero
 
@@ -1567,48 +1227,15 @@ Fee splitting: `msg.value` is divided evenly across `dstChainIds.length` inside 
 
 ### Message Flow by Lifecycle Event
 
-```mermaid
-sequenceDiagram
-  participant Hub as Hub SBT + Lending
-  participant Agent as crosschain_sync
-  participant OApp as Hub CredFlowOApp
-  participant LZ as LayerZero V2
-  participant Spoke as Spoke CredFlowOApp
-
-  Note over Hub,Spoke: 1 — Score / Mint / Rescore
-  Hub->>Agent: score ready
-  Agent->>OApp: broadcastScore 40231 + 40245
-  OApp->>LZ: MSG_SCORE_UPDATE × 2
-  LZ->>Spoke: spokeScores updated
-
-  Note over Hub,Spoke: 2 — Hub borrow
-  Hub->>Agent: loan created
-  Agent->>OApp: broadcastScore + broadcastLoanActive
-  OApp->>LZ: MSG_SCORE_UPDATE + MSG_LOAN_ACTIVE
-  LZ->>Spoke: loanActiveMirror = true
-
-  Note over Hub,Spoke: 3 — Hub repay
-  Hub->>Agent: loan repaid + new score
-  Agent->>OApp: broadcastScore + broadcastRepaid
-  OApp->>LZ: MSG_SCORE_UPDATE + MSG_REPAID
-  LZ->>Spoke: loanActiveMirror = false
-
-  Note over Hub,Spoke: 4 — Default / liquidation
-  Hub->>Agent: liquidation_agent
-  Agent->>OApp: broadcastDefault per wallet
-  OApp->>LZ: MSG_DEFAULT × N wallets × 2 spokes
-  LZ->>Spoke: blacklist + score 310
-```
-
-| Lifecycle event | Who triggers LZ | Messages sent | Spoke borrow effect |
-|-----------------|-----------------|---------------|---------------------|
-| Score complete (no mint yet) | `triggerSyncScore()` → `sync_wallet_score()` | `MSG_SCORE_UPDATE` to both spokes | Score available for spoke LTV/rate tiers |
-| SBT mint / underwrite | Same after `underwriter` writes SBT | `MSG_SCORE_UPDATE` | Same |
-| Hub `requestLoan()` | `triggerSyncLoanCreated()` → `sync_wallet_loan_active()` | `MSG_SCORE_UPDATE` + `MSG_LOAN_ACTIVE` | Spoke borrow **blocked** (`isLoanActive`) |
-| Spoke `requestLoan()` | **None** | No LZ | Local loan only; hub SBT unchanged |
-| Hub `repayLoan()` | `runPostRepayPipeline()` → `sync_wallet_repaid_with_score()` | `MSG_SCORE_UPDATE` + `MSG_REPAID` | Spoke borrow **unblocked** |
-| Liquidation / default | `liquidation_agent` → `hub.broadcast_default()` | `MSG_DEFAULT` per defaulter + linked wallets | Blacklisted; score crushed to 310 |
-| Rate optimizer batch | `crosschain_sync` catch-up | Stale `MSG_SCORE_UPDATE` only | Keeps spoke scores fresh |
+| Lifecycle event | Who triggers LZ | Agent | Messages sent | Spoke borrow effect |
+|-----------------|-----------------|-------|---------------|---------------------|
+| Score complete (no mint yet) | `triggerSyncScore()` | `crosschain_sync` | `MSG_SCORE_UPDATE` to both spokes | Score available for spoke LTV/rate tiers |
+| SBT mint / underwrite | After `underwriter` writes SBT | `crosschain_sync` | `MSG_SCORE_UPDATE` | Same |
+| Hub `requestLoan()` | `triggerSyncLoanCreated()` | `crosschain_sync` | `MSG_SCORE_UPDATE` + `MSG_LOAN_ACTIVE` | Spoke borrow **blocked** (`isLoanActive`) |
+| Spoke `requestLoan()` | **None** | — | No LZ | Local loan only; hub SBT unchanged |
+| Hub `repayLoan()` | `runPostRepayPipeline()` | `underwriter` + `crosschain_sync` | `MSG_SCORE_UPDATE` + `MSG_REPAID` | Spoke borrow **unblocked** |
+| Liquidation / default | Post-liquidation | `liquidation_agent` | `MSG_DEFAULT` per defaulter + linked wallets | Blacklisted; score crushed to 310 |
+| Rate optimizer batch | Scheduler catch-up | `crosschain_sync` | Stale `MSG_SCORE_UPDATE` only | Keeps spoke scores fresh |
 
 ### Crosschain Sync Agent as Broadcaster
 
@@ -1838,61 +1465,19 @@ These happen inside a single user transaction — agents do not intermediate:
 | Hub `CredFlowOApp` | LayerZero Endpoint | `_lzSend` on broadcast |
 | Spoke `CredFlowOApp` | LayerZero Endpoint | `_lzReceive` on delivery |
 
-### Event → Agent → Contract Flow (Consolidated)
-
-```mermaid
-flowchart LR
-  subgraph triggers [Triggers]
-    T1[Score done]
-    T2[Mint SBT]
-    T3[Hub borrow]
-    T4[Hub repay]
-    T5[LTV breach]
-    T6[Grace expired]
-    T7[Hourly tick]
-  end
-
-  subgraph agents [Agents]
-    UW[underwriter]
-    SYNC[crosschain_sync]
-    MON[portfolio_monitor]
-    LIQ[liquidation_agent]
-    RATE[rate_optimizer]
-  end
-
-  subgraph contracts [Contracts]
-    SBT[CredScoreSBT]
-    LEND[CredFlowLending]
-    OAPP[CredFlowOApp]
-    LP[CredFlowLP]
-  end
-
-  T1 --> SYNC --> OAPP
-  T2 --> UW --> SBT
-  T2 --> SYNC --> OAPP
-  T3 --> SYNC --> OAPP
-  T4 --> UW --> SBT
-  T4 --> SYNC --> OAPP
-  T5 --> MON --> LEND
-  T6 --> MON --> LIQ --> LEND
-  T6 --> LIQ --> SBT
-  T6 --> LIQ --> OAPP
-  T7 --> RATE --> LEND
-  T7 --> RATE --> LP
-```
-
 ---
 
 ## Conclusion
 
-CredFlow is a **credit product powered by depth, not collateral size alone**:
+CredFlow pairs **deep credit intelligence** with **five always-on agents** that turn scores into a live lending product:
 
-- **Wallet intelligence** — 37 ML features from Aave, Morpho, CredFlow loan history, and Alchemy transfer graphs, plus R-GCN sybil detection and SHAP explainability.
-- **Bank path for newcomers** — Reclaim zkTLS folds verified bank balance into the on-chain score formula so Web3-new users can get an accurate CredScore without years of DeFi history.
-- **Portable CredScore SBT** — one soulbound credit identity on Robinhood testnet, synced to every borrow market.
-- **Undercollateralized loans** — score-driven LTV tiers (40–85%) and rate tiers on Robinhood (USDG), Arbitrum (USDC), and Base (USDC).
-- **Five agents** — underwriter, cross-chain sync, portfolio monitor, liquidation, and rate optimizer automate minting, propagation, health checks, enforcement, and pool economics around the clock.
-- **LayerZero V2** — keeps every lending contract aligned with the same score, loan lock, repaid clear, and default blacklist — no double-borrows, no stale credit.
+- **Wallet intelligence** — 37 ML features, R-GCN sybil detection, SHAP explainability.
+- **Bank path for newcomers** — Reclaim zkTLS for users without DeFi history.
+- **Five agents** — **underwriter** (on-chain credit), **cross-chain sync** (LayerZero propagation), **portfolio monitor** (health + overdue), **liquidation** (enforcement + sybil blacklist), **rate optimizer** (pool economics).
+- **Portable CredScore SBT** + **undercollateralized loans** on Robinhood (USDG), Arbitrum (USDC), and Base (USDC).
+- **LayerZero V2** — one underwritten identity, no double-borrows, no stale credit.
+
+**Try it:** [Live app](https://credflow-tau.vercel.app) · [Dashboard](https://credflow-dashboard-three.vercel.app) · [Demo video](https://www.hackquest.io/projects/CredFlow) · [Pitch deck](https://canva.link/uze7wmvnpxxwnwk)
 
 The system is live on testnet. Production hardening would add explicit calendar-overdue liquidation in contracts, persistent grace state, mainnet oracle feeds, and wallet-connect UX alongside the server-side demo wallet.
 
