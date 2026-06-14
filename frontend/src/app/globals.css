@@ -381,3 +381,139 @@ body {
   background: var(--color-primary);
   color: var(--color-primary-foreground);
 }
+
+/* ── Agents grid (balanced 3+2 ↔ spotlight) ── */
+.agent-grid--balanced {
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 768px) {
+  .agent-grid--balanced {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .agent-grid--balanced {
+    grid-template-columns: repeat(6, 1fr);
+  }
+}
+
+.agent-grid--focused {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+@media (min-width: 1024px) {
+  .agent-grid--focused {
+    grid-template-columns: repeat(12, 1fr);
+    grid-template-rows: repeat(4, minmax(0, auto));
+  }
+}
+
+.agent-grid__item {
+  contain: layout style;
+  transition: opacity 0.35s var(--fluid-easing);
+}
+
+.agent-grid__item--focused {
+  z-index: 2;
+}
+
+.agent-grid__item--corner {
+  z-index: 1;
+}
+
+.agent-grid__item--corner .agent-card--compact {
+  box-shadow: 0 8px 24px color-mix(in oklch, black 28%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-grid__item,
+  .agent-card__terminal,
+  .agent-card {
+    transition: none !important;
+  }
+}
+
+/* View Transitions — per-agent morph (fallback: grid + opacity above) */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+
+::view-transition-group(*) {
+  animation-duration: 0.38s;
+  animation-timing-function: var(--fluid-easing);
+}
+
+::view-transition-old(*),
+::view-transition-new(*) {
+  animation-duration: 0.38s;
+  animation-timing-function: var(--fluid-easing);
+  mix-blend-mode: normal;
+  height: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
+
+/* ── Test Default flow ── */
+.td-collapse-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.35s var(--fluid-easing);
+}
+
+.td-collapse-panel--open {
+  grid-template-rows: 1fr;
+}
+
+.td-collapse-panel__inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.td-flow-rail {
+  background: color-mix(in oklch, var(--color-border) 80%, transparent);
+}
+
+.td-graph-stage--expanded,
+.td-graph-stage--summary {
+  will-change: max-height;
+}
+
+.td-graph-node {
+  opacity: 0;
+  animation: td-graph-node-in 0.35s var(--fluid-easing) forwards;
+}
+
+.td-graph-edge {
+  stroke-dasharray: 4 4;
+  opacity: 0.85;
+}
+
+@keyframes td-graph-node-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .td-collapse-panel,
+  .td-graph-stage,
+  .td-graph-node {
+    transition: none !important;
+    animation: none !important;
+  }
+  .td-graph-node {
+    opacity: 1;
+  }
+}

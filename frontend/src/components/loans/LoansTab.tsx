@@ -1,14 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import { PurchaseLoanPanel } from "./PurchaseLoanPanel";
 import { ActiveLoansPanel } from "./ActiveLoansPanel";
 import { RepayLoanPanel } from "./RepayLoanPanel";
 import type { ChainSummary } from "./loans-types";
 import { useWalletApi } from "@/hooks/use-wallet-api";
 import { ConnectWalletPrompt } from "@/components/wallet/ConnectWalletPrompt";
-
-type LoanSubTab = "purchase" | "active" | "repay";
+import {
+  readLoanSubTab,
+  STORAGE_KEYS,
+  writeStorage,
+  type LoanSubTab,
+} from "@/lib/ui-persistence";
 
 const SUB_TABS: { id: LoanSubTab; label: string }[] = [
   { id: "purchase", label: "Borrow" },
@@ -21,6 +25,15 @@ export function LoansTab() {
   const [subTab, setSubTab] = useState<LoanSubTab>("purchase");
   const [chains, setChains] = useState<ChainSummary[]>([]);
   const [loading, setLoading] = useState(true);
+
+  useLayoutEffect(() => {
+    setSubTab(readLoanSubTab());
+  }, []);
+
+  function changeSubTab(next: LoanSubTab) {
+    setSubTab(next);
+    writeStorage(STORAGE_KEYS.loansSubTab, next);
+  }
 
   const load = useCallback(async () => {
     if (!address) {
@@ -56,7 +69,7 @@ export function LoansTab() {
             <button
               key={id}
               type="button"
-              onClick={() => setSubTab(id)}
+              onClick={() => changeSubTab(id)}
               className={`tab-pill-btn ${subTab === id ? "active" : ""}`}
             >
               {label}

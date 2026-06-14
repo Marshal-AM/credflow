@@ -111,7 +111,7 @@ export async function readDefaultTestStatus(wallet: `0x${string}`): Promise<Defa
     wallet,
     hub: {
       loanId: loanId?.toString() ?? null,
-      loanActive: Boolean(hubSummary.loan?.active || loanId),
+      loanActive: Boolean(hubSummary.loan?.active),
       borrowed: hubSummary.loan
         ? formatUnits(hubSummary.loan.borrowedAmount, 6)
         : null,
@@ -128,7 +128,7 @@ export async function readDefaultTestStatus(wallet: `0x${string}`): Promise<Defa
     },
     spokes,
     ready: {
-      hasActiveLoan: Boolean(loanId),
+      hasActiveLoan: Boolean(loanId && hubSummary.loan?.active),
       liquidatable: ltvBps != null && ltvBps >= liquidationThresholdBps,
     },
   };

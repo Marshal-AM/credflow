@@ -1,14 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import { YourAccountTab } from "@/components/account/YourAccountTab";
 import { LoansTab } from "@/components/loans/LoansTab";
 import { AgentsTab } from "@/components/agents/AgentsTab";
 import { TestDefaultTab } from "@/components/test-default/TestDefaultTab";
 import { PrepWalletTab } from "@/components/prep-wallet/PrepWalletTab";
 import { AppNavbar } from "./AppNavbar";
+import { readAppTab, STORAGE_KEYS, writeStorage, type AppTab } from "@/lib/ui-persistence";
 
-export type AppTab = "account" | "loans" | "agents" | "test-default" | "prep-wallet";
+export type { AppTab };
 
 const TABS: { id: AppTab; label: string; subtitle: string }[] = [
   { id: "loans", label: "Loans", subtitle: "Borrow and repay across supported chains" },
@@ -20,30 +21,33 @@ const TABS: { id: AppTab; label: string; subtitle: string }[] = [
 
 export function AppShell() {
   const [tab, setTab] = useState<AppTab>("loans");
+  const [ready, setReady] = useState(false);
+
+  useLayoutEffect(() => {
+    setTab(readAppTab());
+    setReady(true);
+  }, []);
+
+  function changeTab(next: AppTab) {
+    setTab(next);
+    writeStorage(STORAGE_KEYS.tab, next);
+  }
+
   const active = TABS.find((t) => t.id === tab)!;
-  const isDashboard = tab === "account";
+
+  if (!ready) {
+    return <div className="min-h-screen bg-background" />;
+  }
 
   return (
-    <div
-      className={`bg-background select-none ${
-        isDashboard ? "flex h-svh flex-col overflow-hidden" : "min-h-screen"
-      }`}
-    >
-      <AppNavbar tab={tab} onTabChange={setTab} />
-      <main
-        className={`mx-auto flex w-full max-w-[var(--page-max)] flex-col px-[var(--page-gutter)] py-8 ${
-          isDashboard ? "min-h-0 flex-1 overflow-hidden" : ""
-        }`}
-      >
+    <div className="min-h-screen bg-background select-none">
+      <AppNavbar tab={tab} onTabChange={changeTab} />
+      <main className="mx-auto flex w-full max-w-[var(--page-max)] flex-col px-[var(--page-gutter)] py-8">
         <div className="mb-8 shrink-0 animate-fade-in-up">
           <h1 className="page-title">{active.label}</h1>
           <p className="page-subtitle mt-1">{active.subtitle}</p>
         </div>
-        <div
-          className={`animate-fade-in-up stagger-2 ${
-            isDashboard ? "min-h-0 flex-1 overflow-y-auto overflow-x-hidden" : ""
-          }`}
-        >
+        <div className="animate-fade-in-up stagger-2">
           {tab === "account" && <YourAccountTab />}
           {tab === "loans" && <LoansTab />}
           {tab === "agents" && <AgentsTab />}

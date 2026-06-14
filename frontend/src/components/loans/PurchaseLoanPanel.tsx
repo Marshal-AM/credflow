@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import {
   useAccount,
   useWaitForTransactionReceipt,
   useWriteContract,
 } from "wagmi";
+import { BorrowChainPicker } from "./ChainSelect";
 import { ChainCredScore } from "./ChainCredScore";
 import { LoansPanelShell } from "./LoansPanelShell";
 import type { ChainSummary, CollateralQuote } from "./loans-types";
@@ -16,6 +17,7 @@ import { useWalletApi } from "@/hooks/use-wallet-api";
 import { clientBorrowLoan, formatCollateralEth } from "@/lib/loan-client";
 import { COLLATERAL_SYMBOL } from "@/lib/chain-logos";
 import { toast } from "@/lib/toast";
+import { readBorrowChain, STORAGE_KEYS, writeStorage } from "@/lib/ui-persistence";
 
 type Props = {
   chains: ChainSummary[];
@@ -49,6 +51,27 @@ export function PurchaseLoanPanel({ chains, onSuccess }: Props) {
     () => chains.map((c) => ({ chainKey: c.chainKey, label: c.label })),
     [chains]
   );
+
+  useLayoutEffect(() => {
+    const saved = readBorrowChain();
+    if (saved) setSelectedChainKey(saved);
+  }, []);
+
+  useEffect(() => {
+    if (chains.length === 0) return;
+    if (selectedChainKey && !chains.some((c) => c.chainKey === selectedChainKey)) {
+      setSelectedChainKey(null);
+      return;
+    }
+    if (selectedChainKey) {
+      writeStorage(STORAGE_KEYS.borrowChain, selectedChainKey);
+    }
+  }, [chains, selectedChainKey]);
+
+  function handleChainChange(chainKey: string | null) {
+    setSelectedChainKey(chainKey);
+    if (chainKey) writeStorage(STORAGE_KEYS.borrowChain, chainKey);
+  }
 
   const loadQuote = useCallback(async () => {
     if (!selectedChain || !selectedChain.eligible || selectedChain.score <= 0) {
@@ -151,13 +174,14 @@ export function PurchaseLoanPanel({ chains, onSuccess }: Props) {
       title="Borrow"
       chainOptions={chainOptions}
       selectedChainKey={selectedChainKey}
-      onChainChange={setSelectedChainKey}
-      chainPlaceholder="Select chain to borrow"
+      onChainChange={handleChainChange}
+      chainPlaceholder="Switch chain"
+      showChainSelect={Boolean(selectedChainKey)}
     >
-      {!selectedChain ? (
-        <p className="text-sm text-muted-foreground">
-          Choose a chain to view your CredScore, collateral requirement, and borrow.
-        </p>
+      {!selectedChainKey ? (
+        <BorrowChainPicker options={chainOptions} onSelect={handleChainChange} />
+      ) : !selectedChain ? (
+        <p className="text-sm text-muted-foreground">Loading chain details…</p>
       ) : (
         <>
           <ChainCredScore

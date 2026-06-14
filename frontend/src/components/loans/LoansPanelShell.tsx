@@ -15,6 +15,7 @@ type Props = {
   selectedChainKey: string | null;
   onChainChange: (chainKey: string | null) => void;
   chainPlaceholder?: string;
+  showChainSelect?: boolean;
   children: ReactNode;
 };
 
@@ -24,18 +25,21 @@ export function LoansPanelShell({
   selectedChainKey,
   onChainChange,
   chainPlaceholder,
+  showChainSelect = true,
   children,
 }: Props) {
   return (
     <div className="card-padded space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h2 className="text-lg font-[650] tracking-tight">{title}</h2>
-        <ChainSelect
-          options={chainOptions}
-          value={selectedChainKey}
-          onChange={onChainChange}
-          placeholder={chainPlaceholder}
-        />
+        {showChainSelect && chainOptions.length > 0 && (
+          <ChainSelect
+            options={chainOptions}
+            value={selectedChainKey}
+            onChange={onChainChange}
+            placeholder={chainPlaceholder}
+          />
+        )}
       </div>
       {children}
     </div>

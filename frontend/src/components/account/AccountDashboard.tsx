@@ -15,6 +15,7 @@ type Props = {
   hasCachedScore: boolean;
   onMint: () => void;
   onRescore: () => void;
+  onAddBank?: () => void;
   minting: boolean;
   mintError?: string | null;
 };
@@ -97,9 +98,9 @@ function Subsection({
 }) {
   return (
     <section
-      className={`flex h-full min-h-0 flex-col rounded-xl border border-border/50 bg-card/40 p-4 ${className}`}
+      className={`account-dashboard-subsection flex h-full min-h-0 min-w-0 flex-col rounded-xl border border-border/50 bg-card/40 p-3 ${className}`}
     >
-      <h3 className="section-label mb-2 shrink-0">{title}</h3>
+      <h3 className="section-label mb-1.5 shrink-0">{title}</h3>
       <div className="min-h-0 flex-1">{children}</div>
     </section>
   );
@@ -115,9 +116,9 @@ function DetailRow({
   tone?: ValueTone;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3 text-sm">
-      <span className="text-muted-foreground">{label}</span>
-      <span className={`font-[650] text-right ${toneClass(tone)}`}>{value}</span>
+    <div className="flex min-w-0 items-center justify-between gap-2 text-sm">
+      <span className="min-w-0 shrink text-muted-foreground">{label}</span>
+      <span className={`shrink-0 font-[650] text-right ${toneClass(tone)}`}>{value}</span>
     </div>
   );
 }
@@ -135,7 +136,7 @@ function SourceCard({
 }) {
   return (
     <div
-      className={`flex min-w-0 flex-1 items-center gap-4 rounded-lg border px-4 py-3.5 ${
+      className={`flex min-w-0 flex-1 items-center gap-3 rounded-lg border px-3 py-2.5 ${
         verified
           ? "border-primary/35 bg-primary/10"
           : "border-border/50 bg-muted/15"
@@ -172,8 +173,8 @@ function ShieldIcon({ state }: { state: "verified" | "pending" | "review" | "fla
     flagged: "text-primary border-primary/30 bg-primary/10",
   };
   return (
-    <div className={`mb-2 flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border ${colors[state]}`}>
-      <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.75">
+    <div className={`mb-1.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border ${colors[state]}`}>
+      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.75">
         <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" strokeLinecap="round" strokeLinejoin="round" />
         {state === "verified" && <path d="m9 12 2 2 4-4" strokeLinecap="round" strokeLinejoin="round" />}
         {state === "pending" && <path d="M12 8v4M12 16h.01" strokeLinecap="round" />}
@@ -186,8 +187,8 @@ function ShieldIcon({ state }: { state: "verified" | "pending" | "review" | "fla
 
 function EligibilityRing({ eligible }: { eligible: boolean }) {
   return (
-    <div className="relative mb-2 flex h-12 w-12 shrink-0 items-center justify-center">
-      <svg viewBox="0 0 48 48" className="h-12 w-12 -rotate-90">
+    <div className="relative mb-1.5 flex h-10 w-10 shrink-0 items-center justify-center">
+      <svg viewBox="0 0 48 48" className="h-10 w-10 -rotate-90">
         <circle cx="24" cy="24" r="20" fill="none" stroke="var(--color-muted)" strokeWidth="3" />
         <circle
           cx="24"
@@ -221,7 +222,7 @@ function EligibilityRing({ eligible }: { eligible: boolean }) {
 function CredentialBadge({ active }: { active: boolean }) {
   return (
     <div
-      className={`mb-2 flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border ${
+      className={`mb-1.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border ${
         active
           ? "border-primary/30 bg-primary/10 text-primary"
           : "border-dashed border-border/70 bg-muted/20 text-muted-foreground"
@@ -236,8 +237,8 @@ function CredentialBadge({ active }: { active: boolean }) {
 
 function ProfileIcon() {
   return (
-    <div className="mb-2 flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-primary/25 bg-primary/10 text-primary">
-      <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.75">
+    <div className="mb-1.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-primary/25 bg-primary/10 text-primary">
+      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.75">
         <path d="M3 3v18h18" strokeLinecap="round" />
         <path d="M7 16l4-5 4 3 5-7" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
@@ -253,6 +254,7 @@ export function AccountDashboard({
   hasCachedScore,
   onMint,
   onRescore,
+  onAddBank,
   minting,
   mintError,
 }: Props) {
@@ -274,6 +276,10 @@ export function AccountDashboard({
   const borrowSub = (display.borrow_sub_score ?? profile?.borrow_sub_score) as number | undefined;
   const verifiedCount = [walletVerified, bankVerified].filter(Boolean).length;
   const counterparties = sybilDetails?.unique_counterparties as number | undefined;
+
+  const showMintAction = !minted && hasCachedScore && approved;
+  const showAddBankAction = !bankVerified && hasCachedScore && !!onAddBank;
+  const showActionsSection = showMintAction || showAddBankAction;
 
   useEffect(() => {
     if (hasOnChainSbt && !hasCachedScore) {
@@ -300,39 +306,43 @@ export function AccountDashboard({
   }, [mintError]);
 
   return (
-    <div className="min-h-full">
-      <div className="grid min-h-full items-stretch gap-3 xl:grid-cols-[1.15fr_1fr]">
-        <div className="card-padded flex h-full min-h-0 flex-col items-center py-3">
+    <div className="account-dashboard pb-1">
+      <div className="grid items-stretch gap-2 xl:grid-cols-[1.15fr_1fr]">
+        <div className="card-padded flex h-full min-h-0 flex-col items-center py-2.5">
           {score != null ? (
             <>
-              <div className="flex w-full flex-1 min-h-0 flex-col items-center justify-center">
+              <div className="flex w-full flex-1 items-center justify-center">
                 <CredScoreGauge score={score} />
               </div>
               <button
                 type="button"
                 onClick={onRescore}
-                className="btn-outline-primary mt-2 shrink-0"
+                className="btn-primary mt-4 shrink-0 px-8 py-3 text-[0.9375rem]"
               >
                 Recalculate Score
               </button>
             </>
           ) : (
-            <div className="flex h-full flex-col items-center justify-center text-center">
+            <div className="flex flex-1 flex-col items-center justify-center text-center">
               <p className="section-label">CredScore</p>
               <p className="mt-4 text-muted-foreground">Score not available yet</p>
-              <button type="button" onClick={onRescore} className="btn-outline-primary mt-4">
+              <button
+                type="button"
+                onClick={onRescore}
+                className="btn-primary mt-5 px-8 py-3 text-[0.9375rem]"
+              >
                 Recalculate Score
               </button>
             </div>
           )}
         </div>
 
-        <div className="flex h-full min-h-0 flex-col gap-2">
+        <div className="flex min-h-0 min-w-0 flex-col gap-1.5">
           <Subsection title="Verification sources" className="!h-auto shrink-0">
-            <p className="mb-2 text-xs text-muted-foreground">
+            <p className="mb-1.5 text-xs text-muted-foreground">
               {verifiedCount} of 2 sources connected
             </p>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid min-w-0 grid-cols-2 gap-1.5">
               <SourceCard
                 icon={WalletIcon}
                 label="Wallet history"
@@ -355,11 +365,11 @@ export function AccountDashboard({
             </div>
           </Subsection>
 
-          <div className="grid min-h-0 flex-1 grid-cols-2 grid-rows-2 gap-2">
+          <div className="grid min-h-0 min-w-0 grid-cols-2 grid-rows-2 gap-1.5">
             <Subsection title="Identity">
               <ShieldIcon state={identity} />
-              <p className="text-base font-[650] text-primary">{sybilLabel(sybilRisk)}</p>
-              <div className="mt-2 space-y-2">
+              <p className="text-sm font-[650] text-primary">{sybilLabel(sybilRisk)}</p>
+              <div className="mt-1.5 space-y-1.5">
                 <DetailRow
                   label="Fraud screening"
                   tone={fraudScreenTone(identity)}
@@ -386,10 +396,10 @@ export function AccountDashboard({
 
             <Subsection title="Borrowing">
               <EligibilityRing eligible={approved} />
-              <p className="text-base font-[650] text-primary">
+              <p className="text-sm font-[650] text-primary">
                 {approved ? "Ready for loans" : "Locked"}
               </p>
-              <div className="mt-2 space-y-2">
+              <div className="mt-1.5 space-y-1.5">
                 <DetailRow
                   label="Status"
                   tone={approved ? "positive" : "negative"}
@@ -404,10 +414,10 @@ export function AccountDashboard({
 
             <Subsection title="On-chain credential">
               <CredentialBadge active={!!minted} />
-              <p className="text-base font-[650] text-primary">
+              <p className="text-sm font-[650] text-primary">
                 {minted ? "Active" : !hasCachedScore ? "Not started" : approved ? "Ready to mint" : "Unavailable"}
               </p>
-              <div className="mt-2 space-y-2">
+              <div className="mt-1.5 space-y-1.5">
                 <DetailRow label="Network" value="Robinhood hub" />
                 <DetailRow label="Type" value="Soulbound token" />
                 <DetailRow
@@ -416,24 +426,14 @@ export function AccountDashboard({
                   value={minted ? "Synced to spokes" : "After minting"}
                 />
               </div>
-              {!minted && hasCachedScore && approved && (
-                <button
-                  type="button"
-                  disabled={minting}
-                  onClick={onMint}
-                  className="btn-primary mt-3 w-full disabled:opacity-50"
-                >
-                  {minting ? "Minting…" : "Mint credential"}
-                </button>
-              )}
             </Subsection>
 
             <Subsection title="Profile strength">
               <ProfileIcon />
-              <p className="text-base font-[650] text-primary">
+              <p className="text-sm font-[650] text-primary">
                 {score != null ? `${tier?.label} profile` : "Incomplete"}
               </p>
-              <div className="mt-2 space-y-2">
+              <div className="mt-1.5 space-y-1.5">
                 <DetailRow
                   label="Wallet activity"
                   tone={strengthTone(strengthLabel(walletSub))}
@@ -452,6 +452,35 @@ export function AccountDashboard({
               </div>
             </Subsection>
           </div>
+
+          {showActionsSection && (
+            <Subsection title="Next steps" className="!h-auto shrink-0">
+              <p className="mb-2 text-xs text-muted-foreground">
+                Complete these actions to unlock the full CredFlow experience.
+              </p>
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                {showMintAction && (
+                  <button
+                    type="button"
+                    disabled={minting}
+                    onClick={onMint}
+                    className="btn-primary flex-1 disabled:opacity-50 sm:min-w-[12rem]"
+                  >
+                    {minting ? "Minting…" : "Mint credential"}
+                  </button>
+                )}
+                {showAddBankAction && (
+                  <button
+                    type="button"
+                    onClick={onAddBank}
+                    className="btn-secondary flex-1 sm:min-w-[12rem]"
+                  >
+                    Connect bank account
+                  </button>
+                )}
+              </div>
+            </Subsection>
+          )}
         </div>
       </div>
     </div>

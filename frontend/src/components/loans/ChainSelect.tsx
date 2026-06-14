@@ -146,3 +146,41 @@ export function ChainSelect({
     </div>
   );
 }
+
+export function BorrowChainPicker({
+  options,
+  onSelect,
+}: {
+  options: Option[];
+  onSelect: (chainKey: string) => void;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center py-10 text-center sm:py-14">
+      <h3 className="text-base font-[650] tracking-tight">Where would you like to borrow?</h3>
+      <p className="mt-1 max-w-md text-xs text-muted-foreground">
+        Choose a chain to see your CredScore, collateral requirement, and loan terms.
+      </p>
+      <div className="mt-6 flex flex-wrap justify-center gap-3">
+        {options.map(({ chainKey, label, disabled }) => (
+          <button
+            key={chainKey}
+            type="button"
+            disabled={disabled}
+            onClick={() => onSelect(chainKey)}
+            className="surface-row flex min-w-[132px] flex-col items-center gap-2.5 px-5 py-4 transition-colors hover:border-primary/35 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <Image
+              src={chainLogoSrc(chainKey)}
+              alt=""
+              width={36}
+              height={36}
+              className="h-9 w-9 rounded-full object-cover"
+              aria-hidden
+            />
+            <span className="text-sm font-[650]">{label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}

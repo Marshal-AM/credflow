@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { WalletSection } from "@/components/wallet/WalletSection";
-import type { AppTab } from "./AppShell";
+import type { AppTab } from "@/lib/ui-persistence";
 
 function UserIcon({ className }: { className?: string }) {
   return (

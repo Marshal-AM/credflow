@@ -2,14 +2,15 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AccountDashboard } from "@/components/account/AccountDashboard";
-import { BuildScoreModal } from "@/components/account/BuildScoreModal";
-import { ScoringProgress } from "@/components/account/ScoringProgress";
-import { ScoreCompleteModal } from "@/components/account/ScoreCompleteModal";
+import { AccountScoreWorkspace } from "@/components/account/score-flow/AccountScoreWorkspace";
+import { BuildScoreChooser } from "@/components/account/score-flow/BuildScoreChooser";
+import { ScoreCompletePanel } from "@/components/account/score-flow/ScoreCompletePanel";
+import { ReclaimWaitPanel } from "@/components/account/score-flow/ReclaimWaitPanel";
+import { ScoringLiveView } from "@/components/account/score-flow/ScoringLiveView";
 import {
   fetchProfile,
   mintSbt,
   pollReclaimSession,
-  requestScore,
   type ScoreResponse,
 } from "@/lib/scoring-api";
 import { applyOnChainScore } from "@/lib/score-display";
@@ -17,7 +18,8 @@ import { toast } from "@/lib/toast";
 import { useWalletApi } from "@/hooks/use-wallet-api";
 import { ConnectWalletPrompt } from "@/components/wallet/ConnectWalletPrompt";
 
-type Phase = "loading" | "empty" | "scoring" | "reclaim" | "complete" | "error";
+type Phase = "loading" | "empty" | "complete" | "error";
+type ScoreFlowView = "dashboard" | "choose" | "calculating" | "reclaim" | "result";
 
 function hasCompleteScoreSnapshot(profile: Record<string, unknown> | null | undefined): boolean {
   if (!profile) return false;
@@ -49,24 +51,24 @@ function profileToScoreData(profile: Record<string, unknown>): ScoreResponse {
 export function YourAccountTab() {
   const { address, isConnected, isConnecting } = useWalletApi();
   const [phase, setPhase] = useState<Phase>("loading");
-  const [modalOpen, setModalOpen] = useState(false);
+  const [scoreFlowView, setScoreFlowView] = useState<ScoreFlowView>("dashboard");
   const [scoreData, setScoreData] = useState<ScoreResponse | null>(null);
   const [profile, setProfile] = useState<Record<string, unknown> | null>(null);
   const [hasOnChainSbt, setHasOnChainSbt] = useState(false);
   const [onChainScore, setOnChainScore] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [walletTrack, setWalletTrack] = useState<"idle" | "running" | "done" | "error">("idle");
-  const [sybilTrack, setSybilTrack] = useState<"idle" | "running" | "done" | "error">("idle");
-  const [reclaimTrack, setReclaimTrack] = useState<"idle" | "running" | "done" | "error">("idle");
   const [minting, setMinting] = useState(false);
   const [mintError, setMintError] = useState<string | null>(null);
   const [hasCachedScore, setHasCachedScore] = useState(false);
   const [reclaimMessage, setReclaimMessage] = useState<string | null>(null);
   const [reclaimUrl, setReclaimUrl] = useState<string | null>(null);
-  const [completeModalOpen, setCompleteModalOpen] = useState(false);
+  const [reclaimSessionId, setReclaimSessionId] = useState<string | null>(null);
+  const [requireReclaimRun, setRequireReclaimRun] = useState(false);
+  const [calculationKey, setCalculationKey] = useState(0);
   const [completeSummary, setCompleteSummary] = useState<ScoreResponse | null>(null);
   const reclaimWindowRef = useRef<Window | null>(null);
   const lastErrorToast = useRef<string | null>(null);
+  const pollAbort = useRef(false);
 
   const openReclaimPortal = useCallback((url: string): boolean => {
     if (!url) return false;
@@ -102,13 +104,12 @@ export function YourAccountTab() {
     if (cached || data.hasOnChainSbt) {
       const base =
         data.profile && cached ? profileToScoreData(data.profile) : { status: "complete" };
-      setScoreData(
-        applyOnChainScore(base, data.onChainScore, data.hasOnChainSbt)
-      );
+      setScoreData(applyOnChainScore(base, data.onChainScore, data.hasOnChainSbt));
       setPhase("complete");
     } else {
       setScoreData(null);
       setPhase("empty");
+      setScoreFlowView("choose");
     }
   }, [address]);
 
@@ -131,148 +132,149 @@ export function YourAccountTab() {
     }
   }, [phase, error]);
 
-  const runScore = async (
-    requireReclaim: boolean,
-    reclaimSessionId?: string,
-    preOpenedWindow?: Window | null
-  ) => {
-    if (!address) throw new Error("Connect your wallet to continue");
+  const cancelScoreFlow = () => {
+    pollAbort.current = true;
+    setScoreFlowView(phase === "empty" ? "choose" : "dashboard");
+    setReclaimUrl(null);
+    setReclaimSessionId(null);
+    setReclaimMessage(null);
+    setRequireReclaimRun(false);
+  };
+
+  const goToDashboard = () => {
+    pollAbort.current = true;
     setError(null);
     lastErrorToast.current = null;
-    setPhase("scoring");
-    setWalletTrack("running");
-    setSybilTrack("running");
-    if (requireReclaim && !reclaimSessionId) setReclaimTrack("idle");
-    else if (requireReclaim) setReclaimTrack("done");
-
-    try {
-      const data = await requestScore(address, {
-        require_reclaim: requireReclaim,
-        reclaim_session_id: reclaimSessionId,
-      });
-
-      if (data.status === "awaiting_reclaim") {
-        setPhase("reclaim");
-        setReclaimTrack("running");
-        setWalletTrack("running");
-        setSybilTrack("running");
-        const url = data.reclaim_url as string;
-        const sessionId = data.reclaim_session_id as string;
-        if (!sessionId) {
-          throw new Error("Bank verification could not be started. Please try again.");
-        }
-        setReclaimUrl(url || null);
-
-        let portalOpened = false;
-        if (url && preOpenedWindow && !preOpenedWindow.closed) {
-          preOpenedWindow.location.href = url;
-          preOpenedWindow.focus();
-          reclaimWindowRef.current = preOpenedWindow;
-          portalOpened = true;
-        } else if (url) {
-          portalOpened = openReclaimPortal(url);
-        } else if (preOpenedWindow && !preOpenedWindow.closed) {
-          preOpenedWindow.close();
-        }
-
-        setReclaimMessage(
-          portalOpened
-            ? "Complete bank login in the Reclaim tab. This page will continue automatically."
-            : "Click Open bank portal below to verify your account."
-        );
-
-        const finishScore = async (final: ScoreResponse) => {
-          setWalletTrack("done");
-          setSybilTrack("done");
-          setReclaimTrack("done");
-          setReclaimUrl(null);
-          setScoreData(final);
-          setCompleteSummary(final);
-          setCompleteModalOpen(true);
-          setPhase("complete");
-          setReclaimMessage(null);
-          if (reclaimWindowRef.current && !reclaimWindowRef.current.closed) {
-            reclaimWindowRef.current.close();
-          }
-          await loadProfile();
-        };
-
-        const reclaimDeadline = Date.now() + 600_000;
-        let bankVerified = false;
-
-        while (Date.now() < reclaimDeadline && !bankVerified) {
-          await new Promise((r) => setTimeout(r, 3000));
-
-          const poll = await pollReclaimSession(sessionId);
-          if (poll.ok && poll.status === "verified") {
-            bankVerified = true;
-            setReclaimTrack("done");
-            setReclaimUrl(null);
-            setPhase("scoring");
-            setReclaimMessage("Bank verified. Calculating your score…");
-            break;
-          }
-
-          if (!poll.ok && poll.error === "session_not_found") {
-            setReclaimMessage("Waiting for bank verification…");
-          } else if (!poll.ok && poll.error === "invalid_response") {
-            throw new Error(poll.detail || "Bank verification failed");
-          } else {
-            setReclaimMessage("Waiting for bank verification…");
-          }
-        }
-
-        if (!bankVerified) {
-          throw new Error("Bank verification timed out. Please try again.");
-        }
-
-        setWalletTrack("running");
-        setSybilTrack("running");
-        const final = await requestScore(address, {
-          require_reclaim: true,
-          reclaim_session_id: sessionId,
-        });
-
-        if (final.status !== "complete") {
-          throw new Error(
-            final.status === "awaiting_reclaim"
-              ? "Bank proof not ready yet — try updating your score again"
-              : "Scoring did not complete"
-          );
-        }
-
-        await finishScore(final);
-        return;
-      }
-
-      setWalletTrack("done");
-      setSybilTrack("done");
-      setScoreData(data);
-      setCompleteSummary(data);
-      setCompleteModalOpen(true);
+    setReclaimUrl(null);
+    setReclaimSessionId(null);
+    setReclaimMessage(null);
+    setRequireReclaimRun(false);
+    if (hasCachedScore || hasOnChainSbt) {
       setPhase("complete");
-      await loadProfile();
-    } catch (e) {
-      setWalletTrack("error");
-      setSybilTrack("error");
-      setReclaimTrack("error");
-      setError(e instanceof Error ? e.message : "Scoring failed");
-      setPhase("error");
+      setScoreFlowView("dashboard");
+    } else {
+      setPhase("empty");
+      setScoreFlowView("choose");
     }
   };
 
-  const startBankScore = () => {
-    setModalOpen(false);
+  const retryAfterError = () => {
+    setError(null);
+    lastErrorToast.current = null;
+    setPhase(hasCachedScore || hasOnChainSbt ? "complete" : "empty");
+    setScoreFlowView("choose");
+  };
+
+  const beginCalculation = (requireReclaim: boolean, preOpenedWindow?: Window | null) => {
+    if (!address) return;
+    pollAbort.current = false;
+    setError(null);
+    lastErrorToast.current = null;
+    setRequireReclaimRun(requireReclaim);
+    setReclaimSessionId(null);
     setReclaimUrl(null);
+    setReclaimMessage(null);
+    setScoreFlowView("calculating");
+    setCalculationKey((k) => k + 1);
+
+    if (requireReclaim && preOpenedWindow) {
+      reclaimWindowRef.current = preOpenedWindow;
+    }
+  };
+
+  const startWalletScore = () => {
+    beginCalculation(false);
+  };
+
+  const startBankScore = () => {
     const preWin = window.open("about:blank", "_blank");
     if (preWin) {
       preWin.document.title = "Reclaim — loading…";
       preWin.document.body.innerHTML =
         "<p style='font-family:sans-serif;padding:2rem'>Loading bank portal…</p>";
-      reclaimWindowRef.current = preWin;
     }
-    void runScore(true, undefined, preWin);
+    beginCalculation(true, preWin);
   };
+
+  const handleStreamComplete = useCallback(
+    async (data: Record<string, unknown>) => {
+      const final = data as ScoreResponse;
+      setScoreData(final);
+      setCompleteSummary(final);
+      setScoreFlowView("result");
+      setPhase("complete");
+      setReclaimUrl(null);
+      setReclaimSessionId(null);
+      if (reclaimWindowRef.current && !reclaimWindowRef.current.closed) {
+        reclaimWindowRef.current.close();
+      }
+      await loadProfile();
+    },
+    [loadProfile]
+  );
+
+  const handleAwaitingReclaim = useCallback(
+    (data: Record<string, unknown>) => {
+      const url = data.reclaim_url as string | undefined;
+      const sessionId = data.reclaim_session_id as string | undefined;
+      if (!sessionId) {
+        setError("Bank verification could not be started.");
+        setPhase("error");
+        return;
+      }
+
+      setReclaimSessionId(sessionId);
+      setReclaimUrl(url || null);
+      setScoreFlowView("reclaim");
+
+      let portalOpened = false;
+      const preWin = reclaimWindowRef.current;
+      if (url && preWin && !preWin.closed) {
+        preWin.location.href = url;
+        preWin.focus();
+        portalOpened = true;
+      } else if (url) {
+        portalOpened = openReclaimPortal(url);
+      }
+
+      setReclaimMessage(
+        portalOpened
+          ? "Complete bank login in the Reclaim tab. This page will continue automatically."
+          : "Click Open bank portal below to verify your account."
+      );
+
+      void (async () => {
+        const reclaimDeadline = Date.now() + 600_000;
+        while (Date.now() < reclaimDeadline && !pollAbort.current) {
+          await new Promise((r) => setTimeout(r, 3000));
+          const poll = await pollReclaimSession(sessionId);
+          if (poll.ok && poll.status === "verified") {
+            setReclaimUrl(null);
+            setReclaimMessage("Bank verified. Calculating your score…");
+            setScoreFlowView("calculating");
+            setCalculationKey((k) => k + 1);
+            return;
+          }
+          if (!poll.ok && poll.error === "invalid_response") {
+            setError(poll.detail || "Bank verification failed");
+            setPhase("error");
+            return;
+          }
+          setReclaimMessage("Waiting for bank verification…");
+        }
+        if (!pollAbort.current) {
+          setError("Bank verification timed out. Please try again.");
+          setPhase("error");
+        }
+      })();
+    },
+    [openReclaimPortal]
+  );
+
+  const handleStreamError = useCallback((message: string) => {
+    setError(message);
+    setPhase("error");
+  }, []);
 
   const handleMint = async () => {
     setMinting(true);
@@ -300,118 +302,106 @@ export function YourAccountTab() {
     );
   }
 
-  if (phase === "empty") {
-    return (
-      <>
-        <div className="flex min-h-[400px] flex-col items-center justify-center gap-6 card-padded border border-border/80 text-center">
-          <div>
-            <h3 className="text-xl font-[650]">Get your CredScore</h3>
-            <p className="mt-2 max-w-sm text-sm text-muted-foreground">
-              Connect your wallet history and optionally verify your bank account to see how much you
-              can borrow.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setModalOpen(true)}
-            className="btn-primary px-10 py-4 text-base"
-          >
-            Build your score
-          </button>
-        </div>
-        <BuildScoreModal
-          open={modalOpen}
-          onClose={() => setModalOpen(false)}
-          onWalletOnly={() => {
-            setModalOpen(false);
-            runScore(false);
-          }}
-          onWithBank={startBankScore}
-        />
-      </>
-    );
-  }
-
-  if (phase === "scoring" || phase === "reclaim") {
-    return (
-      <ScoringProgress
-        walletTrack={walletTrack}
-        sybilTrack={sybilTrack}
-        reclaimTrack={reclaimTrack !== "idle" ? reclaimTrack : undefined}
-        reclaimUrl={phase === "reclaim" && reclaimTrack !== "done" ? reclaimUrl : null}
-        onOpenReclaim={
-          reclaimUrl && reclaimTrack !== "done"
-            ? () => {
-                const opened = openReclaimPortal(reclaimUrl);
-                if (opened) {
-                  setReclaimMessage(
-                    "Complete bank login in the Reclaim tab. This page will continue automatically."
-                  );
-                }
-              }
-            : undefined
-        }
-        message={
-          reclaimMessage ||
-          (phase === "reclaim"
-            ? "Verify your bank account to continue"
-            : "Calculating your CredScore…")
-        }
-      />
-    );
-  }
-
   if (phase === "error") {
     return (
-      <div className="mx-auto max-w-md space-y-4 text-center card-padded">
-        <p className="text-sm text-muted-foreground">Something went wrong. You can try again.</p>
-        <button
-          type="button"
-          onClick={() => {
-            setPhase(hasCachedScore || hasOnChainSbt ? "complete" : "empty");
-            setError(null);
-            lastErrorToast.current = null;
-          }}
-          className="btn-secondary"
-        >
-          Try again
-        </button>
-      </div>
+      <AccountScoreWorkspace>
+        <div className="mx-auto max-w-md space-y-5 py-12 text-center">
+          <div>
+            <p className="section-label">Something went wrong</p>
+            <p className="mt-2 text-sm text-muted-foreground">{error ?? "Something went wrong."}</p>
+          </div>
+          <div className="flex flex-col justify-center gap-2 sm:flex-row sm:flex-wrap">
+            <button type="button" onClick={retryAfterError} className="btn-secondary">
+              Try again
+            </button>
+            <button type="button" onClick={goToDashboard} className="btn-outline-primary">
+              Back to dashboard
+            </button>
+          </div>
+        </div>
+      </AccountScoreWorkspace>
+    );
+  }
+
+  const showWorkspace =
+    phase === "empty" ||
+    (phase === "complete" && scoreFlowView !== "dashboard");
+
+  if (showWorkspace) {
+    return (
+      <AccountScoreWorkspace>
+        {scoreFlowView === "choose" && (
+          <BuildScoreChooser
+            onWalletOnly={startWalletScore}
+            onWithBank={startBankScore}
+            showCancel={phase === "complete"}
+            onCancel={phase === "complete" ? cancelScoreFlow : undefined}
+            cancelLabel="Back to dashboard"
+          />
+        )}
+
+        {scoreFlowView === "reclaim" && (
+          <ReclaimWaitPanel
+            message={reclaimMessage ?? undefined}
+            reclaimUrl={reclaimUrl}
+            onOpenReclaim={
+              reclaimUrl
+                ? () => {
+                    const opened = openReclaimPortal(reclaimUrl);
+                    if (opened) {
+                      setReclaimMessage(
+                        "Complete bank login in the Reclaim tab. This page will continue automatically."
+                      );
+                    }
+                  }
+                : undefined
+            }
+            onCancel={cancelScoreFlow}
+            cancelLabel="Back to dashboard"
+          />
+        )}
+
+        {scoreFlowView === "calculating" && address && (
+          <ScoringLiveView
+            key={calculationKey}
+            wallet={address}
+            requireReclaim={requireReclaimRun}
+            reclaimSessionId={reclaimSessionId ?? undefined}
+            onComplete={(data) => void handleStreamComplete(data)}
+            onAwaitingReclaim={handleAwaitingReclaim}
+            onError={handleStreamError}
+            onBack={phase === "complete" ? cancelScoreFlow : undefined}
+          />
+        )}
+
+        {scoreFlowView === "result" && (
+          <ScoreCompletePanel
+            credScore={completeSummary?.cred_score as number | undefined}
+            sybilRisk={completeSummary?.sybil_risk as string | undefined}
+            bankUsd={
+              completeSummary?.balance_usd_cents != null
+                ? (completeSummary.balance_usd_cents as number) / 100
+                : undefined
+            }
+            onContinue={() => setScoreFlowView("dashboard")}
+          />
+        )}
+      </AccountScoreWorkspace>
     );
   }
 
   return (
-    <div className="min-h-full">
-      <AccountDashboard
-        data={scoreData || {}}
-        profile={profile}
-        hasOnChainSbt={hasOnChainSbt}
-        onChainScore={onChainScore}
-        hasCachedScore={hasCachedScore}
-        onMint={handleMint}
-        onRescore={() => setModalOpen(true)}
-        minting={minting}
-        mintError={mintError}
-      />
-      <ScoreCompleteModal
-        open={completeModalOpen}
-        credScore={completeSummary?.cred_score as number | undefined}
-        bankUsd={
-          completeSummary?.balance_usd_cents != null
-            ? (completeSummary.balance_usd_cents as number) / 100
-            : undefined
-        }
-        onClose={() => setCompleteModalOpen(false)}
-      />
-      <BuildScoreModal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        onWalletOnly={() => {
-          setModalOpen(false);
-          runScore(false);
-        }}
-        onWithBank={startBankScore}
-      />
-    </div>
+    <AccountDashboard
+      data={scoreData || {}}
+      profile={profile}
+      hasOnChainSbt={hasOnChainSbt}
+      onChainScore={onChainScore}
+      hasCachedScore={hasCachedScore}
+      onMint={handleMint}
+      onRescore={() => setScoreFlowView("choose")}
+      onAddBank={startBankScore}
+      minting={minting}
+      mintError={mintError}
+    />
   );
 }

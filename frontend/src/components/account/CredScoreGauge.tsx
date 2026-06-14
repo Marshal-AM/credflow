@@ -170,16 +170,16 @@ export function CredScoreGauge({ score }: Props) {
   const tier = scoreTier(score);
 
   return (
-    <div className="flex min-h-0 w-full max-w-[500px] flex-1 flex-col items-center justify-center">
+    <div className="mx-auto flex w-full max-w-[500px] flex-col items-center">
       <CredScoreGaugeArc
         score={score}
         showRangeLabels
-        className="w-full min-h-[100px] max-h-[min(28vh,260px)] shrink"
+        className="mx-auto block w-full min-h-[88px] max-h-[min(24vh,240px)] shrink"
       />
 
       <div className="mt-1 w-full shrink-0 text-center">
         <p className="section-label">CredScore</p>
-        <p className="mt-1.5 text-[clamp(3.25rem,7.5vh,5.25rem)] leading-none font-[650] tabular-nums tracking-tight text-primary">
+        <p className="mt-1 text-[clamp(2.75rem,6vh,4.5rem)] leading-none font-[650] tabular-nums tracking-tight text-primary">
           {score}
         </p>
         <p className="mt-1.5 text-sm font-[650] uppercase tracking-[0.16em] text-primary">
