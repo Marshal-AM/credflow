@@ -3,9 +3,10 @@ import { createPublicClient, http } from "viem";
 import { requireRequestWallet } from "@/lib/wallet-request";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { resolveLatestSbtMintCredentials } from "@/lib/sbt-mint-credentials";
+import { fetchSbtTokenId } from "@/lib/sbt-chain";
 import { patchScoreSnapshot } from "@/lib/score-display";
 import hubAddresses from "@/lib/addresses.json";
-import { robinhoodTestnet } from "@/lib/chains";
+import { hubNftExplorerUrl, robinhoodTestnet } from "@/lib/chains";
 
 const SBT_ABI = [
   {
@@ -141,15 +142,25 @@ export async function GET(req: NextRequest) {
 
     let mintTxHash: string | null = null;
     let sbtTokenId: string | null = null;
-    if (hasOnChainSbt && supabase) {
-      const mintCreds = await resolveLatestSbtMintCredentials(wallet, supabase, {
-        latestScoreRunCreatedAt: latestScoreRun?.created_at as string | undefined,
-        profileMintTxHash: profile?.mint_tx_hash as string | undefined,
-        profileMintedAt: profile?.minted_at as string | undefined,
-      });
-      mintTxHash = mintCreds.mintTxHash;
-      sbtTokenId = mintCreds.sbtTokenId;
+    if (hasOnChainSbt) {
+      if (supabase) {
+        const mintCreds = await resolveLatestSbtMintCredentials(wallet, supabase, {
+          latestScoreRunCreatedAt: latestScoreRun?.created_at as string | undefined,
+          profileMintTxHash: profile?.mint_tx_hash as string | undefined,
+          profileMintedAt: profile?.minted_at as string | undefined,
+        });
+        mintTxHash = mintCreds.mintTxHash;
+        sbtTokenId = mintCreds.sbtTokenId;
+      }
+      if (!sbtTokenId) {
+        sbtTokenId = await fetchSbtTokenId(wallet as `0x${string}`, mintTxHash);
+      }
     }
+
+    const sbtLink =
+      sbtTokenId && hubAddresses.sbt
+        ? hubNftExplorerUrl(hubAddresses.sbt, sbtTokenId)
+        : null;
 
     return NextResponse.json({
       wallet,
@@ -158,6 +169,7 @@ export async function GET(req: NextRequest) {
       onChainScore,
       mintTxHash,
       sbtTokenId,
+      sbtLink,
       latestScoreRun,
     });
   } catch (err) {

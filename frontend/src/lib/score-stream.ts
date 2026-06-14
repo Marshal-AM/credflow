@@ -28,10 +28,11 @@ export type ScoreStreamEvent =
   | { type: "score_summary"; data: Record<string, unknown> }
   | { type: "complete"; data: Record<string, unknown> }
   | { type: "awaiting_reclaim"; data: Record<string, unknown> }
+  | { type: "persisted"; data: Record<string, unknown> }
   | { type: "error"; data: { message: string } };
 
 export type ScoreStreamResult =
-  | { status: "complete"; data: Record<string, unknown> }
+  | { status: "complete"; data: Record<string, unknown>; extras?: Record<string, unknown> }
   | { status: "awaiting_reclaim"; data: Record<string, unknown> }
   | { status: "error"; message: string };
 
@@ -80,6 +81,7 @@ export async function requestScoreStream(
   const decoder = new TextDecoder();
   let buffer = "";
   let finalResult: ScoreStreamResult | null = null;
+  let streamExtras: Record<string, unknown> | undefined;
 
   while (true) {
     const { done, value } = await reader.read();
@@ -100,9 +102,18 @@ export async function requestScoreStream(
         onEvent(parsed);
 
         if (parsed.type === "complete") {
-          finalResult = { status: "complete", data: parsed.data };
+          finalResult = { status: "complete", data: parsed.data, extras: streamExtras };
         } else if (parsed.type === "awaiting_reclaim") {
           finalResult = { status: "awaiting_reclaim", data: parsed.data };
+        } else if (parsed.type === "persisted") {
+          streamExtras = parsed.data;
+          if (finalResult?.status === "complete") {
+            finalResult = {
+              status: "complete",
+              data: finalResult.data,
+              extras: streamExtras,
+            };
+          }
         } else if (parsed.type === "error") {
           finalResult = { status: "error", message: parsed.data.message };
         }
@@ -112,5 +123,9 @@ export async function requestScoreStream(
     }
   }
 
-  return finalResult ?? { status: "error", message: "Scoring ended without a result" };
+  return (
+    finalResult?.status === "complete" && streamExtras && !finalResult.extras
+      ? { status: "complete", data: finalResult.data, extras: streamExtras }
+      : finalResult
+  ) ?? { status: "error", message: "Scoring ended without a result" };
 }

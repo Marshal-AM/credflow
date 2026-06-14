@@ -1,53 +1,8 @@
 import { NextRequest } from "next/server";
 import { requireRequestWallet } from "@/lib/wallet-request";
-import {
-  getSupabaseAdmin,
-  profileFromScoreResponse,
-} from "@/lib/supabase-server";
-import { triggerSyncScore } from "@/lib/agent-client";
+import { finalizeCompleteScoreRun } from "@/lib/score-run-finalize";
 
 const SCORING_API = process.env.SCORING_API_URL || "http://localhost:8000";
-
-async function persistScoreResult(
-  wallet: string,
-  data: Record<string, unknown>,
-  require_reclaim: boolean,
-  reclaim_session_id?: string
-) {
-  const supabase = getSupabaseAdmin();
-  let supabaseSaved = false;
-  let supabaseError: string | null = null;
-
-  if (supabase) {
-    const { error: runError } = await supabase.from("score_runs").insert({
-      wallet_address: wallet.toLowerCase(),
-      status: data.status || "unknown",
-      require_reclaim,
-      reclaim_session_id: (data.reclaim_session_id as string) || reclaim_session_id || null,
-      response: data,
-    });
-    if (runError) supabaseError = runError.message;
-
-    if (data.status === "complete") {
-      const { error: profileError } = await supabase.from("account_profiles").upsert({
-        ...profileFromScoreResponse(wallet, data, reclaim_session_id),
-        mint_status: null,
-      });
-      if (profileError) {
-        supabaseError = profileError.message;
-      } else {
-        supabaseSaved = true;
-      }
-    }
-  }
-
-  let lzSync = null;
-  if (data.status === "complete" && typeof data.cred_score === "number") {
-    lzSync = await triggerSyncScore(wallet, data.cred_score as number, "api_hook", "score_complete");
-  }
-
-  return { supabase_saved: supabaseSaved, supabase_error: supabaseError, lz_sync: lzSync };
-}
 
 export async function POST(req: NextRequest) {
   try {
@@ -118,11 +73,10 @@ export async function POST(req: NextRequest) {
           }
 
           if (completePayload?.status === "complete") {
-            const extras = await persistScoreResult(
+            const extras = await finalizeCompleteScoreRun(
               wallet,
               completePayload,
-              require_reclaim,
-              reclaim_session_id
+              { require_reclaim, reclaim_session_id }
             );
             controller.enqueue(
               encoder.encode(`data: ${JSON.stringify({ type: "persisted", data: extras })}\n\n`)

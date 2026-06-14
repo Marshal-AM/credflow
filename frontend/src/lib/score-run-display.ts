@@ -1,6 +1,3 @@
-import hubAddresses from "@/lib/addresses.json";
-import { hubNftExplorerUrl, txExplorerUrl } from "@/lib/chains";
-
 export type DetailLine = {
   label: string;
   value: string;
@@ -158,6 +155,7 @@ export function buildScoreRunDetailCards(
     minted?: boolean;
     mintTxHash?: string | null;
     sbtTokenId?: string | null;
+    sbtLink?: string | null;
   }
 ): DetailCard[] {
   if (!response) return [];
@@ -415,13 +413,7 @@ export function buildScoreRunDetailCards(
     });
   }
 
-  const sbtContract = hubAddresses.sbt as string;
-  const sbtExplorerHref =
-    context?.minted && context.sbtTokenId && sbtContract
-      ? hubNftExplorerUrl(sbtContract, context.sbtTokenId)
-      : context?.minted && context.mintTxHash
-        ? txExplorerUrl("hub", context.mintTxHash) ?? undefined
-        : undefined;
+  const sbtExplorerHref = context?.sbtLink ?? undefined;
 
   pushCard(cards, {
     id: "credential",
@@ -434,11 +426,7 @@ export function buildScoreRunDetailCards(
         ? row("Token ID", `#${context.sbtTokenId}`)
         : null,
       sbtExplorerHref
-        ? row(
-            "View SBT",
-            context?.sbtTokenId ? "Open token in explorer" : "Open mint in explorer",
-            { href: sbtExplorerHref, tone: "positive" }
-          )
+        ? row("SBT link", "View here", { href: sbtExplorerHref, tone: "positive" })
         : null,
       row("Network", "Robinhood hub"),
       row("Token type", "Soulbound"),

@@ -86,7 +86,7 @@ export function hubAddressExplorerUrl(address: string): string {
   return `${robinhoodExplorerBase}/address/${address}`;
 }
 
-/** ERC-721 token page (Blockscout-style). */
+/** ERC-721 NFT instance page on Robinhood Blockscout. */
 export function hubNftExplorerUrl(contractAddress: string, tokenId: string | number): string {
-  return `${robinhoodExplorerBase}/token/${contractAddress}?a=${tokenId}`;
+  return `${robinhoodExplorerBase}/token/${contractAddress}/instance/${tokenId}`;
 }

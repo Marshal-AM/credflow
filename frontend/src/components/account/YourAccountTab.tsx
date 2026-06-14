@@ -9,7 +9,6 @@ import { ReclaimWaitPanel } from "@/components/account/score-flow/ReclaimWaitPan
 import { ScoringLiveView } from "@/components/account/score-flow/ScoringLiveView";
 import {
   fetchProfile,
-  mintSbt,
   pollReclaimSession,
   type ScoreResponse,
   type ScoreRunRecord,
@@ -67,10 +66,9 @@ export function YourAccountTab() {
   const [hasOnChainSbt, setHasOnChainSbt] = useState(false);
   const [onChainScore, setOnChainScore] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [minting, setMinting] = useState(false);
-  const [mintError, setMintError] = useState<string | null>(null);
   const [mintTxHash, setMintTxHash] = useState<string | null>(null);
   const [sbtTokenId, setSbtTokenId] = useState<string | null>(null);
+  const [sbtLink, setSbtLink] = useState<string | null>(null);
   const [latestScoreRun, setLatestScoreRun] = useState<ScoreRunRecord | null>(null);
   const [hasCachedScore, setHasCachedScore] = useState(false);
   const [reclaimMessage, setReclaimMessage] = useState<string | null>(null);
@@ -112,6 +110,7 @@ export function YourAccountTab() {
     setOnChainScore(data.onChainScore ?? null);
     setMintTxHash(data.mintTxHash ?? null);
     setSbtTokenId(data.sbtTokenId ?? null);
+    setSbtLink(data.sbtLink ?? null);
     setLatestScoreRun(data.latestScoreRun);
 
     const fromRun = scoreDataFromLatestRun(data.latestScoreRun);
@@ -219,7 +218,7 @@ export function YourAccountTab() {
   };
 
   const handleStreamComplete = useCallback(
-    async (data: Record<string, unknown>) => {
+    async (data: Record<string, unknown>, extras?: Record<string, unknown>) => {
       const final = data as ScoreResponse;
       setScoreData(final);
       setCompleteSummary(final);
@@ -230,6 +229,18 @@ export function YourAccountTab() {
       if (reclaimWindowRef.current && !reclaimWindowRef.current.closed) {
         reclaimWindowRef.current.close();
       }
+
+      const underwrite = extras?.underwrite as
+        | { ok?: boolean; skipped?: boolean; data?: { onchain?: string } }
+        | undefined;
+      if (underwrite?.ok && underwrite.data?.onchain === "mintSBT") {
+        toast.success("On-chain credential minted", "mint-success");
+      } else if (underwrite?.ok && underwrite.data?.onchain === "updateScore") {
+        toast.success("On-chain score updated", "score-updated");
+      } else if (underwrite && !underwrite.ok && !underwrite.skipped) {
+        toast.error("Could not update on-chain credential", "mint-error");
+      }
+
       await loadProfile();
     },
     [loadProfile]
@@ -297,20 +308,6 @@ export function YourAccountTab() {
     setError(message);
     setPhase("error");
   }, []);
-
-  const handleMint = async () => {
-    setMinting(true);
-    setMintError(null);
-    try {
-      await mintSbt(address!, scoreData || undefined);
-      toast.success("Credential minted successfully", "mint-success");
-      await loadProfile();
-    } catch (e) {
-      setMintError(e instanceof Error ? e.message : "Mint failed");
-    } finally {
-      setMinting(false);
-    }
-  };
 
   if (!isConnected && !isConnecting) {
     return <ConnectWalletPrompt message="Connect your wallet to build and view your CredScore" />;
@@ -422,11 +419,9 @@ export function YourAccountTab() {
       hasCachedScore={hasCachedScore}
       mintTxHash={mintTxHash}
       sbtTokenId={sbtTokenId}
-      onMint={handleMint}
+      sbtLink={sbtLink}
       onRescore={() => setScoreFlowView("choose")}
       onAddBank={startBankScore}
-      minting={minting}
-      mintError={mintError}
     />
   );
 }

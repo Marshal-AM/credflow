@@ -12,12 +12,40 @@ const ERC721_TRANSFER = parseAbiItem(
 
 export const HUB_SBT_CONTRACT = hubAddresses.sbt as `0x${string}`;
 
+const HAS_PROFILE_ABI = [
+  {
+    name: "hasProfile",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "wallet", type: "address" }],
+    outputs: [{ type: "bool" }],
+  },
+] as const;
+
 function hubRpc(): string {
   return (
     process.env.NEXT_PUBLIC_RPC_ROBINHOOD ||
     process.env.RPC_ROBINHOOD ||
     "https://rpc.testnet.chain.robinhood.com"
   );
+}
+
+/** Whether hub CredScoreSBT already has a profile for this wallet. */
+export async function hubHasSbtProfile(wallet: `0x${string}`): Promise<boolean> {
+  try {
+    const client = createPublicClient({
+      chain: robinhoodTestnet,
+      transport: http(hubRpc()),
+    });
+    return await client.readContract({
+      address: HUB_SBT_CONTRACT,
+      abi: HAS_PROFILE_ABI,
+      functionName: "hasProfile",
+      args: [wallet],
+    });
+  } catch {
+    return false;
+  }
 }
 
 /** First SBTMinted tx for wallet on Robinhood hub (if any). */

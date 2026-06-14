@@ -5,7 +5,6 @@ import {
   runPrepWalletStep,
   type PrepWalletStepId,
 } from "@/lib/prep-wallet-server";
-import { writeApiHookRun } from "@/lib/run-file-log";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -22,23 +21,6 @@ export async function POST(req: NextRequest) {
     }
 
     const result = await runPrepWalletStep(stepId);
-
-    writeApiHookRun({
-      hook: "prep-wallet",
-      wallet,
-      success: result.ok,
-      summary: `prep-wallet ${stepId}`,
-      steps: [
-        {
-          step: stepId,
-          ok: result.ok,
-          error: result.error,
-          data: { txs: result.txs, durationMs: result.durationMs },
-        },
-      ],
-      payload: { step: stepId, result },
-      error: result.error,
-    });
 
     if (!result.ok) {
       return NextResponse.json(

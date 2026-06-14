@@ -33,7 +33,7 @@ type Props = {
   wallet: string;
   requireReclaim: boolean;
   reclaimSessionId?: string;
-  onComplete: (data: Record<string, unknown>) => void;
+  onComplete: (data: Record<string, unknown>, extras?: Record<string, unknown>) => void;
   onAwaitingReclaim: (data: Record<string, unknown>) => void;
   onError: (message: string) => void;
   onBack?: () => void;
@@ -183,7 +183,10 @@ export function ScoringLiveView({
       );
 
       if (result.status === "complete") {
-        onComplete(result.data);
+        onComplete(
+          result.data,
+          result.extras as Record<string, unknown> | undefined
+        );
       } else if (result.status === "awaiting_reclaim") {
         onAwaitingReclaim(result.data);
       } else {

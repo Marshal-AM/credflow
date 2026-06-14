@@ -41,6 +41,7 @@ export async function fetchProfile(wallet: string): Promise<{
   onChainScore: number | null;
   mintTxHash: string | null;
   sbtTokenId: string | null;
+  sbtLink: string | null;
   latestScoreRun: ScoreRunRecord | null;
 }> {
   const res = await fetch("/api/profile", walletHeaders(wallet));

@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireRequestWallet } from "@/lib/wallet-request";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
-import { fetchSbtMintTxHash } from "@/lib/sbt-chain";
-import { triggerSyncScore } from "@/lib/agent-client";
+import { autoUnderwriteAfterScore, triggerSyncScore } from "@/lib/agent-client";
 
-const SCORING_API = process.env.SCORING_API_URL || "http://localhost:8000";
-
+/** Legacy manual mint — scoring routes auto-mint/update after each complete run. */
 export async function POST(req: NextRequest) {
   try {
     const wallet = requireRequestWallet(req);
@@ -25,59 +23,35 @@ export async function POST(req: NextRequest) {
       reclaimSessionId = data?.reclaim_session_id || null;
     }
 
-    const res = await fetch(`${SCORING_API}/agents/underwrite`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        wallet_address: wallet,
-        rescore: false,
-        reclaim_session_id: reclaimSessionId,
-        score_snapshot: scoreSnapshot,
-        trigger_source: "api_hook",
-        trigger_event: "sbt_mint",
-      }),
+    if (!scoreSnapshot || scoreSnapshot.status !== "complete") {
+      return NextResponse.json(
+        { error: "Complete a score run before minting" },
+        { status: 400 }
+      );
+    }
+
+    const underwrite = await autoUnderwriteAfterScore(wallet, scoreSnapshot, {
+      reclaimSessionId,
     });
-    const data = await res.json();
-    if (!res.ok) {
-      const reason =
-        typeof data.detail === "object"
-          ? data.detail.reason || JSON.stringify(data.detail)
-          : data.detail || "Underwrite failed";
-      if (supabase) {
-        await supabase
-          .from("account_profiles")
-          .update({ mint_status: "failed", updated_at: new Date().toISOString() })
-          .eq("wallet_address", wallet.toLowerCase());
-      }
-      return NextResponse.json({ error: reason, detail: data.detail }, { status: res.status });
+
+    if (!underwrite.ok && !underwrite.skipped) {
+      return NextResponse.json(
+        { error: underwrite.error || "Underwrite failed" },
+        { status: 400 }
+      );
     }
 
-    let txHash = (data.tx as string | undefined) || null;
-    if (!txHash) {
-      txHash = await fetchSbtMintTxHash(wallet);
-    }
-
-    if (supabase) {
-      await supabase
-        .from("account_profiles")
-        .update({
-          mint_tx_hash: txHash,
-          mint_status: "minted",
-          minted_at: new Date().toISOString(),
-          sbt_score_on_chain: data.cred_score ?? data.score,
-          cred_score: data.cred_score ?? data.score,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("wallet_address", wallet.toLowerCase());
-    }
-
+    const credScore = underwrite.data?.cred_score as number | undefined;
     let lzSync = null;
-    const score = (data.cred_score ?? data.score) as number | undefined;
-    if (typeof score === "number" && score > 0) {
-      lzSync = await triggerSyncScore(wallet, score, "api_hook", "sbt_mint");
+    if (typeof credScore === "number" && credScore > 0) {
+      lzSync = await triggerSyncScore(wallet, credScore, "api_hook", "sbt_mint");
     }
 
-    return NextResponse.json({ ...data, tx: txHash, mint_tx_hash: txHash, lz_sync: lzSync });
+    return NextResponse.json({
+      ...underwrite.data,
+      mint_tx_hash: underwrite.data?.tx,
+      lz_sync: lzSync,
+    });
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Mint failed" },

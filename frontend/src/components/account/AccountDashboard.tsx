@@ -15,11 +15,9 @@ type Props = {
   hasCachedScore: boolean;
   mintTxHash?: string | null;
   sbtTokenId?: string | null;
-  onMint: () => void;
+  sbtLink?: string | null;
   onRescore: () => void;
   onAddBank?: () => void;
-  minting: boolean;
-  mintError?: string | null;
 };
 
 type ValueTone = "positive" | "negative" | "neutral";
@@ -164,11 +162,9 @@ export function AccountDashboard({
   hasCachedScore,
   mintTxHash,
   sbtTokenId,
-  onMint,
+  sbtLink,
   onRescore,
   onAddBank,
-  minting,
-  mintError,
 }: Props) {
   const scoreResponse = (latestScoreRun?.response as ScoreResponse | undefined) ?? data;
   const credScore =
@@ -191,13 +187,13 @@ export function AccountDashboard({
         minted,
         mintTxHash,
         sbtTokenId,
+        sbtLink,
       }),
-    [scoreResponse, minted, mintTxHash, sbtTokenId]
+    [scoreResponse, minted, mintTxHash, sbtTokenId, sbtLink]
   );
 
-  const showMintAction = !minted && hasCachedScore && approved;
   const showAddBankAction = !bankVerified && hasCachedScore && !!onAddBank;
-  const showActionsSection = showMintAction || showAddBankAction;
+  const showActionsSection = showAddBankAction;
 
   useEffect(() => {
     if (hasOnChainSbt && !hasCachedScore) {
@@ -219,12 +215,6 @@ export function AccountDashboard({
       toast.error(`Not eligible to borrow: ${reason}`, "not-approved");
     }
   }, [approved, hasCachedScore, scoreResponse.rejection_reason, data.rejection_reason, profile?.rejection_reason]);
-
-  useEffect(() => {
-    if (mintError) {
-      toast.error(mintError, "mint-error");
-    }
-  }, [mintError]);
 
   return (
     <div className="account-dashboard">
@@ -317,16 +307,6 @@ export function AccountDashboard({
                 Complete these actions to unlock the full CredFlow experience.
               </p>
               <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                {showMintAction ? (
-                  <button
-                    type="button"
-                    disabled={minting}
-                    onClick={onMint}
-                    className="btn-primary flex-1 disabled:opacity-50 sm:min-w-[12rem]"
-                  >
-                    {minting ? "Minting…" : "Mint credential"}
-                  </button>
-                ) : null}
                 {showAddBankAction ? (
                   <button
                     type="button"

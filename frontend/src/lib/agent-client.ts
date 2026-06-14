@@ -94,12 +94,116 @@ async function callAgent<T>(
     });
     const data = await res.json();
     if (!res.ok) {
-      return { ok: false, error: data.detail || JSON.stringify(data) };
+      const detail = data.detail;
+      const reason =
+        typeof detail === "object" && detail !== null
+          ? (detail as { reason?: string }).reason || JSON.stringify(detail)
+          : detail || JSON.stringify(data);
+      return { ok: false, error: String(reason) };
     }
     return { ok: true, data: data as T };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Agent call failed" };
   }
+}
+
+export type AutoUnderwriteResult = {
+  ok: boolean;
+  skipped?: boolean;
+  reason?: string;
+  data?: Record<string, unknown>;
+  error?: string;
+};
+
+/** Mint or update hub SBT from a completed score snapshot (no extra scoring API call). */
+export async function autoUnderwriteAfterScore(
+  wallet: string,
+  scoreData: Record<string, unknown>,
+  options?: {
+    reclaimSessionId?: string | null;
+    hasOnChainProfile?: boolean;
+  }
+): Promise<AutoUnderwriteResult> {
+  if (scoreData.status !== "complete") {
+    return { ok: false, skipped: true, reason: "score_incomplete" };
+  }
+  if (scoreData.approved === false) {
+    return { ok: false, skipped: true, reason: "not_approved" };
+  }
+
+  const { hubHasSbtProfile, fetchSbtMintTxHash } = await import("@/lib/sbt-chain");
+  const hasProfile =
+    options?.hasOnChainProfile ??
+    (await hubHasSbtProfile(wallet as `0x${string}`));
+
+  const reclaimSessionId =
+    options?.reclaimSessionId ??
+    (typeof scoreData.reclaim_session_id === "string"
+      ? scoreData.reclaim_session_id
+      : null);
+
+  const underwrite = await callAgent<{
+    action?: string;
+    onchain?: string;
+    tx?: string;
+    cred_score?: number;
+    score?: number;
+    run_id?: string;
+  }>("/agents/underwrite", {
+    wallet_address: wallet,
+    rescore: hasProfile,
+    reclaim_session_id: reclaimSessionId,
+    score_snapshot: scoreData,
+    trigger_source: "api_hook",
+    trigger_event: hasProfile ? "score_rescore" : "score_mint",
+  });
+
+  if (!underwrite.ok) {
+    const supabase = getSupabaseAdmin();
+    if (supabase) {
+      await supabase
+        .from("account_profiles")
+        .update({ mint_status: "failed", updated_at: new Date().toISOString() })
+        .eq("wallet_address", wallet.toLowerCase());
+    }
+    return { ok: false, error: underwrite.error };
+  }
+
+  const data = underwrite.data ?? {};
+  const action = data.action as string | undefined;
+  const credScore =
+    typeof data.cred_score === "number"
+      ? data.cred_score
+      : typeof data.score === "number"
+        ? data.score
+        : typeof scoreData.cred_score === "number"
+          ? (scoreData.cred_score as number)
+          : null;
+
+  let txHash = (data.tx as string | undefined) || null;
+  if (!txHash && action !== "skip" && credScore != null) {
+    txHash = await fetchSbtMintTxHash(wallet as `0x${string}`);
+  }
+
+  const supabase = getSupabaseAdmin();
+  if (supabase && credScore != null) {
+    const onchain = data.onchain as string | undefined;
+    const mintedNow = onchain === "mintSBT" || onchain === "mintScore";
+    await supabase
+      .from("account_profiles")
+      .update({
+        ...(mintedNow && txHash
+          ? { mint_tx_hash: txHash, minted_at: new Date().toISOString() }
+          : {}),
+        mint_status: "minted",
+        sbt_score_on_chain: credScore,
+        cred_score: credScore,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("wallet_address", wallet.toLowerCase());
+  }
+
+  return { ok: true, data: { ...data, tx: txHash, cred_score: credScore } };
 }
 
 export async function triggerSyncScore(

@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireRequestWallet } from "@/lib/wallet-request";
-import {
-  getSupabaseAdmin,
-  profileFromScoreResponse,
-} from "@/lib/supabase-server";
-import { triggerSyncScore } from "@/lib/agent-client";
+import { finalizeCompleteScoreRun } from "@/lib/score-run-finalize";
+import { getSupabaseAdmin } from "@/lib/supabase-server";
 
 const SCORING_API = process.env.SCORING_API_URL || "http://localhost:8000";
 
@@ -34,45 +31,28 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const supabase = getSupabaseAdmin();
-    let supabaseSaved = false;
-    let supabaseError: string | null = null;
-
-    if (supabase) {
-      const { error: runError } = await supabase.from("score_runs").insert({
-        wallet_address: wallet.toLowerCase(),
-        status: data.status || "unknown",
+    let extras = null;
+    if (data.status === "complete") {
+      extras = await finalizeCompleteScoreRun(wallet, data, {
         require_reclaim,
-        reclaim_session_id: data.reclaim_session_id || reclaim_session_id || null,
-        response: data,
+        reclaim_session_id,
       });
-      if (runError) {
-        supabaseError = runError.message;
-      }
-
-      if (data.status === "complete") {
-        const { error: profileError } = await supabase.from("account_profiles").upsert({
-          ...profileFromScoreResponse(wallet, data, reclaim_session_id),
-          mint_status: null,
+    } else {
+      const supabase = getSupabaseAdmin();
+      if (supabase) {
+        await supabase.from("score_runs").insert({
+          wallet_address: wallet.toLowerCase(),
+          status: data.status || "unknown",
+          require_reclaim,
+          reclaim_session_id: data.reclaim_session_id || reclaim_session_id || null,
+          response: data,
         });
-        if (profileError) {
-          supabaseError = profileError.message;
-        } else {
-          supabaseSaved = true;
-        }
       }
-    }
-
-    let lzSync = null;
-    if (data.status === "complete" && typeof data.cred_score === "number") {
-      lzSync = await triggerSyncScore(wallet, data.cred_score, "api_hook", "score_complete");
     }
 
     return NextResponse.json({
       ...data,
-      supabase_saved: supabaseSaved,
-      supabase_error: supabaseError,
-      lz_sync: lzSync,
+      ...(extras ?? {}),
     });
   } catch (err) {
     return NextResponse.json(
