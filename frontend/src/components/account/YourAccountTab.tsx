@@ -69,6 +69,8 @@ export function YourAccountTab() {
   const [error, setError] = useState<string | null>(null);
   const [minting, setMinting] = useState(false);
   const [mintError, setMintError] = useState<string | null>(null);
+  const [mintTxHash, setMintTxHash] = useState<string | null>(null);
+  const [sbtTokenId, setSbtTokenId] = useState<string | null>(null);
   const [latestScoreRun, setLatestScoreRun] = useState<ScoreRunRecord | null>(null);
   const [hasCachedScore, setHasCachedScore] = useState(false);
   const [reclaimMessage, setReclaimMessage] = useState<string | null>(null);
@@ -108,6 +110,8 @@ export function YourAccountTab() {
     setProfile(data.profile);
     setHasOnChainSbt(data.hasOnChainSbt);
     setOnChainScore(data.onChainScore ?? null);
+    setMintTxHash(data.mintTxHash ?? null);
+    setSbtTokenId(data.sbtTokenId ?? null);
     setLatestScoreRun(data.latestScoreRun);
 
     const fromRun = scoreDataFromLatestRun(data.latestScoreRun);
@@ -416,6 +420,8 @@ export function YourAccountTab() {
       hasOnChainSbt={hasOnChainSbt}
       onChainScore={onChainScore}
       hasCachedScore={hasCachedScore}
+      mintTxHash={mintTxHash}
+      sbtTokenId={sbtTokenId}
       onMint={handleMint}
       onRescore={() => setScoreFlowView("choose")}
       onAddBank={startBankScore}

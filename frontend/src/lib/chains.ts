@@ -1,5 +1,9 @@
 import { defineChain } from "viem";
 
+const robinhoodExplorerBase =
+  process.env.NEXT_PUBLIC_ROBINHOOD_EXPLORER ||
+  "https://explorer.testnet.chain.robinhood.com";
+
 export const robinhoodTestnet = defineChain({
   id: Number(process.env.NEXT_PUBLIC_ROBINHOOD_CHAIN_ID || 46630),
   name: "Robinhood Testnet",
@@ -8,6 +12,9 @@ export const robinhoodTestnet = defineChain({
     default: {
       http: [process.env.NEXT_PUBLIC_RPC_ROBINHOOD || "https://rpc.testnet.chain.robinhood.com"],
     },
+  },
+  blockExplorers: {
+    default: { name: "Robinhood Explorer", url: robinhoodExplorerBase },
   },
 });
 
@@ -61,9 +68,11 @@ export const chainIdByKey: Record<ChainKey, number> = {
   base: baseSepolia.id,
 };
 
-/** Block explorer tx URL when available (hub testnet has no public explorer). */
+/** Block explorer tx URL for a supported chain. */
 export function txExplorerUrl(chainKey: ChainKey, txHash: string): string | null {
   switch (chainKey) {
+    case "hub":
+      return `${robinhoodExplorerBase}/tx/${txHash}`;
     case "arbitrum":
       return `https://sepolia.arbiscan.io/tx/${txHash}`;
     case "base":
@@ -71,4 +80,13 @@ export function txExplorerUrl(chainKey: ChainKey, txHash: string): string | null
     default:
       return null;
   }
+}
+
+export function hubAddressExplorerUrl(address: string): string {
+  return `${robinhoodExplorerBase}/address/${address}`;
+}
+
+/** ERC-721 token page (Blockscout-style). */
+export function hubNftExplorerUrl(contractAddress: string, tokenId: string | number): string {
+  return `${robinhoodExplorerBase}/token/${contractAddress}?a=${tokenId}`;
 }

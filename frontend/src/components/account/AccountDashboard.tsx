@@ -13,6 +13,8 @@ type Props = {
   hasOnChainSbt: boolean;
   onChainScore?: number | null;
   hasCachedScore: boolean;
+  mintTxHash?: string | null;
+  sbtTokenId?: string | null;
   onMint: () => void;
   onRescore: () => void;
   onAddBank?: () => void;
@@ -160,6 +162,8 @@ export function AccountDashboard({
   hasOnChainSbt,
   onChainScore,
   hasCachedScore,
+  mintTxHash,
+  sbtTokenId,
   onMint,
   onRescore,
   onAddBank,
@@ -185,8 +189,10 @@ export function AccountDashboard({
     () =>
       buildScoreRunDetailCards(scoreResponse, {
         minted,
+        mintTxHash,
+        sbtTokenId,
       }),
-    [scoreResponse, minted]
+    [scoreResponse, minted, mintTxHash, sbtTokenId]
   );
 
   const showMintAction = !minted && hasCachedScore && approved;

@@ -1,3 +1,6 @@
+import hubAddresses from "@/lib/addresses.json";
+import { hubNftExplorerUrl, txExplorerUrl } from "@/lib/chains";
+
 export type DetailLine = {
   label: string;
   value: string;
@@ -17,10 +20,16 @@ function fmt(value: unknown): string | null {
   if (typeof value === "number") {
     if (Number.isNaN(value)) return null;
     if (Number.isInteger(value)) return String(value);
-    return value.toFixed(2).replace(/\.?0+$/, "");
+    return value.toFixed(4).replace(/\.?0+$/, "");
   }
   if (typeof value === "string") return value.trim() ? value : null;
   return String(value);
+}
+
+function fmtDays(value: unknown): string | null {
+  const n = Number(value);
+  if (Number.isNaN(n)) return null;
+  return `${n.toFixed(4)} days`;
 }
 
 function pct(value: unknown): string | null {
@@ -147,6 +156,8 @@ export function buildScoreRunDetailCards(
   response: Record<string, unknown> | null | undefined,
   context?: {
     minted?: boolean;
+    mintTxHash?: string | null;
+    sbtTokenId?: string | null;
   }
 ): DetailCard[] {
   if (!response) return [];
@@ -226,17 +237,12 @@ export function buildScoreRunDetailCards(
     id: "wallet",
     title: "Wallet behavior",
     lines: compactLines([
-      row("Wallet age", walletFeatures?.wallet_age_days != null ? `${walletFeatures.wallet_age_days} days` : null),
+      row("Wallet age", fmtDays(walletFeatures?.wallet_age_days)),
       row("Lifetime transactions", walletFeatures?.tx_count ?? sybil.lifetime_tx_count),
       row("Unique contracts", walletFeatures?.unique_contracts_interacted),
       row("Active months (6 mo)", walletFeatures?.active_months_last_6),
       row("Days since last active", walletFeatures?.days_since_last_active),
-      row(
-        "Longest inactive gap",
-        walletFeatures?.longest_inactive_gap_days != null
-          ? `${walletFeatures.longest_inactive_gap_days} days`
-          : null
-      ),
+      row("Longest inactive gap", fmtDays(walletFeatures?.longest_inactive_gap_days)),
       walletFeatures?.eth_balance != null
         ? row("ETH balance (total)", Number(walletFeatures.eth_balance).toFixed(4))
         : null,
@@ -259,11 +265,14 @@ export function buildScoreRunDetailCards(
       row("Multi-protocol borrower", crossFeatures?.multi_protocol_borrow_flag, {
         tone: Number(crossFeatures?.multi_protocol_borrow_flag) ? "positive" : "neutral",
       }),
-      row("Avg loan duration", crossFeatures?.avg_loan_duration_days != null
-        ? `${crossFeatures.avg_loan_duration_days} days`
-        : borrowRaw?.avg_loan_duration != null
-          ? `${borrowRaw.avg_loan_duration} days`
-          : null),
+      row(
+        "Avg loan duration",
+        crossFeatures?.avg_loan_duration_days != null
+          ? fmtDays(crossFeatures.avg_loan_duration_days)
+          : borrowRaw?.avg_loan_duration != null
+            ? fmtDays(borrowRaw.avg_loan_duration)
+            : null
+      ),
       row("Partial repays", crossFeatures?.partial_repay_count),
     ]),
   });
@@ -406,6 +415,14 @@ export function buildScoreRunDetailCards(
     });
   }
 
+  const sbtContract = hubAddresses.sbt as string;
+  const sbtExplorerHref =
+    context?.minted && context.sbtTokenId && sbtContract
+      ? hubNftExplorerUrl(sbtContract, context.sbtTokenId)
+      : context?.minted && context.mintTxHash
+        ? txExplorerUrl("hub", context.mintTxHash) ?? undefined
+        : undefined;
+
   pushCard(cards, {
     id: "credential",
     title: "On-chain credential",
@@ -413,6 +430,16 @@ export function buildScoreRunDetailCards(
       row("SBT minted", context?.minted ?? false, {
         tone: context?.minted ? "positive" : "neutral",
       }),
+      context?.minted && context.sbtTokenId
+        ? row("Token ID", `#${context.sbtTokenId}`)
+        : null,
+      sbtExplorerHref
+        ? row(
+            "View SBT",
+            context?.sbtTokenId ? "Open token in explorer" : "Open mint in explorer",
+            { href: sbtExplorerHref, tone: "positive" }
+          )
+        : null,
       row("Network", "Robinhood hub"),
       row("Token type", "Soulbound"),
       row("Cross-chain sync", context?.minted ? "Synced to spokes" : "Available after mint", {

@@ -164,10 +164,10 @@ export function AgentCard({
       onKeyDown={handleKeyDown}
       className={`agent-card card-shell flex h-full flex-col overflow-hidden ${
         isCompact
-          ? "agent-card--compact min-h-[5.25rem] cursor-pointer border-l-2 border-l-primary/35 bg-[color-mix(in_oklch,var(--color-card)_92%,var(--color-primary))] hover:border-l-primary/55 hover:bg-[color-mix(in_oklch,var(--color-card)_88%,var(--color-primary))]"
+          ? "agent-card--compact h-[5.25rem] max-h-[5.25rem] min-h-[5.25rem] cursor-pointer border-l-2 border-l-primary/35 bg-[color-mix(in_oklch,var(--color-card)_92%,var(--color-primary))] hover:border-l-primary/55 hover:bg-[color-mix(in_oklch,var(--color-card)_88%,var(--color-primary))]"
           : isFocused
-            ? "agent-card--focused min-h-[32rem] ring-1 ring-primary/25"
-            : "agent-card--default min-h-[22rem]"
+            ? "agent-card--focused h-[32rem] max-h-[32rem] min-h-[32rem] ring-1 ring-primary/25"
+            : "agent-card--default h-[22rem] max-h-[22rem] min-h-[22rem]"
       } ${
         isInteractive
           ? "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"

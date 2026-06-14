@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createPublicClient, http } from "viem";
 import { requireRequestWallet } from "@/lib/wallet-request";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
-import { fetchSbtMintTxHash } from "@/lib/sbt-chain";
+import { resolveLatestSbtMintCredentials } from "@/lib/sbt-mint-credentials";
 import { patchScoreSnapshot } from "@/lib/score-display";
 import hubAddresses from "@/lib/addresses.json";
 import { robinhoodTestnet } from "@/lib/chains";
@@ -127,23 +127,6 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    let mintTxHash =
-      (profile?.mint_tx_hash as string | undefined) || null;
-    if (hasOnChainSbt && !mintTxHash) {
-      mintTxHash = await fetchSbtMintTxHash(wallet);
-      if (mintTxHash && supabase && profile) {
-        await supabase
-          .from("account_profiles")
-          .update({
-            mint_tx_hash: mintTxHash,
-            mint_status: profile.mint_status || "minted",
-            updated_at: new Date().toISOString(),
-          })
-          .eq("wallet_address", wallet.toLowerCase());
-        profile = { ...profile, mint_tx_hash: mintTxHash };
-      }
-    }
-
     let latestScoreRun: Record<string, unknown> | null = null;
     if (supabase) {
       const { data: run } = await supabase
@@ -156,12 +139,25 @@ export async function GET(req: NextRequest) {
       latestScoreRun = run as Record<string, unknown> | null;
     }
 
+    let mintTxHash: string | null = null;
+    let sbtTokenId: string | null = null;
+    if (hasOnChainSbt && supabase) {
+      const mintCreds = await resolveLatestSbtMintCredentials(wallet, supabase, {
+        latestScoreRunCreatedAt: latestScoreRun?.created_at as string | undefined,
+        profileMintTxHash: profile?.mint_tx_hash as string | undefined,
+        profileMintedAt: profile?.minted_at as string | undefined,
+      });
+      mintTxHash = mintCreds.mintTxHash;
+      sbtTokenId = mintCreds.sbtTokenId;
+    }
+
     return NextResponse.json({
       wallet,
       profile,
       hasOnChainSbt,
       onChainScore,
       mintTxHash,
+      sbtTokenId,
       latestScoreRun,
     });
   } catch (err) {

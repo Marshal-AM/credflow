@@ -69,5 +69,4 @@ temp/
 # ML artifacts
 ml/*.pkl
 ml/*.pt
-!ml/sybil_model.pt
 ml/data/
