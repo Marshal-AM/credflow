@@ -33,7 +33,9 @@ type Props = {
   crashPrice: number;
   apiFetch: (path: string, init?: RequestInit) => Promise<Response>;
   onRefresh: () => Promise<void>;
+  flowCompleted: boolean;
   onFlowCompleted: () => void;
+  onWhitelistComplete: () => void;
 };
 
 function extractTxs(r: Record<string, unknown>): string[] {
@@ -72,7 +74,9 @@ export function TestDefaultFlow({
   crashPrice,
   apiFetch,
   onRefresh,
+  flowCompleted,
   onFlowCompleted,
+  onWhitelistComplete,
 }: Props) {
   const reducedMotion = usePrefersReducedMotion();
   const [running, setRunning] = useState(false);
@@ -106,10 +110,12 @@ export function TestDefaultFlow({
       const status = String(result?.status ?? "");
       if (status === "already_whitelisted") {
         toast.success("Wallet already whitelisted on hub and spokes", "test-default-whitelist");
+        onWhitelistComplete();
       } else if (status === "no_profile") {
         toast.warning("No hub SBT profile — complete Account scoring first", "test-default-whitelist");
       } else {
         toast.success("Wallet whitelisted on hub and spokes", "test-default-whitelist");
+        onWhitelistComplete();
       }
       await onRefresh();
     } catch (err) {
@@ -117,7 +123,7 @@ export function TestDefaultFlow({
     } finally {
       setWhitelistBusy(false);
     }
-  }, [apiFetch, onRefresh]);
+  }, [apiFetch, onRefresh, onWhitelistComplete]);
 
   const callStep = useCallback(
     async (step: string, body: Record<string, unknown> = {}) => {
@@ -279,6 +285,8 @@ export function TestDefaultFlow({
     status?.hub.hubBlacklisted &&
     persistedGraph != null;
 
+  const showWhitelist = Boolean(status?.hub.hubBlacklisted || flowCompleted);
+
   return (
     <section className="card-padded">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
@@ -291,14 +299,16 @@ export function TestDefaultFlow({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            disabled={whitelistBusy}
-            onClick={() => void handleWhitelist()}
-            className="btn-outline-primary disabled:opacity-50"
-          >
-            {whitelistBusy ? "Whitelisting…" : "Whitelist wallet"}
-          </button>
+          {showWhitelist ? (
+            <button
+              type="button"
+              disabled={whitelistBusy}
+              onClick={() => void handleWhitelist()}
+              className="btn-outline-primary disabled:opacity-50"
+            >
+              {whitelistBusy ? "Whitelisting…" : "Whitelist wallet"}
+            </button>
+          ) : null}
           {!showBlocked && (
             <button
               type="button"

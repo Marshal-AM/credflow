@@ -1,7 +1,6 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
 import { WalletSection } from "@/components/wallet/WalletSection";
 import type { AppTab } from "@/lib/ui-persistence";
 
@@ -73,32 +72,8 @@ type Props = {
 };
 
 export function AppNavbar({ tab, onTabChange }: Props) {
-  const [isVisible, setIsVisible] = useState(true);
-  const [lastScrollY, setLastScrollY] = useState(0);
-
-  useEffect(() => {
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-      if (currentScrollY > lastScrollY && currentScrollY > 80) {
-        setIsVisible(false);
-      } else {
-        setIsVisible(true);
-      }
-      setLastScrollY(currentScrollY);
-    };
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, [lastScrollY]);
-
   return (
-    <header
-      className="sticky top-0 z-50 shrink-0 bg-transparent pt-4 will-change-transform md:pt-6"
-      style={{
-        transform: isVisible ? "translate3d(0, 0, 0)" : "translate3d(0, -130%, 0)",
-        transition: "transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)",
-      }}
-    >
+    <header className="shrink-0 bg-transparent pt-4 md:pt-6">
       <div className="flex h-[72px] w-full items-center justify-between bg-transparent px-[7.5%] transition-all duration-300">
         <div className="flex items-center gap-8 md:gap-10 lg:gap-12">
           <button

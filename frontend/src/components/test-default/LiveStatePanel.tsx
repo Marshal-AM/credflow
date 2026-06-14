@@ -33,9 +33,6 @@ type Props = {
   open: boolean;
   onToggle: () => void;
   onRefresh: () => void;
-  flowCompleted: boolean;
-  resetBusy: boolean;
-  onReset: () => void;
 };
 
 export function LiveStatePanel({
@@ -43,9 +40,6 @@ export function LiveStatePanel({
   open,
   onToggle,
   onRefresh,
-  flowCompleted,
-  resetBusy,
-  onReset,
 }: Props) {
   return (
     <section className="card-shell overflow-hidden">
@@ -71,16 +65,6 @@ export function LiveStatePanel({
           <h2 className="text-lg font-[650] tracking-tight">Live state</h2>
         </button>
         <div className="flex items-center gap-2">
-          {status?.hub.hubBlacklisted || flowCompleted ? (
-            <button
-              type="button"
-              disabled={resetBusy}
-              onClick={onReset}
-              className="btn-outline-primary text-sm disabled:opacity-50"
-            >
-              {resetBusy ? "Resetting…" : "Reset wallet"}
-            </button>
-          ) : null}
           <button type="button" onClick={onRefresh} className="btn-secondary text-sm">
             Refresh
           </button>

@@ -13,7 +13,6 @@ export function TestDefaultTab() {
   const [status, setStatus] = useState<DefaultTestStatus | null>(null);
   const [liveStateOpen, setLiveStateOpen] = useState(true);
   const [flowCompleted, setFlowCompleted] = useState(false);
-  const [resetBusy, setResetBusy] = useState(false);
   const crashPrice = 200;
 
   const load = useCallback(async () => {
@@ -32,26 +31,6 @@ export function TestDefaultTab() {
     void load();
   }, [load]);
 
-  async function resetWallet() {
-    setResetBusy(true);
-    try {
-      const res = await apiFetch("/api/test-default/step", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ step: "unblacklist" }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Reset failed");
-      toast.success("Wallet whitelisted on hub and spokes", "test-default-reset");
-      setFlowCompleted(false);
-      await load();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Reset failed", "test-default-reset");
-    } finally {
-      setResetBusy(false);
-    }
-  }
-
   const loanId = status?.hub.loanId ? Number(status.hub.loanId) : null;
 
   if (!isConnected && !isConnecting) {
@@ -65,9 +44,6 @@ export function TestDefaultTab() {
         open={liveStateOpen}
         onToggle={() => setLiveStateOpen((v) => !v)}
         onRefresh={() => void load()}
-        flowCompleted={flowCompleted}
-        resetBusy={resetBusy}
-        onReset={() => void resetWallet()}
       />
 
       <TestDefaultFlow
@@ -76,7 +52,9 @@ export function TestDefaultTab() {
         crashPrice={crashPrice}
         apiFetch={apiFetch}
         onRefresh={load}
+        flowCompleted={flowCompleted}
         onFlowCompleted={() => setFlowCompleted(true)}
+        onWhitelistComplete={() => setFlowCompleted(false)}
       />
     </div>
   );
