@@ -1,9 +1,10 @@
-import type { Hash } from "viem";
+import type { Hash, PublicClient } from "viem";
 import { formatUnits, maxUint256, parseEther, parseUnits } from "viem";
 import type { useWriteContract } from "wagmi";
 import { contractsByChain, ERC20_ABI, LENDING_ABI, WETH_ABI } from "@/lib/contracts";
 import type { ChainKey } from "@/lib/chains";
 import { chainIdByKey } from "@/lib/chains";
+import { writeContractWithGas } from "@/lib/wallet-tx";
 
 type WriteContractAsync = ReturnType<typeof useWriteContract>["writeContractAsync"];
 
@@ -12,11 +13,19 @@ export async function clientBorrowLoan(params: {
   borrowAmount: string;
   durationDays: number;
   collateralEth: string;
+  publicClient: PublicClient;
   writeContractAsync: WriteContractAsync;
   ensureChain: () => Promise<void>;
 }): Promise<{ txHash: Hash; collateralEth: string }> {
-  const { chainKey, borrowAmount, durationDays, collateralEth, writeContractAsync, ensureChain } =
-    params;
+  const {
+    chainKey,
+    borrowAmount,
+    durationDays,
+    collateralEth,
+    publicClient,
+    writeContractAsync,
+    ensureChain,
+  } = params;
   const cfg = contractsByChain[chainKey];
   if (!cfg.lending) throw new Error(`Lending not deployed on ${cfg.label}`);
 
@@ -27,19 +36,22 @@ export async function clientBorrowLoan(params: {
   const weth = cfg.weth as `0x${string}`;
   const lending = cfg.lending as `0x${string}`;
 
+  const write = (args: Parameters<WriteContractAsync>[0]) =>
+    writeContractWithGas(publicClient, writeContractAsync, args);
+
   try {
-    await writeContractAsync({
+    await write({
       address: weth,
       abi: WETH_ABI,
       functionName: "deposit",
       value: collateral,
       chainId: targetChainId,
-    });
+    } as unknown as Parameters<WriteContractAsync>[0]);
   } catch {
     /* may already have WETH */
   }
 
-  await writeContractAsync({
+  await write({
     address: weth,
     abi: WETH_ABI,
     functionName: "approve",
@@ -47,7 +59,7 @@ export async function clientBorrowLoan(params: {
     chainId: targetChainId,
   });
 
-  const txHash = await writeContractAsync({
+  const txHash = await write({
     address: lending,
     abi: LENDING_ABI,
     functionName: "requestLoan",
@@ -63,10 +75,19 @@ export async function clientRepayLoan(params: {
   loanId: bigint;
   totalDue: bigint;
   borrowToken: `0x${string}`;
+  publicClient: PublicClient;
   writeContractAsync: WriteContractAsync;
   ensureChain: () => Promise<void>;
 }): Promise<{ txHash: Hash; totalRepaidFormatted: string; borrowSymbol: string }> {
-  const { chainKey, loanId, totalDue, borrowToken, writeContractAsync, ensureChain } = params;
+  const {
+    chainKey,
+    loanId,
+    totalDue,
+    borrowToken,
+    publicClient,
+    writeContractAsync,
+    ensureChain,
+  } = params;
   const cfg = contractsByChain[chainKey];
   if (!cfg.lending) throw new Error(`Lending not deployed on ${cfg.label}`);
 
@@ -74,8 +95,11 @@ export async function clientRepayLoan(params: {
   const targetChainId = chainIdByKey[chainKey];
   const lending = cfg.lending as `0x${string}`;
 
+  const write = (args: Parameters<WriteContractAsync>[0]) =>
+    writeContractWithGas(publicClient, writeContractAsync, args);
+
   try {
-    await writeContractAsync({
+    await write({
       address: borrowToken,
       abi: ERC20_ABI,
       functionName: "approve",
@@ -86,7 +110,7 @@ export async function clientRepayLoan(params: {
     /* some tokens skip zero reset */
   }
 
-  await writeContractAsync({
+  await write({
     address: borrowToken,
     abi: ERC20_ABI,
     functionName: "approve",
@@ -94,7 +118,7 @@ export async function clientRepayLoan(params: {
     chainId: targetChainId,
   });
 
-  const txHash = await writeContractAsync({
+  const txHash = await write({
     address: lending,
     abi: LENDING_ABI,
     functionName: "repayLoan",

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import {
   useAccount,
+  usePublicClient,
   useReadContract,
   useWriteContract,
 } from "wagmi";
@@ -47,13 +48,14 @@ function ActiveLoanCard({
   const chainKey = chain.chainKey as ChainKey;
   const cfg = contractsByChain[chainKey];
   const loan = chain.loan!;
+  const targetChainId = chainIdByKey[chainKey];
   const { address, isConnected } = useAccount();
   const { apiFetch } = useWalletApi();
   const { ensureChain } = useEnsureChain(chainKey);
   const { writeContractAsync } = useWriteContract();
+  const publicClient = usePublicClient({ chainId: targetChainId });
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
-  const targetChainId = chainIdByKey[chainKey];
 
   const { data: onChainLoanId } = useReadContract({
     address: cfg.lending as `0x${string}`,
@@ -95,7 +97,7 @@ function ActiveLoanCard({
   const due = new Date(Number(loan.dueTime) * 1000);
 
   async function handleRepay() {
-    if (!address || !loanRaw || !borrowToken || loanId === 0n) return;
+    if (!address || !loanRaw || !borrowToken || loanId === 0n || !publicClient) return;
     setBusy(true);
     setStatus("Switching network and signing repay…");
     try {
@@ -105,6 +107,7 @@ function ActiveLoanCard({
         loanId,
         totalDue,
         borrowToken: borrowToken as `0x${string}`,
+        publicClient,
         writeContractAsync,
         ensureChain,
       });

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   useAccount,
+  usePublicClient,
   useWaitForTransactionReceipt,
   useWriteContract,
 } from "wagmi";
@@ -13,6 +14,7 @@ import { useLoansChain } from "./LoansChainContext";
 import type { CollateralQuote } from "./loans-types";
 import { contractsByChain } from "@/lib/contracts";
 import type { ChainKey } from "@/lib/chains";
+import { chainIdByKey } from "@/lib/chains";
 import { useEnsureChain } from "@/hooks/use-ensure-chain";
 import { useWalletApi } from "@/hooks/use-wallet-api";
 import { clientBorrowLoan, formatCollateralEth } from "@/lib/loan-client";
@@ -39,7 +41,9 @@ export function PurchaseLoanPanel({ onSuccess }: Props) {
 
   const chainKey = selectedChainKey as ChainKey | null;
   const cfg = chainKey ? contractsByChain[chainKey] : null;
+  const targetChainId = chainKey ? chainIdByKey[chainKey] : undefined;
   const { ensureChain } = useEnsureChain(chainKey ?? "hub");
+  const publicClient = usePublicClient({ chainId: targetChainId });
 
   const loadQuote = useCallback(async () => {
     if (!selectedChain || !selectedChain.eligible || selectedChain.score <= 0) {
@@ -87,7 +91,7 @@ export function PurchaseLoanPanel({ onSuccess }: Props) {
   }, [quoteError, selectedChainKey]);
 
   async function handleBorrow() {
-    if (!quote || !selectedChain || !chainKey || !cfg || !isConnected) return;
+    if (!quote || !selectedChain || !chainKey || !cfg || !isConnected || !publicClient) return;
     setBusy(true);
     setStatus("Switching network and signing borrow…");
     try {
@@ -96,6 +100,7 @@ export function PurchaseLoanPanel({ onSuccess }: Props) {
         borrowAmount,
         durationDays: Number(durationDays),
         collateralEth: quote.collateral_eth,
+        publicClient,
         writeContractAsync,
         ensureChain,
       });
