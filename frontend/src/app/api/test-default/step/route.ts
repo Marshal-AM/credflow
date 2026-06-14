@@ -9,7 +9,6 @@ import {
   triggerPortfolioMonitor,
   triggerUnblacklist,
 } from "@/lib/agent-client";
-import { writeApiHookRun } from "@/lib/run-file-log";
 
 type Step =
   | "crash_oracle"
@@ -69,16 +68,6 @@ export async function POST(req: NextRequest) {
       default:
         return NextResponse.json({ error: "Invalid step" }, { status: 400 });
     }
-
-    writeApiHookRun({
-      hook: "test-default",
-      wallet,
-      success: result.ok,
-      summary: `test-default ${step}`,
-      steps: [{ step, ok: result.ok, error: result.error, data: result.data }],
-      payload: { step, loan_id: loanId, result: result.data },
-      error: result.error,
-    });
 
     if (!result.ok) {
       return NextResponse.json({ error: result.error || "Step failed" }, { status: 500 });

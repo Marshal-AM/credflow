@@ -1,6 +1,6 @@
 "use client";
 
-import type { KeyboardEvent } from "react";
+import { useEffect, useState, type KeyboardEvent } from "react";
 import { AgentLogTerminal } from "./AgentLogTerminal";
 import { AgentTriggerBadge } from "./AgentTriggerBadge";
 import { AGENT_META, type AgentRun, type LogLine } from "./agent-types";
@@ -12,18 +12,43 @@ type Props = {
   lastRun: AgentRun | null;
   logs: LogLine[];
   variant?: AgentCardVariant;
-  running?: boolean;
   onActivate?: () => void;
   onMinimize?: () => void;
-  onRun?: () => void;
 };
 
-function statusLabel(lastRun: AgentRun | null, running: boolean): string {
-  if (running) return "Running";
-  if (!lastRun) return "Idle";
-  if (lastRun.status === "success" || lastRun.status === "completed") return "Completed";
-  if (lastRun.status === "failed" || lastRun.status === "error") return "Failed";
-  return lastRun.status;
+function isRunFailed(status: string): boolean {
+  return status === "failed" || status === "error";
+}
+
+function isRunSuccess(status: string): boolean {
+  return status === "success" || status === "completed";
+}
+
+function formatRelativeTime(iso: string, now = Date.now()): string {
+  const then = Date.parse(iso);
+  if (Number.isNaN(then)) return "";
+  const diffSec = Math.max(0, Math.floor((now - then) / 1000));
+  if (diffSec < 60) return "just now";
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin} min ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr} hr ago`;
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffDay < 7) return `${diffDay} d ago`;
+  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function lastRunLabel(lastRun: AgentRun | null, now = Date.now()): string {
+  if (lastRun?.status === "running") return "Running now";
+  if (!lastRun) return "No runs yet";
+  const when = formatRelativeTime(lastRun.finished_at || lastRun.started_at, now);
+  if (isRunFailed(lastRun.status)) {
+    return when ? `Last run: failed · ${when}` : "Last run: failed";
+  }
+  if (isRunSuccess(lastRun.status)) {
+    return when ? `Last run: success · ${when}` : "Last run: success";
+  }
+  return when ? `Last run: ${lastRun.status} · ${when}` : `Last run: ${lastRun.status}`;
 }
 
 function StatusDot({
@@ -100,17 +125,22 @@ export function AgentCard({
   lastRun,
   logs,
   variant = "default",
-  running = false,
   onActivate,
   onMinimize,
-  onRun,
 }: Props) {
   const meta = AGENT_META[agentId as keyof typeof AGENT_META];
   const label = meta?.label ?? agentId;
   const description = meta?.description ?? "";
-  const status = statusLabel(lastRun, running);
-  const isActive = running || lastRun?.status === "running";
-  const failed = status === "Failed";
+  const isRunning = lastRun?.status === "running";
+  const failed = lastRun ? isRunFailed(lastRun.status) : false;
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    if (!lastRun || isRunning) return;
+    const id = setInterval(() => setNowMs(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, [lastRun?.id, lastRun?.status, isRunning]);
+
+  const runLabel = lastRunLabel(lastRun, nowMs);
   const isCompact = variant === "compact";
   const isFocused = variant === "focused";
   const isInteractive = isCompact || variant === "default";
@@ -154,13 +184,13 @@ export function AgentCard({
             <div className="min-w-0 space-y-1">
               <AgentTitle
                 label={label}
-                isActive={isActive}
+                isActive={isRunning}
                 lastRun={lastRun}
                 failed={failed}
                 compact
               />
               <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 pl-4 text-[10px] text-muted-foreground">
-                <span className="font-[650] text-foreground/80">{status}</span>
+                <span className="font-[650] text-foreground/80">{runLabel}</span>
                 <span aria-hidden>·</span>
                 <span>
                   {logCount} log {logCount === 1 ? "line" : "lines"}
@@ -175,7 +205,7 @@ export function AgentCard({
               <div className="min-w-0">
                 <AgentTitle
                   label={label}
-                  isActive={isActive}
+                  isActive={isRunning}
                   lastRun={lastRun}
                   failed={failed}
                 />
@@ -183,65 +213,32 @@ export function AgentCard({
                   {description}
                 </p>
               </div>
-              <div className="flex shrink-0 items-center gap-2">
-                {isFocused && onMinimize && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onMinimize();
-                    }}
-                    aria-label="Minimize agent grid"
-                    className="rounded-full px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
-                  >
-                    Minimize
-                  </button>
-                )}
-                {onRun && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onRun();
-                    }}
-                    disabled={running}
-                    className="btn-outline-primary px-3 py-1.5 text-xs disabled:opacity-50"
-                  >
-                    {running ? "Running…" : "Run"}
-                  </button>
-                )}
-              </div>
+              {isFocused && onMinimize && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onMinimize();
+                  }}
+                  aria-label="Minimize agent grid"
+                  className="shrink-0 rounded-full px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+                >
+                  Minimize
+                </button>
+              )}
             </div>
 
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 pl-4 text-xs text-muted-foreground">
-              <span>
-                Status:{" "}
-                <span className="font-[650] text-foreground/90">{status}</span>
-              </span>
-              {lastRun && (
+              <span className="font-[650] text-foreground/90">{runLabel}</span>
+              {lastRun?.summary && (
                 <>
                   <span className="hidden text-border sm:inline" aria-hidden>
                     ·
                   </span>
-                  <span className="tabular-nums">
-                    {new Date(lastRun.started_at).toLocaleString(undefined, {
-                      month: "short",
-                      day: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </span>
-                  {lastRun.summary && (
-                    <>
-                      <span className="hidden text-border sm:inline" aria-hidden>
-                        ·
-                      </span>
-                      <span className="truncate">{lastRun.summary}</span>
-                    </>
-                  )}
-                  <AgentTriggerBadge source={lastRun.trigger_source} />
+                  <span className="truncate">{lastRun.summary}</span>
                 </>
               )}
+              {lastRun && <AgentTriggerBadge source={lastRun.trigger_source} />}
             </div>
           </>
         )}

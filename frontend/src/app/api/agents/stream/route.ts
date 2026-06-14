@@ -1,10 +1,11 @@
 import { requireRequestWallet } from "@/lib/wallet-request";
-import { loadAgentRunsFromFiles } from "@/lib/agent-run-logs";
+import { loadAgentRuns } from "@/lib/agent-runs";
+import { mapAgentsFromRuns } from "@/components/agents/agent-types";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-/** Server-Sent Events: live agent run logs from logs/agent-runs (no Supabase). */
+/** Server-Sent Events: polls Supabase agent_runs + agent_log_lines for live updates. */
 export async function GET(req: Request) {
   const wallet = requireRequestWallet(req);
   const url = new URL(req.url);
@@ -16,34 +17,38 @@ export async function GET(req: Request) {
 
   const stream = new ReadableStream({
     start(controller) {
-      const push = () => {
+      const push = async () => {
         if (closed) return;
         try {
-          const { runs, logs, sessionDir } = loadAgentRunsFromFiles({
+          const { runs, logs } = await loadAgentRuns({
             wallet,
             agentId,
-            runLimit: 40,
-            logLimit: 150,
+            runLimit: 50,
+            logLimit: 2000,
           });
           const payload = JSON.stringify({
             wallet,
+            agents: mapAgentsFromRuns(runs),
             runs,
             logs,
-            sessionDir,
+            source: "supabase",
             at: new Date().toISOString(),
           });
-          if (payload !== lastPayload) {
+          const hasRunning = runs.some((r) => r.status === "running");
+          if (hasRunning || payload !== lastPayload) {
             lastPayload = payload;
             controller.enqueue(encoder.encode(`data: ${payload}\n\n`));
           }
         } catch (err) {
           const msg = err instanceof Error ? err.message : "log read failed";
-          controller.enqueue(encoder.encode(`event: error\ndata: ${JSON.stringify({ error: msg })}\n\n`));
+          controller.enqueue(
+            encoder.encode(`event: error\ndata: ${JSON.stringify({ error: msg })}\n\n`)
+          );
         }
       };
 
-      push();
-      const interval = setInterval(push, 1500);
+      void push();
+      const interval = setInterval(() => void push(), 1500);
 
       req.signal.addEventListener("abort", () => {
         closed = true;

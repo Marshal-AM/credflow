@@ -5,7 +5,6 @@ import {
   profileFromScoreResponse,
 } from "@/lib/supabase-server";
 import { triggerSyncScore } from "@/lib/agent-client";
-import { writeApiHookRun } from "@/lib/run-file-log";
 
 const SCORING_API = process.env.SCORING_API_URL || "http://localhost:8000";
 
@@ -68,23 +67,6 @@ export async function POST(req: NextRequest) {
     if (data.status === "complete" && typeof data.cred_score === "number") {
       lzSync = await triggerSyncScore(wallet, data.cred_score, "api_hook", "score_complete");
     }
-
-    writeApiHookRun({
-      hook: "score",
-      wallet,
-      success: data.status === "complete",
-      summary: `status=${data.status} cred_score=${data.cred_score ?? "n/a"}`,
-      steps: [
-        { step: "ml_score", ok: res.ok, data: { status: data.status, cred_score: data.cred_score } },
-        {
-          step: "lz_sync",
-          ok: lzSync?.ok ?? false,
-          error: lzSync?.error,
-        },
-        { step: "supabase_profile", ok: supabaseSaved, error: supabaseError ?? undefined },
-      ],
-      payload: { cred_score: data.cred_score, lz_sync: lzSync, supabase_saved: supabaseSaved },
-    });
 
     return NextResponse.json({
       ...data,

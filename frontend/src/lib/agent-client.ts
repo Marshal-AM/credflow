@@ -623,24 +623,3 @@ export async function triggerPortfolioMonitor(wallet: string) {
     trigger_event: "portfolio_monitor",
   });
 }
-
-export async function triggerAgent(agentId: string, wallet?: string) {
-  const body: Record<string, unknown> = {
-    trigger_source: "manual",
-    trigger_event: "manual",
-  };
-  if (wallet) body.wallet_address = wallet;
-
-  switch (agentId) {
-    case "crosschain_sync":
-      return callAgent("/agents/sync", body);
-    case "portfolio_monitor":
-      return callAgent("/agents/monitor", body);
-    case "rate_optimizer":
-      return callAgent("/agents/optimize-rates", body);
-    case "underwriter":
-      return callAgent("/agents/underwrite", { ...body, rescore: false, wallet_address: wallet });
-    default:
-      return { ok: false, error: `Unknown agent: ${agentId}` };
-  }
-}

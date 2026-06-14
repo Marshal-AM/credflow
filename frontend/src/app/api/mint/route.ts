@@ -3,7 +3,6 @@ import { requireRequestWallet } from "@/lib/wallet-request";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { fetchSbtMintTxHash } from "@/lib/sbt-chain";
 import { triggerSyncScore } from "@/lib/agent-client";
-import { writeApiHookRun } from "@/lib/run-file-log";
 
 const SCORING_API = process.env.SCORING_API_URL || "http://localhost:8000";
 
@@ -50,14 +49,6 @@ export async function POST(req: NextRequest) {
           .update({ mint_status: "failed", updated_at: new Date().toISOString() })
           .eq("wallet_address", wallet.toLowerCase());
       }
-      writeApiHookRun({
-        hook: "mint",
-        wallet,
-        success: false,
-        summary: reason,
-        steps: [{ step: "underwriter", ok: false, error: reason }],
-        error: reason,
-      });
       return NextResponse.json({ error: reason, detail: data.detail }, { status: res.status });
     }
 
@@ -85,18 +76,6 @@ export async function POST(req: NextRequest) {
     if (typeof score === "number" && score > 0) {
       lzSync = await triggerSyncScore(wallet, score, "api_hook", "sbt_mint");
     }
-
-    writeApiHookRun({
-      hook: "mint",
-      wallet,
-      success: true,
-      summary: `minted cred_score=${data.cred_score ?? data.score}`,
-      steps: [
-        { step: "underwriter", ok: true, data: { onchain: data.onchain, tx: txHash } },
-        { step: "lz_sync", ok: lzSync?.ok ?? false, error: lzSync?.error },
-      ],
-      payload: { cred_score: data.cred_score, tx: txHash, lz_sync: lzSync },
-    });
 
     return NextResponse.json({ ...data, tx: txHash, mint_tx_hash: txHash, lz_sync: lzSync });
   } catch (err) {

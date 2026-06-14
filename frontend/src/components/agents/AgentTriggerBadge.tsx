@@ -5,6 +5,7 @@ const LABELS: Record<string, string> = {
   defender_sentinel: "Defender Sentinel",
   defender_cron: "Defender Cron",
   api_hook: "API hook",
+  test_default_ui: "Test default",
   manual: "Manual",
   frontend: "Frontend",
 };

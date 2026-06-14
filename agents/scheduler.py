@@ -63,7 +63,6 @@ def _run_logged(
         trigger_event=trigger_event,
     )
     run.start()
-    run.log(f"Starting {agent_id} ({trigger_event})")
     try:
         result = fn()
         summary = "completed"
@@ -87,12 +86,19 @@ def _run_logged(
                             txs.append(tx["tx_hash"])
                     if item.get("health_warning_tx"):
                         txs.append(str(item["health_warning_tx"]))
+
+        from agents.run_log_details import emit_run_details
+
+        emit_run_details(run, agent_id, result)
+        run.log(
+            f"Finished {agent_id}: {summary}",
+            metadata={"phase": "complete", "summary": summary, "tx_count": len(txs)},
+        )
         run.finish(success=True, summary=summary, result={"data": result}, related_tx_hashes=txs)
-        run.log(f"Finished {agent_id}: {summary}")
     except Exception as exc:
         logger.exception("%s failed", agent_id)
-        run.finish(success=False, summary=str(exc), error=str(exc))
         run.log(str(exc), level="error")
+        run.finish(success=False, summary=str(exc), error=str(exc))
 
 
 def _job_monitor() -> list[dict]:
@@ -140,15 +146,9 @@ def _run_cycle(jobs: list[tuple[str, str, Callable[[], dict | list | None]]]) ->
 
 
 def main() -> None:
-    from agents.run_file_log import begin_session, end_session, get_active_session_dir
-
     signal.signal(signal.SIGINT, _stop)
     if hasattr(signal, "SIGTERM"):
         signal.signal(signal.SIGTERM, _stop)
-
-    session_dir = begin_session("agents-serve")
-    logger.info("Run logs → %s", session_dir)
-    logger.info("  agent-runs/  score-runs/  api-hooks/ (under active session)")
 
     logger.info("=" * 60)
     logger.info("CredFlow agent scheduler (no OZ Defender)")
@@ -156,6 +156,7 @@ def main() -> None:
     logger.info("  Rate optimizer every %ss", RATES_INTERVAL)
     logger.info("  Cross-chain sync every %ss", SYNC_INTERVAL)
     logger.info("  Event agents: score/mint/borrow/repay via Next.js api_hook")
+    logger.info("  Run logs → Supabase agent_runs / agent_log_lines")
     logger.info("=" * 60)
 
     last_monitor = 0.0
@@ -183,10 +184,6 @@ def main() -> None:
         time.sleep(5)
 
     logger.info("Agent scheduler stopped.")
-    active = get_active_session_dir()
-    if active:
-        logger.info("Session log files in: %s", active)
-    end_session()
 
 
 if __name__ == "__main__":

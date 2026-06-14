@@ -1,42 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireRequestWallet } from "@/lib/wallet-request";
-import { loadAgentRunsFromFiles } from "@/lib/agent-run-logs";
-
-const AGENT_IDS = [
-  "underwriter",
-  "portfolio_monitor",
-  "liquidation",
-  "crosschain_sync",
-  "rate_optimizer",
-] as const;
+import { loadAgentRuns } from "@/lib/agent-runs";
+import { mapAgentsFromRuns } from "@/components/agents/agent-types";
 
 export async function GET(req: NextRequest) {
   try {
     const wallet = requireRequestWallet(req);
     const agentFilter = req.nextUrl.searchParams.get("agent_id") || undefined;
 
-    const { runs, logs, sessionDir } = loadAgentRunsFromFiles({
+    const { runs, logs } = await loadAgentRuns({
       wallet,
       agentId: agentFilter,
       runLimit: 50,
-      logLimit: 200,
-    });
-
-    const agents = AGENT_IDS.map((id) => {
-      const last = runs.find((r) => r.agent_id === id);
-      return {
-        agent_id: id,
-        last_run: last || null,
-      };
+      logLimit: 2000,
     });
 
     return NextResponse.json({
       wallet,
-      agents,
+      agents: mapAgentsFromRuns(runs),
       runs,
       logs,
-      source: "local_files",
-      session_dir: sessionDir,
+      source: "supabase",
     });
   } catch (err) {
     return NextResponse.json(

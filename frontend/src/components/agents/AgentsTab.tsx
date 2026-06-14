@@ -7,7 +7,6 @@ import { cardVariant, gridContainerClass, gridItemClass } from "./agent-grid-lay
 import { agentViewTransitionName, withViewTransition } from "./view-transition";
 import {
   AGENT_IDS,
-  AGENT_META,
   logsForAgent,
   mapAgentsFromRuns,
   type AgentId,
@@ -26,7 +25,6 @@ export function AgentsTab() {
     "connecting"
   );
   const [focusedId, setFocusedId] = useState<AgentId | null>(null);
-  const [triggering, setTriggering] = useState<string | null>(null);
   const esRef = useRef<EventSource | null>(null);
 
   const applyPayload = useCallback((data: Record<string, unknown>) => {
@@ -42,6 +40,7 @@ export function AgentsTab() {
       const res = await apiFetch("/api/agents");
       const data = await res.json();
       applyPayload(data);
+      setStreamStatus((prev) => (prev === "error" ? "poll" : prev));
       return true;
     } catch {
       setStreamStatus("error");
@@ -58,9 +57,14 @@ export function AgentsTab() {
 
     const streamUrl = `/api/agents/stream?wallet=${encodeURIComponent(address)}`;
 
-    if (typeof EventSource === "undefined") {
+    const startPolling = () => {
+      if (pollId || cancelled) return;
       setStreamStatus("poll");
-      pollId = setInterval(() => void loadOnce(), 3000);
+      pollId = setInterval(() => void loadOnce(), 2000);
+    };
+
+    if (typeof EventSource === "undefined") {
+      startPolling();
     } else {
       const es = new EventSource(streamUrl);
       esRef.current = es;
@@ -86,11 +90,10 @@ export function AgentsTab() {
       };
 
       es.onerror = () => {
-        if (!cancelled) return;
-        setStreamStatus("poll");
+        if (cancelled) return;
         es.close();
         esRef.current = null;
-        if (!pollId) pollId = setInterval(() => void loadOnce(), 3000);
+        startPolling();
       };
     }
 
@@ -121,21 +124,6 @@ export function AgentsTab() {
     withViewTransition(() => setFocusedId(null));
   }
 
-  async function trigger(agentId: string) {
-    if (!address) return;
-    setTriggering(agentId);
-    try {
-      await apiFetch("/api/agents/trigger", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ agent_id: agentId }),
-      });
-      await loadOnce();
-    } finally {
-      setTriggering(null);
-    }
-  }
-
   const lastByAgent = useMemo(
     () => new Map(agents.map((a) => [a.agent_id, a.last_run])),
     [agents]
@@ -158,7 +146,7 @@ export function AgentsTab() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
           <p className="text-sm text-muted-foreground">
-            Each agent runs in the background and streams output to its own log.
+            Live logs from the scheduler and your account flows (score, mint, borrow, repay).
           </p>
           <AgentFeedBadge status={streamStatus} />
         </div>
@@ -180,9 +168,7 @@ export function AgentsTab() {
 
       <div className={gridContainerClass(focusedId)}>
         {AGENT_IDS.map((id, index) => {
-          const meta = AGENT_META[id];
           const lastRun = lastByAgent.get(id) ?? null;
-          const isRunning = triggering === id || lastRun?.status === "running";
           const variant = cardVariant(id, focusedId);
 
           return (
@@ -197,10 +183,8 @@ export function AgentsTab() {
                 lastRun={lastRun}
                 logs={logsByAgent.get(id) ?? []}
                 variant={variant}
-                running={isRunning}
                 onActivate={() => focusAgent(id)}
                 onMinimize={variant === "focused" ? minimizeGrid : undefined}
-                onRun={meta.canTrigger ? () => void trigger(id) : undefined}
               />
             </div>
           );

@@ -16,7 +16,7 @@ function levelClass(level: string): string {
 
 export function AgentLogTerminal({
   logs,
-  emptyMessage = "No output yet — waiting for the next run.",
+  emptyMessage = "No runs yet — logs appear when the scheduler runs or you use score, mint, borrow, or repay.",
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -55,9 +55,16 @@ export function AgentLogTerminal({
                 minute: "2-digit",
                 second: "2-digit",
               });
+              const phase =
+                line.metadata && typeof line.metadata.phase === "string"
+                  ? line.metadata.phase
+                  : null;
               return (
                 <li key={line.id} className="break-words">
                   <span className="text-muted-foreground/60">{t}</span>{" "}
+                  {phase && (
+                    <span className="text-muted-foreground/45">[{phase}] </span>
+                  )}
                   <span className={levelClass(line.level)}>{line.message}</span>
                 </li>
               );

@@ -1,130 +1,105 @@
-"""Read agent run JSON logs from logs/agent-runs for API responses (no Supabase)."""
+"""Read agent runs and log lines from Supabase."""
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
+import os
 from typing import Any
 
-from agents.run_file_log import get_active_session_dir, LOG_ROOT
+import httpx
+
+TRACKED_AGENT_IDS = (
+    "underwriter",
+    "portfolio_monitor",
+    "liquidation",
+    "crosschain_sync",
+    "rate_optimizer",
+)
 
 
-def _latest_session_dir() -> Path | None:
-    sessions = LOG_ROOT / "sessions"
-    if not sessions.is_dir():
-        return None
-    dirs = sorted(
-        (p for p in sessions.iterdir() if p.is_dir()),
-        key=lambda p: p.stat().st_mtime,
-        reverse=True,
-    )
-    return dirs[0] if dirs else None
+def _supabase_config() -> tuple[str, str]:
+    url = os.environ.get("NEXT_PUBLIC_SUPABASE_URL") or os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    if not url or not key:
+        raise RuntimeError("Supabase is not configured")
+    return url.rstrip("/"), key
 
 
-def _session_dirs() -> list[Path]:
-    dirs: list[Path] = []
-    active = get_active_session_dir()
-    if active:
-        dirs.append(active)
-    latest = _latest_session_dir()
-    if latest and latest != active:
-        dirs.append(latest)
-    if not dirs:
-        fallback = LOG_ROOT / "no-session"
-        if fallback.is_dir():
-            dirs.append(fallback)
-    return dirs
+def _headers(key: str) -> dict[str, str]:
+    return {
+        "apikey": key,
+        "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json",
+    }
 
 
-def _agent_id_for(record: dict[str, Any]) -> str:
-    if record.get("agent_id"):
-        return str(record["agent_id"])
-    if record.get("kind") == "score":
-        return "scoring_api"
-    if record.get("kind") == "api_hook":
-        return f"api_hook:{record.get('hook', 'unknown')}"
-    return "unknown"
+def _get(path: str, params: dict[str, str] | None = None) -> list[dict[str, Any]]:
+    url, key = _supabase_config()
+    with httpx.Client(timeout=15.0) as client:
+        resp = client.get(
+            f"{url}/rest/v1/{path}",
+            headers=_headers(key),
+            params=params or {},
+        )
+        if resp.status_code >= 400:
+            raise RuntimeError(resp.text[:300])
+        data = resp.json()
+        return data if isinstance(data, list) else []
 
 
-def _read_json(path: Path) -> dict[str, Any] | None:
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
-
-
-def list_runs_from_files(
+def list_runs_from_supabase(
     *,
     wallet: str | None = None,
     agent_id: str | None = None,
     limit: int = 50,
 ) -> list[dict[str, Any]]:
     wallet_l = wallet.lower() if wallet else None
-    collected: list[tuple[dict[str, Any], float]] = []
+    agent_ids = [agent_id] if agent_id else list(TRACKED_AGENT_IDS)
+    agent_filter = ",".join(agent_ids)
 
-    for session in _session_dirs():
-        for sub in ("agent-runs", "score-runs", "api-hooks"):
-            folder = session / sub
-            if not folder.is_dir():
-                continue
-            for path in folder.glob("*.json"):
-                record = _read_json(path)
-                if not record or not record.get("run_id"):
-                    continue
-                if wallet_l and record.get("wallet_address"):
-                    if str(record["wallet_address"]).lower() != wallet_l:
-                        continue
-                aid = _agent_id_for(record)
-                if agent_id and aid != agent_id and record.get("agent_id") != agent_id:
-                    continue
-                collected.append((record, path.stat().st_mtime))
+    params: dict[str, str] = {
+        "select": "id,agent_id,wallet_address,trigger_source,trigger_event,status,started_at,finished_at,summary",
+        "agent_id": f"in.({agent_filter})",
+        "order": "started_at.desc",
+        "limit": str(min(limit, 100)),
+    }
+    if wallet_l:
+        params["or"] = f"(wallet_address.is.null,wallet_address.eq.{wallet_l})"
 
-    collected.sort(
-        key=lambda item: item[0].get("started_at") or "",
-        reverse=True,
-    )
-
-    runs: list[dict[str, Any]] = []
-    for record, _ in collected[:limit]:
-        runs.append(
-            {
-                "id": record["run_id"],
-                "agent_id": _agent_id_for(record),
-                "status": record.get("status", "unknown"),
-                "trigger_source": record.get("trigger_source") or record.get("kind"),
-                "trigger_event": record.get("trigger_event") or record.get("hook"),
-                "started_at": record.get("started_at"),
-                "finished_at": record.get("finished_at"),
-                "summary": record.get("summary"),
-                "wallet_address": record.get("wallet_address"),
-                "kind": record.get("kind"),
-            }
-        )
-    return runs
+    rows = _get("agent_runs", params)
+    return [
+        {
+            "id": row["id"],
+            "agent_id": row["agent_id"],
+            "status": row.get("status", "unknown"),
+            "trigger_source": row.get("trigger_source"),
+            "trigger_event": row.get("trigger_event"),
+            "started_at": row.get("started_at"),
+            "finished_at": row.get("finished_at"),
+            "summary": row.get("summary"),
+            "wallet_address": row.get("wallet_address"),
+        }
+        for row in rows
+    ]
 
 
 def logs_for_run(run_id: str) -> list[dict[str, Any]]:
-    for session in _session_dirs():
-        for sub in ("agent-runs", "score-runs", "api-hooks"):
-            folder = session / sub
-            if not folder.is_dir():
-                continue
-            for path in folder.glob("*.json"):
-                record = _read_json(path)
-                if not record or record.get("run_id") != run_id:
-                    continue
-                agent = _agent_id_for(record)
-                lines = []
-                for i, entry in enumerate(record.get("logs") or []):
-                    lines.append(
-                        {
-                            "id": f"{run_id}-{i}",
-                            "run_id": run_id,
-                            "logged_at": entry.get("at"),
-                            "level": entry.get("level", "info"),
-                            "message": entry.get("message", ""),
-                            "agent_id": agent,
-                        }
-                    )
-                return lines
-    return []
+    rows = _get(
+        "agent_log_lines",
+        {
+            "select": "id,run_id,logged_at,level,message,metadata",
+            "run_id": f"eq.{run_id}",
+            "order": "logged_at.asc",
+            "limit": "500",
+        },
+    )
+    return [
+        {
+            "id": row["id"],
+            "run_id": row["run_id"],
+            "logged_at": row.get("logged_at"),
+            "level": row.get("level", "info"),
+            "message": row.get("message", ""),
+            "metadata": row.get("metadata"),
+        }
+        for row in rows
+    ]

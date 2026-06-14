@@ -750,63 +750,23 @@ async def score_wallet_endpoint(req: ScoreRequest):
         )
         result = await loop.run_in_executor(_executor, fn)
         if result.get("status") == "awaiting_reclaim":
-            from agents.run_file_log import write_score_run
-
-            write_score_run(
-                wallet_address=req.wallet_address,
-                require_reclaim=req.require_reclaim,
-                status="awaiting_reclaim",
-                result=result,
-            )
             return result
         logger.info(
             "POST /score responding wallet=%s cred_score=%s",
             req.wallet_address,
             result.get("cred_score"),
         )
-        from agents.run_file_log import write_score_run
-
-        write_score_run(
-            wallet_address=req.wallet_address,
-            require_reclaim=req.require_reclaim,
-            status=str(result.get("status", "complete")),
-            result=result,
-        )
         return result
     except FileNotFoundError as exc:
         logger.error("Model not found: %s", exc)
-        from agents.run_file_log import write_score_run
-
-        write_score_run(
-            wallet_address=req.wallet_address,
-            require_reclaim=req.require_reclaim,
-            status="error",
-            error=str(exc),
-        )
         raise HTTPException(
             status_code=503,
             detail=f"Model not trained: {exc}. Run npm run ml:train first.",
         ) from exc
     except ValueError as exc:
-        from agents.run_file_log import write_score_run
-
-        write_score_run(
-            wallet_address=req.wallet_address,
-            require_reclaim=req.require_reclaim,
-            status="error",
-            error=str(exc),
-        )
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("Scoring failed for wallet=%s", req.wallet_address)
-        from agents.run_file_log import write_score_run
-
-        write_score_run(
-            wallet_address=req.wallet_address,
-            require_reclaim=req.require_reclaim,
-            status="error",
-            error=str(exc),
-        )
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 

@@ -11,7 +11,6 @@ import { prepareSpokeBorrow } from "@/lib/spoke-loan-prepare";
 import { persistLoanEvent, triggerSyncLoanCreated } from "@/lib/agent-client";
 import { contractsByChain } from "@/lib/contracts";
 import type { ChainKey } from "@/lib/chains";
-import { writeApiHookRun } from "@/lib/run-file-log";
 import { getPublicClient } from "@/lib/loan-server";
 import { LENDING_ABI } from "@/lib/contracts";
 import type { Hash } from "viem";
@@ -105,24 +104,6 @@ export async function POST(req: NextRequest) {
     if (chainKey === "hub" && loanId > 0n) {
       lzSync = await triggerSyncLoanCreated(wallet, txHash);
     }
-
-    writeApiHookRun({
-      hook: "borrow",
-      wallet,
-      chainKey,
-      success: true,
-      summary: `borrow on ${chainKey} loan_id=${loanId}`,
-      steps: [
-        { step: "on_chain_borrow", ok: true, data: { tx_hash: txHash, loan_id: loanId.toString() } },
-        {
-          step: "lz_sync",
-          ok: chainKey !== "hub" || (lzSync?.ok ?? false),
-          error: chainKey === "hub" ? lzSync?.error : undefined,
-          data: chainKey !== "hub" ? { skipped: "spoke borrow — no LZ agent" } : undefined,
-        },
-      ],
-      payload: { loan_tx: txHash, loan_id: loanId.toString(), lz_sync: lzSync },
-    });
 
     return NextResponse.json({
       ok: true,

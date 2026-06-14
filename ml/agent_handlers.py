@@ -13,6 +13,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from agents.run_logger import AgentRunLogger
+from agents.run_log_details import emit_liquidation_details, emit_run_details, emit_underwriter_details
 
 logger = logging.getLogger("credflow.agents")
 
@@ -108,8 +109,19 @@ async def agents_underwrite(req: UnderwriteAgentBody, request: Request):
     )
     run.start()
     if req.repay_chain:
-        run.log(f"Re-scoring after repay on {req.repay_chain} loan_id={req.loan_id}")
-    run.log(f"Underwriting {req.wallet_address} rescore={req.rescore}")
+        run.log(
+            f"Re-scoring after repay on {req.repay_chain} loan_id={req.loan_id} tx={req.repay_tx}",
+            metadata={
+                "phase": "context",
+                "repay_chain": req.repay_chain,
+                "loan_id": req.loan_id,
+                "repay_tx": req.repay_tx,
+            },
+        )
+    run.log(
+        f"Underwriting wallet={req.wallet_address} rescore={req.rescore}",
+        metadata={"phase": "start", "rescore": req.rescore},
+    )
     try:
         loop = asyncio.get_event_loop()
         fn = partial(
@@ -121,11 +133,7 @@ async def agents_underwrite(req: UnderwriteAgentBody, request: Request):
         )
         result = await loop.run_in_executor(_executor, fn)
         txs = [result["tx"]] if result.get("tx") else []
-        run.log(f"New cred_score={result.get('cred_score')} onchain={result.get('onchain')}")
-        if result.get("action") == "skip":
-            run.log(f"Skipped on-chain write: {result.get('reason')}")
-        elif result.get("tx"):
-            run.log(f"updateScore tx={result.get('tx')}")
+        emit_underwriter_details(run, result)
         run.finish(
             success=result.get("action") != "reject",
             summary=f"action={result.get('action')}",
@@ -156,15 +164,21 @@ async def agents_sync_score(req: SyncScoreBody, request: Request):
         trigger_event=req.trigger_event or "sync_score",
     )
     run.start()
-    run.log(f"broadcastScore wallet={req.wallet_address} score={req.score}")
+    run.log(
+        f"broadcastScore wallet={req.wallet_address} score={req.score}",
+        metadata={"phase": "start", "score": req.score},
+    )
     try:
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(
             _executor, partial(sync_wallet_score, req.wallet_address, req.score)
         )
         txs = result.get("hub_tx_hashes") or []
-        for tx in txs:
-            run.log(f"broadcastScore eid={tx.get('eid')} tx={tx.get('tx_hash')}")
+        emit_run_details(
+            run,
+            "crosschain_sync",
+            [{"wallet": req.wallet_address, "score": req.score, "type": "score", "hub_tx_hashes": txs}],
+        )
         run.finish(
             success=True,
             summary=f"Synced score to {len(txs)} destinations",
@@ -191,7 +205,10 @@ async def agents_sync_loan(req: SyncLoanBody, request: Request):
         trigger_event=req.trigger_event or f"loan_{req.event}",
     )
     run.start()
-    run.log(f"sync-loan event={req.event} wallet={req.wallet_address}")
+    run.log(
+        f"sync-loan event={req.event} wallet={req.wallet_address} repair_stale={req.repair_stale}",
+        metadata={"phase": "start", "event": req.event, "score": req.score},
+    )
     try:
         loop = asyncio.get_event_loop()
         if req.event == "created":
@@ -199,7 +216,10 @@ async def agents_sync_loan(req: SyncLoanBody, request: Request):
         elif req.repair_stale:
             from agents.sync_service import sync_wallet_repaid_clear
 
-            run.log("Clearing stale spoke loanActive mirror (repaid broadcast only)")
+            run.log(
+                "Clearing stale spoke loanActive mirror (repaid broadcast only)",
+                metadata={"phase": "repair", "repair_stale": True},
+            )
             fn = partial(sync_wallet_repaid_clear, req.wallet_address)
         elif req.score is not None:
             from agents.sync_service import sync_wallet_repaid_with_score
@@ -209,8 +229,19 @@ async def agents_sync_loan(req: SyncLoanBody, request: Request):
             fn = partial(sync_wallet_repaid, req.wallet_address)
         result = await loop.run_in_executor(_executor, fn)
         txs = result.get("hub_tx_hashes") or []
-        for tx in txs:
-            run.log(f"{tx.get('type')} eid={tx.get('eid')} tx={tx.get('tx_hash')}")
+        msg_type = result.get("message_type", req.event)
+        emit_run_details(
+            run,
+            "crosschain_sync",
+            [
+                {
+                    "wallet": req.wallet_address,
+                    "score": req.score or result.get("score"),
+                    "type": msg_type,
+                    "hub_tx_hashes": txs,
+                }
+            ],
+        )
         run.finish(
             success=True,
             summary=f"Loan {req.event} synced to {len(txs)} txs",
@@ -226,7 +257,6 @@ async def agents_sync_loan(req: SyncLoanBody, request: Request):
 @router.post("/sync")
 async def agents_sync_batch(request: Request, body: WalletBody | None = None):
     _check_agent_auth(request)
-    from agents.crosschain_sync import run_sync_once
     import asyncio
     from ml.scoring_api import _executor
 
@@ -237,11 +267,21 @@ async def agents_sync_batch(request: Request, body: WalletBody | None = None):
         trigger_event=(body.trigger_event if body else "sync_batch"),
     )
     run.start()
-    run.log("Running cross-chain sync batch")
+    run.log("Running cross-chain sync batch", metadata={"phase": "start"})
     try:
         loop = asyncio.get_event_loop()
-        results = await loop.run_in_executor(_executor, run_sync_once)
-        run.log(f"Batch complete — {len(results)} wallet updates")
+        from agents.crosschain_sync import run_loan_sync_once
+        from agents.base import CredFlowAgent
+
+        def _batch() -> list[dict]:
+            agent = CredFlowAgent()
+            items: list[dict] = []
+            items.extend(run_sync_once(agent))
+            items.extend(run_loan_sync_once(agent))
+            return items
+
+        results = await loop.run_in_executor(_executor, _batch)
+        emit_run_details(run, "crosschain_sync", results)
         all_txs = []
         for item in results:
             for tx in item.get("hub_tx_hashes") or []:
@@ -273,18 +313,29 @@ async def agents_monitor(request: Request, body: WalletBody | None = None):
         trigger_event=(body.trigger_event if body else "health_check"),
     )
     run.start()
-    run.log("Portfolio monitor sweep (hub)")
+    run.log("Portfolio monitor sweep", metadata={"phase": "start"})
     try:
         loop = asyncio.get_event_loop()
-        results = await loop.run_in_executor(_executor, partial(run_once, "hub"))
-        for item in results:
-            run.log(
-                f"loan #{item.get('loan_id')} LTV={item.get('ltv_bps')}% status={item.get('status')}",
-                level="warn" if item.get("status") == "warning" else "info",
-            )
+        chains = [
+            c.strip()
+            for c in os.environ.get("AGENT_MONITOR_CHAINS", "hub,arbitrum,base").split(",")
+            if c.strip()
+        ]
+
+        def _sweep() -> list[dict]:
+            results: list[dict] = []
+            for chain in chains:
+                try:
+                    results.extend(run_once(chain))
+                except Exception as exc:
+                    results.append({"chain": chain, "status": "error", "error": str(exc)})
+            return results
+
+        results = await loop.run_in_executor(_executor, _sweep)
+        emit_run_details(run, "portfolio_monitor", results)
         run.finish(
             success=True,
-            summary=f"Checked {len(results)} loans",
+            summary=f"Checked {len([r for r in results if r.get('loan_id')])} loans",
             result={"loans": results},
         )
         return {"run_id": run.run_id, "loans": results}
@@ -319,7 +370,7 @@ async def agents_liquidate(req: LiquidateBody, request: Request):
             return agent.execute_liquidation(req.loan_id, force_grace=req.force_grace)
 
         result = await loop.run_in_executor(_executor, _run)
-        run.log(f"Status: {result.get('status')}")
+        emit_liquidation_details(run, result)
         txs = [t for t in [result.get("liquidate_tx"), result.get("blacklist_tx")] if t]
         lz = result.get("lz_broadcast_tx")
         if isinstance(lz, list):
@@ -346,12 +397,12 @@ async def agents_optimize_rates(request: Request, body: WalletBody | None = None
         trigger_event=(body.trigger_event if body else "rate_opt"),
     )
     run.start()
-    run.log("Rate optimizer pass")
+    run.log("Rate optimizer pass", metadata={"phase": "start"})
     try:
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(_executor, run_once)
-        run.log(f"Updated tiers: {result.get('updated', False)}")
-        run.finish(success=True, summary="Rate optimization complete", result=result)
+        emit_run_details(run, "rate_optimizer", result)
+        run.finish(success=True, summary=result.get("action", "done"), result=result)
         return {"run_id": run.run_id, **result}
     except Exception as exc:
         run.finish(success=False, summary=str(exc), error=str(exc))
@@ -498,24 +549,27 @@ async def agents_list_runs(
     limit: int = 20,
 ):
     _check_agent_auth(request)
-    from agents.log_reader import list_runs_from_files
+    from agents.log_reader import list_runs_from_supabase
 
-    runs = list_runs_from_files(
+    runs = list_runs_from_supabase(
         wallet=wallet,
         agent_id=agent_id,
         limit=min(limit, 100),
     )
-    return {"runs": runs, "source": "local_files"}
+    return {"runs": runs, "source": "supabase"}
 
 
 @router.get("/runs/{run_id}")
 async def agents_get_run(run_id: str, request: Request):
     _check_agent_auth(request)
-    from agents.log_reader import list_runs_from_files, logs_for_run
+    from agents.log_reader import list_runs_from_supabase, logs_for_run
 
-    runs = list_runs_from_files(limit=200)
+    runs = list_runs_from_supabase(limit=200)
     run = next((r for r in runs if r.get("id") == run_id), None)
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
     logs = logs_for_run(run_id)
-    return {"run": run, "logs": logs, "source": "local_files"}
+    agent_id = run.get("agent_id")
+    for line in logs:
+        line["agent_id"] = agent_id
+    return {"run": run, "logs": logs, "source": "supabase"}

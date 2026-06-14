@@ -4,7 +4,6 @@ import { getPublicClient } from "@/lib/loan-server";
 import { persistLoanEvent, runPostRepayPipeline } from "@/lib/agent-client";
 import { contractsByChain, LENDING_ABI } from "@/lib/contracts";
 import type { ChainKey } from "@/lib/chains";
-import { writeApiHookRun } from "@/lib/run-file-log";
 import { formatEther, formatUnits, type Hash } from "viem";
 
 export async function POST(req: NextRequest) {
@@ -90,56 +89,6 @@ export async function POST(req: NextRequest) {
       postRepay.old_score != null && postRepay.new_score != null
         ? postRepay.new_score - postRepay.old_score
         : null;
-
-    writeApiHookRun({
-      hook: "repay",
-      wallet,
-      chainKey,
-      success: postRepay.errors.length === 0,
-      summary: `repay on ${chainKey} score ${postRepay.old_score}→${postRepay.new_score}`,
-      steps: [
-        {
-          step: "on_chain_repay",
-          ok: true,
-          data: {
-            tx_hash: txHash,
-            loan_id: resolvedLoanId.toString(),
-            collateral_returned_eth: collateralEth,
-            total_repaid: `${totalRepaidFormatted} ${cfg.borrowSymbol}`,
-            block_number: receipt.blockNumber.toString(),
-            gas_used: receipt.gasUsed.toString(),
-          },
-        },
-        { step: "ml_rescore", ok: postRepay.score?.ok ?? false, error: postRepay.score?.error },
-        {
-          step: "underwriter_rescore",
-          ok: postRepay.underwrite?.ok ?? false,
-          error: postRepay.underwrite?.error,
-          data: postRepay.underwrite?.data as Record<string, unknown> | undefined,
-        },
-        {
-          step: "lz_sync_repaid",
-          ok: postRepay.lz_sync?.ok ?? false,
-          error: postRepay.lz_sync?.error,
-        },
-        { step: "supabase_profile", ok: postRepay.supabase_saved },
-      ],
-      payload: {
-        repay_tx: txHash,
-        collateral_returned_eth: collateralEth,
-        total_repaid: `${totalRepaidFormatted} ${cfg.borrowSymbol}`,
-        receipt: {
-          blockNumber: receipt.blockNumber.toString(),
-          status: receipt.status,
-          gasUsed: receipt.gasUsed.toString(),
-        },
-        old_score: postRepay.old_score,
-        new_score: postRepay.new_score,
-        score_delta: scoreDelta,
-        errors: postRepay.errors,
-      },
-      error: postRepay.errors.length ? postRepay.errors.join("; ") : undefined,
-    });
 
     return NextResponse.json({
       ok: true,
