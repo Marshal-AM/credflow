@@ -1,15 +1,15 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
-import type { ScoreResponse } from "@/lib/scoring-api";
-import { applyOnChainScore } from "@/lib/score-display";
+import { useEffect, useMemo, type ReactNode } from "react";
+import type { ScoreResponse, ScoreRunRecord } from "@/lib/scoring-api";
+import { buildScoreRunDetailCards } from "@/lib/score-run-display";
 import { toast } from "@/lib/toast";
-import { scoreTier, sybilLabel, sybilVisual } from "@/lib/score-tier";
 import { CredScoreGauge } from "@/components/account/CredScoreGauge";
 
 type Props = {
   data: ScoreResponse;
   profile?: Record<string, unknown> | null;
+  latestScoreRun?: ScoreRunRecord | null;
   hasOnChainSbt: boolean;
   onChainScore?: number | null;
   hasCachedScore: boolean;
@@ -20,51 +20,12 @@ type Props = {
   mintError?: string | null;
 };
 
-function strengthLabel(value?: number): string {
-  if (value == null || Number.isNaN(value)) return "Not scored";
-  if (value >= 750) return "Strong";
-  if (value >= 650) return "Solid";
-  if (value >= 550) return "Fair";
-  return "Building";
-}
-
 type ValueTone = "positive" | "negative" | "neutral";
 
 function toneClass(tone: ValueTone): string {
   if (tone === "positive") return "text-success";
   if (tone === "negative") return "text-destructive";
   return "";
-}
-
-function strengthTone(label: string): ValueTone {
-  if (label === "Strong" || label === "Solid") return "positive";
-  if (label === "Building" || label === "Not scored") return "negative";
-  return "neutral";
-}
-
-function tierTone(label: string): ValueTone {
-  if (label === "Excellent" || label === "Good") return "positive";
-  if (label === "Poor") return "negative";
-  return "neutral";
-}
-
-function riskTone(risk?: string): ValueTone {
-  if (risk === "low") return "positive";
-  if (risk === "high") return "negative";
-  return "neutral";
-}
-
-function fraudScreenTone(state: "verified" | "pending" | "review" | "flagged"): ValueTone {
-  if (state === "verified") return "positive";
-  if (state === "flagged") return "negative";
-  return "neutral";
-}
-
-function maxLtvForScore(score: number): string {
-  if (score >= 750) return "Up to 75%";
-  if (score >= 670) return "Up to 65%";
-  if (score >= 580) return "Up to 55%";
-  return "Up to 45%";
 }
 
 function WalletIcon({ className }: { className?: string }) {
@@ -87,39 +48,27 @@ function BankIcon({ className }: { className?: string }) {
   );
 }
 
-function Subsection({
+function Panel({
   title,
+  subtitle,
   children,
   className = "",
 }: {
   title: string;
+  subtitle?: string;
   children: ReactNode;
   className?: string;
 }) {
   return (
     <section
-      className={`account-dashboard-subsection flex h-full min-h-0 min-w-0 flex-col rounded-xl border border-border/50 bg-card/40 p-3 ${className}`}
+      className={`rounded-xl border border-border/50 bg-card/40 p-3 ${className}`}
     >
-      <h3 className="section-label mb-1.5 shrink-0">{title}</h3>
-      <div className="min-h-0 flex-1">{children}</div>
+      <div className="mb-2">
+        <h3 className="section-label">{title}</h3>
+        {subtitle ? <p className="mt-0.5 text-[0.8125rem] text-muted-foreground">{subtitle}</p> : null}
+      </div>
+      {children}
     </section>
-  );
-}
-
-function DetailRow({
-  label,
-  value,
-  tone = "neutral",
-}: {
-  label: string;
-  value: string;
-  tone?: ValueTone;
-}) {
-  return (
-    <div className="flex min-w-0 items-center justify-between gap-2 text-sm">
-      <span className="min-w-0 shrink text-muted-foreground">{label}</span>
-      <span className={`shrink-0 font-[650] text-right ${toneClass(tone)}`}>{value}</span>
-    </div>
   );
 }
 
@@ -143,14 +92,14 @@ function SourceCard({
       }`}
     >
       <div
-        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-md ${
+        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${
           verified ? "bg-primary/20 text-primary" : "bg-muted/40 text-muted-foreground"
         }`}
       >
-        <Icon className="h-5 w-5" />
+        <Icon className="h-4 w-4" />
       </div>
       <div className="min-w-0">
-        <p className={`truncate font-[650] ${verified ? "text-foreground" : "text-muted-foreground"}`}>
+        <p className={`truncate text-sm font-[650] ${verified ? "text-foreground" : "text-muted-foreground"}`}>
           {label}
         </p>
         <p
@@ -165,90 +114,49 @@ function SourceCard({
   );
 }
 
-function ShieldIcon({ state }: { state: "verified" | "pending" | "review" | "flagged" }) {
-  const colors = {
-    verified: "text-primary border-primary/30 bg-primary/10",
-    pending: "text-muted-foreground border-border/60 bg-muted/30",
-    review: "text-primary border-primary/30 bg-primary/10",
-    flagged: "text-primary border-primary/30 bg-primary/10",
-  };
+function MetricCard({
+  title,
+  lines,
+}: {
+  title: string;
+  lines: Array<{ label: string; value: string; tone?: ValueTone; href?: string }>;
+}) {
   return (
-    <div className={`mb-1.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border ${colors[state]}`}>
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.75">
-        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" strokeLinecap="round" strokeLinejoin="round" />
-        {state === "verified" && <path d="m9 12 2 2 4-4" strokeLinecap="round" strokeLinejoin="round" />}
-        {state === "pending" && <path d="M12 8v4M12 16h.01" strokeLinecap="round" />}
-        {state === "review" && <path d="M12 8v4M12 16h.01" strokeLinecap="round" />}
-        {state === "flagged" && <path d="m15 9-6 6M9 9l6 6" strokeLinecap="round" />}
-      </svg>
-    </div>
-  );
-}
-
-function EligibilityRing({ eligible }: { eligible: boolean }) {
-  return (
-    <div className="relative mb-1.5 flex h-10 w-10 shrink-0 items-center justify-center">
-      <svg viewBox="0 0 48 48" className="h-10 w-10 -rotate-90">
-        <circle cx="24" cy="24" r="20" fill="none" stroke="var(--color-muted)" strokeWidth="3" />
-        <circle
-          cx="24"
-          cy="24"
-          r="20"
-          fill="none"
-          stroke={eligible ? "var(--color-primary)" : "var(--color-subtle)"}
-          strokeWidth="3"
-          strokeLinecap="round"
-          strokeDasharray={125.6}
-          strokeDashoffset={eligible ? 0 : 94}
-          className="transition-all duration-700"
-        />
-      </svg>
-      <div className="absolute inset-0 flex items-center justify-center">
-        {eligible ? (
-          <svg viewBox="0 0 24 24" className="h-6 w-6 text-primary" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <path d="M20 6 9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        ) : (
-          <svg viewBox="0 0 24 24" className="h-6 w-6 text-muted-foreground" fill="none" stroke="currentColor" strokeWidth="2">
-            <rect x="5" y="11" width="14" height="10" rx="2" />
-            <path d="M8 11V8a4 4 0 0 1 8 0v3" strokeLinecap="round" />
-          </svg>
-        )}
+    <article className="rounded-lg border border-border/45 bg-card/50 p-3">
+      <p className="section-label mb-2">{title}</p>
+      <div className="space-y-1.5">
+        {lines.map((line) => (
+          <div key={line.label} className="flex items-start justify-between gap-3 text-[0.8125rem] leading-snug">
+            <span className="shrink-0 text-muted-foreground">{line.label}</span>
+            {line.href ? (
+              <a
+                href={line.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`min-w-0 text-right font-[650] underline decoration-border/60 underline-offset-2 transition-colors hover:decoration-foreground ${toneClass(line.tone ?? "neutral")}`}
+                title={line.value}
+              >
+                {line.value.length > 28 ? `${line.value.slice(0, 14)}…${line.value.slice(-8)}` : line.value}
+              </a>
+            ) : (
+              <span
+                className={`min-w-0 text-right text-sm font-[650] break-words ${toneClass(line.tone ?? "neutral")}`}
+                title={line.value}
+              >
+                {line.value}
+              </span>
+            )}
+          </div>
+        ))}
       </div>
-    </div>
-  );
-}
-
-function CredentialBadge({ active }: { active: boolean }) {
-  return (
-    <div
-      className={`mb-1.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border ${
-        active
-          ? "border-primary/30 bg-primary/10 text-primary"
-          : "border-dashed border-border/70 bg-muted/20 text-muted-foreground"
-      }`}
-    >
-      <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.75">
-        <path d="M12 2l2.4 4.8 5.4.8-3.9 3.8.9 5.3L12 14.3 7.2 16.7l.9-5.3L4.2 7.6l5.4-.8L12 2z" strokeLinejoin="round" />
-      </svg>
-    </div>
-  );
-}
-
-function ProfileIcon() {
-  return (
-    <div className="mb-1.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-primary/25 bg-primary/10 text-primary">
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.75">
-        <path d="M3 3v18h18" strokeLinecap="round" />
-        <path d="M7 16l4-5 4 3 5-7" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    </div>
+    </article>
   );
 }
 
 export function AccountDashboard({
   data,
   profile,
+  latestScoreRun,
   hasOnChainSbt,
   onChainScore,
   hasCachedScore,
@@ -258,24 +166,28 @@ export function AccountDashboard({
   minting,
   mintError,
 }: Props) {
-  const display = applyOnChainScore(data, onChainScore, hasOnChainSbt);
+  const scoreResponse = (latestScoreRun?.response as ScoreResponse | undefined) ?? data;
   const credScore =
-    onChainScore ??
-    (display.cred_score as number) ??
-    (profile?.cred_score as number);
+    (scoreResponse.cred_score as number | undefined) ??
+    (data.cred_score as number | undefined) ??
+    (profile?.cred_score as number | undefined);
   const score = typeof credScore === "number" ? credScore : null;
-  const tier = score != null ? scoreTier(score) : null;
-  const sybilRisk = data.sybil_risk as string | undefined;
-  const sybilDetails = (data.sybil_details ?? profile?.sybil_details) as Record<string, unknown> | undefined;
-  const identity = sybilVisual(sybilRisk);
-  const bankVerified = ((data.balance_usd_cents as number) ?? 0) > 0;
+  const balanceCents =
+    (scoreResponse.balance_usd_cents as number | undefined) ??
+    (data.balance_usd_cents as number | undefined) ??
+    (profile?.balance_usd_cents as number | undefined);
+  const bankVerified = (balanceCents ?? 0) > 0;
   const walletVerified = hasCachedScore || hasOnChainSbt;
   const minted = hasOnChainSbt || profile?.mint_status === "minted";
-  const approved = data.approved !== false && (profile?.approved as boolean) !== false;
-  const walletSub = (display.wallet_sub_score ?? profile?.wallet_sub_score) as number | undefined;
-  const borrowSub = (display.borrow_sub_score ?? profile?.borrow_sub_score) as number | undefined;
-  const verifiedCount = [walletVerified, bankVerified].filter(Boolean).length;
-  const counterparties = sybilDetails?.unique_counterparties as number | undefined;
+  const approved = scoreResponse.approved !== false;
+
+  const detailCards = useMemo(
+    () =>
+      buildScoreRunDetailCards(scoreResponse, {
+        minted,
+      }),
+    [scoreResponse, minted]
+  );
 
   const showMintAction = !minted && hasCachedScore && approved;
   const showAddBankAction = !bankVerified && hasCachedScore && !!onAddBank;
@@ -293,11 +205,14 @@ export function AccountDashboard({
   useEffect(() => {
     if (!approved && hasCachedScore) {
       const reason = String(
-        data.rejection_reason || profile?.rejection_reason || "Score did not meet lending requirements"
+        scoreResponse.rejection_reason ||
+          data.rejection_reason ||
+          profile?.rejection_reason ||
+          "Score did not meet lending requirements"
       );
       toast.error(`Not eligible to borrow: ${reason}`, "not-approved");
     }
-  }, [approved, hasCachedScore, data.rejection_reason, profile?.rejection_reason]);
+  }, [approved, hasCachedScore, scoreResponse.rejection_reason, data.rejection_reason, profile?.rejection_reason]);
 
   useEffect(() => {
     if (mintError) {
@@ -306,30 +221,35 @@ export function AccountDashboard({
   }, [mintError]);
 
   return (
-    <div className="account-dashboard pb-1">
-      <div className="grid items-stretch gap-2 xl:grid-cols-[1.15fr_1fr]">
-        <div className="card-padded flex h-full min-h-0 flex-col items-center py-2.5">
+    <div className="account-dashboard">
+      {/*
+        Fixed-height workspace: fits below page title within the viewport.
+        Both columns share this height; only the right metrics pane scrolls.
+      */}
+      <div className="grid gap-3 xl:grid-cols-[1.05fr_1fr] xl:h-[calc(100svh-14.5rem)] xl:min-h-[26rem] xl:max-h-[44rem]">
+        {/* Left — gauge column, vertically centered in fixed panel */}
+        <div className="card-padded flex min-h-[18rem] flex-col items-center justify-center py-4 xl:min-h-0 xl:h-full">
           {score != null ? (
             <>
-              <div className="flex w-full flex-1 items-center justify-center">
+              <div className="flex w-full max-w-sm flex-1 items-center justify-center xl:min-h-0">
                 <CredScoreGauge score={score} />
               </div>
               <button
                 type="button"
                 onClick={onRescore}
-                className="btn-primary mt-4 shrink-0 px-8 py-3 text-[0.9375rem]"
+                className="btn-primary mt-3 shrink-0 px-8 py-2.5 text-[0.9375rem]"
               >
                 Recalculate Score
               </button>
             </>
           ) : (
-            <div className="flex flex-1 flex-col items-center justify-center text-center">
+            <div className="flex flex-col items-center justify-center py-8 text-center">
               <p className="section-label">CredScore</p>
-              <p className="mt-4 text-muted-foreground">Score not available yet</p>
+              <p className="mt-3 text-sm text-muted-foreground">Score not available yet</p>
               <button
                 type="button"
                 onClick={onRescore}
-                className="btn-primary mt-5 px-8 py-3 text-[0.9375rem]"
+                className="btn-primary mt-4 px-8 py-2.5 text-[0.9375rem]"
               >
                 Recalculate Score
               </button>
@@ -337,11 +257,9 @@ export function AccountDashboard({
           )}
         </div>
 
-        <div className="flex min-h-0 min-w-0 flex-col gap-1.5">
-          <Subsection title="Verification sources" className="!h-auto shrink-0">
-            <p className="mb-1.5 text-xs text-muted-foreground">
-              {verifiedCount} of 2 sources connected
-            </p>
+        {/* Right — pinned header + scroll body + pinned footer */}
+        <div className="flex min-h-[22rem] min-w-0 flex-col gap-2 xl:min-h-0 xl:h-full">
+          <Panel title="Verification sources" className="shrink-0">
             <div className="grid min-w-0 grid-cols-2 gap-1.5">
               <SourceCard
                 icon={WalletIcon}
@@ -354,7 +272,7 @@ export function AccountDashboard({
                 label="Bank account"
                 detail={
                   bankVerified
-                    ? `$${((data.balance_usd_cents as number) / 100).toLocaleString(undefined, {
+                    ? `$${((balanceCents ?? 0) / 100).toLocaleString(undefined, {
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 2,
                       })} verified balance`
@@ -363,103 +281,37 @@ export function AccountDashboard({
                 verified={bankVerified}
               />
             </div>
-          </Subsection>
+          </Panel>
 
-          <div className="grid min-h-0 min-w-0 grid-cols-2 grid-rows-2 gap-1.5">
-            <Subsection title="Identity">
-              <ShieldIcon state={identity} />
-              <p className="text-sm font-[650] text-primary">{sybilLabel(sybilRisk)}</p>
-              <div className="mt-1.5 space-y-1.5">
-                <DetailRow
-                  label="Fraud screening"
-                  tone={fraudScreenTone(identity)}
-                  value={
-                    identity === "verified"
-                      ? "Passed"
-                      : identity === "pending"
-                        ? "In progress"
-                        : identity === "review"
-                          ? "Under review"
-                          : "Failed"
-                  }
-                />
-                {counterparties != null && (
-                  <DetailRow label="Wallet connections" value={String(counterparties)} />
-                )}
-                <DetailRow
-                  label="Risk level"
-                  tone={riskTone(sybilRisk)}
-                  value={sybilRisk ? sybilRisk.charAt(0).toUpperCase() + sybilRisk.slice(1) : "Pending"}
-                />
-              </div>
-            </Subsection>
+          <section className="flex max-h-[26rem] min-h-[10rem] flex-1 flex-col overflow-hidden rounded-xl border border-border/50 bg-card/25 sm:max-h-[28rem] xl:max-h-none xl:min-h-0">
+            <header className="shrink-0 border-b border-border/40 px-3 py-2.5">
+              <p className="section-label">Profile details</p>
+            </header>
+            <div
+              className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2.5 py-2.5"
+              style={{ WebkitOverflowScrolling: "touch" }}
+            >
+              {detailCards.length > 0 ? (
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {detailCards.map((card) => (
+                    <MetricCard key={card.id} title={card.title} lines={card.lines} />
+                  ))}
+                </div>
+              ) : (
+                <p className="px-1 py-6 text-center text-sm text-muted-foreground">
+                  No score run data yet. Recalculate your score to populate this panel.
+                </p>
+              )}
+            </div>
+          </section>
 
-            <Subsection title="Borrowing">
-              <EligibilityRing eligible={approved} />
-              <p className="text-sm font-[650] text-primary">
-                {approved ? "Ready for loans" : "Locked"}
-              </p>
-              <div className="mt-1.5 space-y-1.5">
-                <DetailRow
-                  label="Status"
-                  tone={approved ? "positive" : "negative"}
-                  value={approved ? "Eligible" : "Not eligible"}
-                />
-                {score != null && <DetailRow label="Max LTV" value={maxLtvForScore(score)} />}
-                {tier && (
-                  <DetailRow label="Rate tier" tone={tierTone(tier.label)} value={tier.label} />
-                )}
-              </div>
-            </Subsection>
-
-            <Subsection title="On-chain credential">
-              <CredentialBadge active={!!minted} />
-              <p className="text-sm font-[650] text-primary">
-                {minted ? "Active" : !hasCachedScore ? "Not started" : approved ? "Ready to mint" : "Unavailable"}
-              </p>
-              <div className="mt-1.5 space-y-1.5">
-                <DetailRow label="Network" value="Robinhood hub" />
-                <DetailRow label="Type" value="Soulbound token" />
-                <DetailRow
-                  label="Cross-chain"
-                  tone={minted ? "positive" : "neutral"}
-                  value={minted ? "Synced to spokes" : "After minting"}
-                />
-              </div>
-            </Subsection>
-
-            <Subsection title="Profile strength">
-              <ProfileIcon />
-              <p className="text-sm font-[650] text-primary">
-                {score != null ? `${tier?.label} profile` : "Incomplete"}
-              </p>
-              <div className="mt-1.5 space-y-1.5">
-                <DetailRow
-                  label="Wallet activity"
-                  tone={strengthTone(strengthLabel(walletSub))}
-                  value={strengthLabel(walletSub)}
-                />
-                <DetailRow
-                  label="Borrow history"
-                  tone={strengthTone(strengthLabel(borrowSub))}
-                  value={strengthLabel(borrowSub)}
-                />
-                <DetailRow
-                  label="Bank boost"
-                  tone={bankVerified ? "positive" : "negative"}
-                  value={bankVerified ? "Applied" : "Not added"}
-                />
-              </div>
-            </Subsection>
-          </div>
-
-          {showActionsSection && (
-            <Subsection title="Next steps" className="!h-auto shrink-0">
-              <p className="mb-2 text-xs text-muted-foreground">
+          {showActionsSection ? (
+            <Panel title="Next steps" className="shrink-0">
+              <p className="mb-2 text-[0.8125rem] text-muted-foreground">
                 Complete these actions to unlock the full CredFlow experience.
               </p>
               <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                {showMintAction && (
+                {showMintAction ? (
                   <button
                     type="button"
                     disabled={minting}
@@ -468,8 +320,8 @@ export function AccountDashboard({
                   >
                     {minting ? "Minting…" : "Mint credential"}
                   </button>
-                )}
-                {showAddBankAction && (
+                ) : null}
+                {showAddBankAction ? (
                   <button
                     type="button"
                     onClick={onAddBank}
@@ -477,10 +329,10 @@ export function AccountDashboard({
                   >
                     Connect bank account
                   </button>
-                )}
+                ) : null}
               </div>
-            </Subsection>
-          )}
+            </Panel>
+          ) : null}
         </div>
       </div>
     </div>

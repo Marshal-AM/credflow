@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireRequestWallet } from "@/lib/wallet-request";
 import { readChainLoanSummary } from "@/lib/loan-server";
 import { enrichChainSummaries } from "@/lib/loan-chain-enrich";
+import {
+  applyBorrowApprovalGate,
+  assertBorrowApproved,
+  fetchLatestBorrowApproval,
+} from "@/lib/borrow-approval";
 import { prepareSpokeBorrow } from "@/lib/spoke-loan-prepare";
 import { persistLoanEvent, triggerSyncLoanCreated } from "@/lib/agent-client";
 import { contractsByChain } from "@/lib/contracts";
@@ -31,13 +36,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const borrowApproval = await fetchLatestBorrowApproval(wallet);
+    const approvalBlock = assertBorrowApproved(borrowApproval);
+    if (approvalBlock) {
+      return NextResponse.json({ error: approvalBlock }, { status: 403 });
+    }
+
     async function loadSummaries() {
-      return enrichChainSummaries(
-        await Promise.all(
-          (["hub", "arbitrum", "base"] as ChainKey[]).map((k) =>
-            readChainLoanSummary(k, wallet)
+      return applyBorrowApprovalGate(
+        enrichChainSummaries(
+          await Promise.all(
+            (["hub", "arbitrum", "base"] as ChainKey[]).map((k) =>
+              readChainLoanSummary(k, wallet)
+            )
           )
-        )
+        ),
+        borrowApproval
       );
     }
 

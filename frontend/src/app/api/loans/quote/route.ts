@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireRequestWallet } from "@/lib/wallet-request";
 import { computeRequiredCollateral, readChainLoanSummary } from "@/lib/loan-server";
+import {
+  assertBorrowApproved,
+  fetchLatestBorrowApproval,
+} from "@/lib/borrow-approval";
 import type { ChainKey } from "@/lib/chains";
 
 export async function GET(req: NextRequest) {
@@ -14,6 +18,11 @@ export async function GET(req: NextRequest) {
     }
 
     const summary = await readChainLoanSummary(chainKey, wallet);
+    const borrowApproval = await fetchLatestBorrowApproval(wallet);
+    const approvalBlock = assertBorrowApproved(borrowApproval);
+    if (approvalBlock) {
+      return NextResponse.json({ error: approvalBlock }, { status: 403 });
+    }
     if (summary.score <= 0) {
       return NextResponse.json(
         { error: summary.eligibilityReason || "No score on this chain" },

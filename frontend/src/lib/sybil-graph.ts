@@ -104,3 +104,36 @@ export function applySybilRiskToNodes(
     return n;
   });
 }
+
+export type GraphViewBox = { x: number; y: number; width: number; height: number };
+
+/** Fit viewBox to node positions with padding for labels. */
+export function computeGraphViewBox(
+  nodes: Array<{ x: number; y: number }>,
+  padding = 100
+): GraphViewBox {
+  if (nodes.length === 0) {
+    return { x: -320, y: -240, width: 640, height: 480 };
+  }
+
+  const halfW = 62;
+  const halfH = 30;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+
+  for (const n of nodes) {
+    minX = Math.min(minX, n.x - halfW);
+    maxX = Math.max(maxX, n.x + halfW);
+    minY = Math.min(minY, n.y - halfH);
+    maxY = Math.max(maxY, n.y + halfH);
+  }
+
+  return {
+    x: minX - padding,
+    y: minY - padding,
+    width: maxX - minX + padding * 2,
+    height: maxY - minY + padding * 2,
+  };
+}

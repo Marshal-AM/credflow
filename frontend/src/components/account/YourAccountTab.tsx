@@ -12,6 +12,7 @@ import {
   mintSbt,
   pollReclaimSession,
   type ScoreResponse,
+  type ScoreRunRecord,
 } from "@/lib/scoring-api";
 import { applyOnChainScore } from "@/lib/score-display";
 import { toast } from "@/lib/toast";
@@ -48,6 +49,15 @@ function profileToScoreData(profile: Record<string, unknown>): ScoreResponse {
   };
 }
 
+function scoreDataFromLatestRun(run: ScoreRunRecord | null | undefined): ScoreResponse | null {
+  const response = run?.response;
+  if (!response || typeof response !== "object") return null;
+  if (response.status === "complete" || typeof response.cred_score === "number") {
+    return response as ScoreResponse;
+  }
+  return null;
+}
+
 export function YourAccountTab() {
   const { address, isConnected, isConnecting } = useWalletApi();
   const [phase, setPhase] = useState<Phase>("loading");
@@ -59,6 +69,7 @@ export function YourAccountTab() {
   const [error, setError] = useState<string | null>(null);
   const [minting, setMinting] = useState(false);
   const [mintError, setMintError] = useState<string | null>(null);
+  const [latestScoreRun, setLatestScoreRun] = useState<ScoreRunRecord | null>(null);
   const [hasCachedScore, setHasCachedScore] = useState(false);
   const [reclaimMessage, setReclaimMessage] = useState<string | null>(null);
   const [reclaimUrl, setReclaimUrl] = useState<string | null>(null);
@@ -97,13 +108,20 @@ export function YourAccountTab() {
     setProfile(data.profile);
     setHasOnChainSbt(data.hasOnChainSbt);
     setOnChainScore(data.onChainScore ?? null);
+    setLatestScoreRun(data.latestScoreRun);
 
-    const cached = hasCompleteScoreSnapshot(data.profile);
+    const fromRun = scoreDataFromLatestRun(data.latestScoreRun);
+    const cached = hasCompleteScoreSnapshot(data.profile) || fromRun != null;
     setHasCachedScore(cached);
 
-    if (cached || data.hasOnChainSbt) {
+    if (fromRun) {
+      setScoreData(fromRun);
+      setPhase("complete");
+    } else if (cached || data.hasOnChainSbt) {
       const base =
-        data.profile && cached ? profileToScoreData(data.profile) : { status: "complete" };
+        data.profile && hasCompleteScoreSnapshot(data.profile)
+          ? profileToScoreData(data.profile)
+          : { status: "complete" };
       setScoreData(applyOnChainScore(base, data.onChainScore, data.hasOnChainSbt));
       setPhase("complete");
     } else {
@@ -394,6 +412,7 @@ export function YourAccountTab() {
     <AccountDashboard
       data={scoreData || {}}
       profile={profile}
+      latestScoreRun={latestScoreRun}
       hasOnChainSbt={hasOnChainSbt}
       onChainScore={onChainScore}
       hasCachedScore={hasCachedScore}

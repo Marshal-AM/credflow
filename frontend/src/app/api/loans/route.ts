@@ -4,6 +4,10 @@ import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { readChainLoanSummary } from "@/lib/loan-server";
 import { enrichChainSummaries } from "@/lib/loan-chain-enrich";
 import {
+  applyBorrowApprovalGate,
+  fetchLatestBorrowApproval,
+} from "@/lib/borrow-approval";
+import {
   filterValidLoanEvents,
   filterValidLzBroadcasts,
 } from "@/lib/lz-broadcast";
@@ -22,7 +26,11 @@ export async function GET(req: NextRequest) {
     const rawSummaries = await Promise.all(
       CHAINS.map((k) => readChainLoanSummary(k, wallet))
     );
-    const summaries = enrichChainSummaries(rawSummaries);
+    const borrowApproval = await fetchLatestBorrowApproval(wallet);
+    const summaries = applyBorrowApprovalGate(
+      enrichChainSummaries(rawSummaries),
+      borrowApproval
+    );
 
     const hub = summaries.find((s) => s.chainKey === "hub");
     const maxSpokeScore = Math.max(

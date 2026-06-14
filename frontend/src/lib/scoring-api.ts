@@ -24,12 +24,23 @@ function walletHeaders(wallet: string, init?: RequestInit): RequestInit {
   return { ...init, headers };
 }
 
+export type ScoreRunRecord = {
+  id?: string;
+  status?: string;
+  require_reclaim?: boolean;
+  reclaim_session_id?: string | null;
+  response?: Record<string, unknown> | null;
+  error_message?: string | null;
+  created_at?: string;
+};
+
 export async function fetchProfile(wallet: string): Promise<{
   profile: Record<string, unknown> | null;
   wallet: string;
   hasOnChainSbt: boolean;
   onChainScore: number | null;
   mintTxHash: string | null;
+  latestScoreRun: ScoreRunRecord | null;
 }> {
   const res = await fetch("/api/profile", walletHeaders(wallet));
   if (!res.ok) throw new Error((await res.json()).error || "Failed to load profile");
