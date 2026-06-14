@@ -57,8 +57,8 @@ function WrenchIcon({ className }: { className?: string }) {
 }
 
 const NAV_PILL_1: { id: AppTab; label: string; icon: typeof UserIcon }[] = [
-  { id: "loans", label: "Loans", icon: BankIcon },
   { id: "account", label: "Dashboard", icon: UserIcon },
+  { id: "loans", label: "Loans", icon: BankIcon },
 ];
 
 const NAV_PILL_2: { id: AppTab; label: string; icon: typeof UserIcon }[] = [
@@ -103,9 +103,9 @@ export function AppNavbar({ tab, onTabChange }: Props) {
         <div className="flex items-center gap-8 md:gap-10 lg:gap-12">
           <button
             type="button"
-            onClick={() => onTabChange("loans")}
+            onClick={() => onTabChange("account")}
             className="flex-shrink-0 transition-spring hover:scale-105"
-            aria-label="Go to Loans"
+            aria-label="Go to Dashboard"
           >
             <Image
               src="/logo.png"

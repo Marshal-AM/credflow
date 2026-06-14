@@ -16,7 +16,7 @@ export function getDefaultScenarioEligibility(
     return {
       state: "blocked",
       reason: "Your wallet is blacklisted on Robinhood hub.",
-      hint: "A prior default test (or on-chain default) blacklisted this wallet. Use Reset wallet in Live state above to remove the blacklist, then borrow again if you no longer have an active hub loan.",
+      hint: "A prior default test blacklisted this wallet on hub and/or spokes. Use Whitelist wallet to reset hub blacklist, default count, and spoke LZ blacklist, then borrow again if you no longer have an active hub loan.",
     };
   }
 

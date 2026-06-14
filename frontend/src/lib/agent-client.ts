@@ -714,8 +714,14 @@ export async function triggerLiquidate(
 export async function triggerUnblacklist(wallet: string) {
   return callTestDefaultAgent<{
     status: string;
+    whitelist_tx?: string;
     unblacklist_tx?: string;
+    was_blacklisted?: boolean;
+    default_count_before?: number;
+    default_count_after?: number;
     is_blacklisted?: boolean;
+    lz_whitelist_tx?: Array<{ chain_key: string; tx_hash: string }>;
+    spoke_clear_tx?: Array<{ chain_key: string; tx_hash: string }>;
     run_id?: string;
   }>("/agents/unblacklist", wallet, { trigger_event: "whitelist_wallet" });
 }

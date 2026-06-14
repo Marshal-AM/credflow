@@ -42,7 +42,7 @@ export function TestDefaultTab() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Reset failed");
-      toast.success("Wallet removed from blacklist", "test-default-reset");
+      toast.success("Wallet whitelisted on hub and spokes", "test-default-reset");
       setFlowCompleted(false);
       await load();
     } catch (err) {

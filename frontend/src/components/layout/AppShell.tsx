@@ -12,15 +12,15 @@ import { readAppTab, STORAGE_KEYS, writeStorage, type AppTab } from "@/lib/ui-pe
 export type { AppTab };
 
 const TABS: { id: AppTab; label: string; subtitle: string }[] = [
-  { id: "loans", label: "Loans", subtitle: "Borrow and repay across supported chains" },
   { id: "account", label: "Dashboard", subtitle: "Build your CredScore from wallet and bank data" },
+  { id: "loans", label: "Loans", subtitle: "Borrow and repay across supported chains" },
   { id: "agents", label: "Agents", subtitle: "Background monitoring for your loans" },
   { id: "prep-wallet", label: "Prep Wallet", subtitle: "Seed testnet activity for your CredScore" },
   { id: "test-default", label: "Test Default", subtitle: "Liquidation and default scenario testing" },
 ];
 
 export function AppShell() {
-  const [tab, setTab] = useState<AppTab>("loans");
+  const [tab, setTab] = useState<AppTab>("account");
   const [ready, setReady] = useState(false);
 
   useLayoutEffect(() => {

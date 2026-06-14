@@ -15,6 +15,7 @@ contract CredFlowOApp is OApp, AccessControl, ICredFlowCreditRegistry {
     uint8 constant MSG_LOAN_ACTIVE = 2;
     uint8 constant MSG_DEFAULT = 3;
     uint8 constant MSG_REPAID = 4;
+    uint8 constant MSG_WHITELIST = 5;
 
     mapping(address => uint16) public spokeScores;
     mapping(address => bool) public defaultBlacklist;
@@ -24,6 +25,8 @@ contract CredFlowOApp is OApp, AccessControl, ICredFlowCreditRegistry {
     event DefaultReceived(address indexed wallet, uint32 srcChain);
     event LoanActiveReceived(address indexed wallet, uint32 srcChain);
     event LoanRepaidReceived(address indexed wallet, uint32 srcChain);
+    event WhitelistReceived(address indexed wallet, uint16 score, uint32 srcChain);
+    event WhitelistAppliedLocal(address indexed wallet, uint16 score);
 
     constructor(address _endpoint, address _sbt, address admin) OApp(_endpoint, admin) {
         sbtContract = CredScoreSBT(_sbt);
@@ -99,6 +102,33 @@ contract CredFlowOApp is OApp, AccessControl, ICredFlowCreditRegistry {
         }
     }
 
+    function broadcastWhitelist(
+        uint32[] calldata dstChainIds,
+        address wallet,
+        uint16 score,
+        bytes calldata options
+    ) external payable onlyRole(AGENT_ROLE) {
+        bytes memory payload = abi.encode(MSG_WHITELIST, wallet, score);
+        for (uint256 i = 0; i < dstChainIds.length; i++) {
+            _lzSend(
+                dstChainIds[i],
+                payload,
+                options,
+                MessagingFee(msg.value / dstChainIds.length, 0),
+                payable(msg.sender)
+            );
+        }
+    }
+
+    /// @dev Direct spoke reset when LZ delivery is slow (test recovery / agent fallback).
+    function clearDefaultBlacklist(address wallet, uint16 score) external onlyRole(AGENT_ROLE) {
+        defaultBlacklist[wallet] = false;
+        if (score > 0) {
+            spokeScores[wallet] = score;
+        }
+        emit WhitelistAppliedLocal(wallet, score);
+    }
+
     /// @dev On spoke chains sbtContract is address(0) — we only mirror scores locally,
     ///      never call the SBT contract on spokes.
     function _lzReceive(
@@ -124,6 +154,12 @@ contract CredFlowOApp is OApp, AccessControl, ICredFlowCreditRegistry {
         } else if (msgType == MSG_REPAID) {
             loanActiveMirror[wallet] = false;
             emit LoanRepaidReceived(wallet, origin.srcEid);
+        } else if (msgType == MSG_WHITELIST) {
+            defaultBlacklist[wallet] = false;
+            if (data > 0) {
+                spokeScores[wallet] = data;
+            }
+            emit WhitelistReceived(wallet, data, origin.srcEid);
         }
     }
 

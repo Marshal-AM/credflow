@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import type { DefaultTestStatus } from "@/lib/test-default-server";
+import { toast } from "@/lib/toast";
 import {
   TEST_DEFAULT_FLOW,
   initialStepStatuses,
@@ -71,6 +72,7 @@ export function TestDefaultFlow({
 }: Props) {
   const reducedMotion = usePrefersReducedMotion();
   const [running, setRunning] = useState(false);
+  const [whitelistBusy, setWhitelistBusy] = useState(false);
   const [stepStatuses, setStepStatuses] = useState(initialStepStatuses);
   const [stepResults, setStepResults] = useState<Partial<Record<FlowStepId, StepResult>>>({});
 
@@ -85,6 +87,33 @@ export function TestDefaultFlow({
   const setStepStatus = useCallback((id: FlowStepId, next: StepStatus) => {
     setStepStatuses((prev) => ({ ...prev, [id]: next }));
   }, []);
+
+  const handleWhitelist = useCallback(async () => {
+    setWhitelistBusy(true);
+    try {
+      const res = await apiFetch("/api/test-default/step", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ step: "unblacklist" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Whitelist failed");
+      const result = data.result as Record<string, unknown> | undefined;
+      const status = String(result?.status ?? "");
+      if (status === "already_whitelisted") {
+        toast.success("Wallet already whitelisted on hub and spokes", "test-default-whitelist");
+      } else if (status === "no_profile") {
+        toast.warning("No hub SBT profile — complete Account scoring first", "test-default-whitelist");
+      } else {
+        toast.success("Wallet whitelisted on hub and spokes", "test-default-whitelist");
+      }
+      await onRefresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Whitelist failed", "test-default-whitelist");
+    } finally {
+      setWhitelistBusy(false);
+    }
+  }, [apiFetch, onRefresh]);
 
   const callStep = useCallback(
     async (step: string, body: Record<string, unknown> = {}) => {
@@ -237,16 +266,26 @@ export function TestDefaultFlow({
               : "Run the full liquidation path linearly — oracle crash through linked-wallet discovery."}
           </p>
         </div>
-        {!showBlocked && (
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            disabled={!canRun}
-            onClick={() => void runFlow()}
-            className="btn-primary disabled:opacity-50"
+            disabled={whitelistBusy}
+            onClick={() => void handleWhitelist()}
+            className="btn-outline-primary disabled:opacity-50"
           >
-            {running ? "Running flow…" : "Test default flow"}
+            {whitelistBusy ? "Whitelisting…" : "Whitelist wallet"}
           </button>
-        )}
+          {!showBlocked && (
+            <button
+              type="button"
+              disabled={!canRun}
+              onClick={() => void runFlow()}
+              className="btn-primary disabled:opacity-50"
+            >
+              {running ? "Running flow…" : "Test default flow"}
+            </button>
+          )}
+        </div>
       </div>
 
       {showBlocked ? (

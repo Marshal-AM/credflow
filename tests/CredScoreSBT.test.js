@@ -87,4 +87,32 @@ describe("CredScoreSBT", function () {
     expect(await sbt.isBlacklisted(linked)).to.equal(false);
     expect(await sbt.blacklistedVia(linked)).to.equal(ethers.ZeroAddress);
   });
+
+  it("whitelistWallet clears blacklist and defaultCount", async function () {
+    const { sbt, owner, scorer, user } = await loadFixture(fixture);
+    const linked = ethers.Wallet.createRandom().address;
+    const agentRole = await sbt.AGENT_ROLE();
+    await sbt.grantRole(agentRole, owner.address);
+
+    await sbt.connect(scorer).mintSBT(user.address, 650, 68, 60, "ipfs://test");
+    await sbt.connect(owner).recordDefault(user.address);
+    await sbt.connect(owner).blacklistLinkedWallets([linked], user.address);
+
+    let profile = await sbt.getProfile(user.address);
+    expect(profile.defaultCount).to.equal(1);
+    expect(await sbt.isBlacklisted(linked)).to.equal(true);
+
+    await expect(sbt.connect(owner).whitelistWallet(user.address))
+      .to.emit(sbt, "WalletWhitelisted")
+      .withArgs(user.address);
+
+    profile = await sbt.getProfile(user.address);
+    expect(profile.defaultCount).to.equal(0);
+    expect(await sbt.isBlacklisted(user.address)).to.equal(false);
+
+    await expect(sbt.connect(owner).removeFromBlacklist(linked))
+      .to.emit(sbt, "WalletUnblacklisted")
+      .withArgs(linked);
+    expect(await sbt.isBlacklisted(linked)).to.equal(false);
+  });
 });

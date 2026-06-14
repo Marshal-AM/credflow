@@ -33,6 +33,7 @@ contract CredScoreSBT is ERC721, AccessControl, Pausable, UUPSUpgradeable {
     event SBTMinted(address indexed wallet, uint16 initialScore);
     event WalletBlacklisted(address indexed wallet, address indexed linkedTo);
     event WalletUnblacklisted(address indexed wallet);
+    event WalletWhitelisted(address indexed wallet);
     event ScoreUpdated(address indexed wallet, uint16 oldScore, uint16 newScore);
     event LoanStatusUpdated(address indexed wallet, uint8 status);
     event DefaultRecorded(address indexed wallet, uint32 timestamp);
@@ -142,6 +143,23 @@ contract CredScoreSBT is ERC721, AccessControl, Pausable, UUPSUpgradeable {
         blacklisted[wallet] = false;
         blacklistedVia[wallet] = address(0);
         emit WalletUnblacklisted(wallet);
+    }
+
+    /// @dev Test / agent recovery — clears explicit blacklist and default record so hub borrow works again.
+    function whitelistWallet(address wallet) external onlyRole(AGENT_ROLE) {
+        require(profiles[wallet].exists, "No profile");
+        if (blacklisted[wallet]) {
+            blacklisted[wallet] = false;
+            blacklistedVia[wallet] = address(0);
+            emit WalletUnblacklisted(wallet);
+        }
+        if (profiles[wallet].defaultCount > 0) {
+            profiles[wallet].defaultCount = 0;
+            if (profiles[wallet].loanStatus == 3) {
+                profiles[wallet].loanStatus = 2;
+            }
+        }
+        emit WalletWhitelisted(wallet);
     }
 
     function _beforeTokenTransfer(address from, address, uint256, uint256) internal pure override {

@@ -1,6 +1,7 @@
 import { formatEther, formatUnits } from "viem";
 import { getPublicClient, readChainLoanSummary } from "@/lib/loan-server";
 import { contractsByChain, LENDING_ABI, OAPP_ABI, SBT_ABI } from "@/lib/contracts";
+import { isHubWalletBlacklisted } from "@/lib/wallet-blacklist";
 
 export type DefaultTestStatus = {
   wallet: string;
@@ -75,7 +76,7 @@ export async function readDefaultTestStatus(wallet: `0x${string}`): Promise<Defa
       })
     : null;
 
-  const hubBlacklisted = cfg.sbt
+  const hubExplicitBlacklisted = cfg.sbt
     ? await client.readContract({
         address: cfg.sbt as `0x${string}`,
         abi: SBT_ABI,
@@ -83,6 +84,11 @@ export async function readDefaultTestStatus(wallet: `0x${string}`): Promise<Defa
         args: [wallet],
       })
     : false;
+
+  const hubBlacklisted = isHubWalletBlacklisted(
+    profile ? profile.defaultCount : 0n,
+    hubExplicitBlacklisted
+  );
 
   const spokes = await Promise.all(
     (["arbitrum", "base"] as const).map(async (chainKey) => {

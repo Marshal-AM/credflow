@@ -197,6 +197,22 @@ class CredFlowAgent:
             logger.info("broadcastRepaid eid=%s tx=%s", eid, tx_hash)
         return txs
 
+    def broadcast_whitelist(self, wallet: str, score: int) -> list[dict]:
+        eids = self.dst_chain_eids()
+        if not eids:
+            logger.info("No spoke OApps configured — skip broadcastWhitelist")
+            return []
+        options = self.lz_options()
+        txs: list[dict] = []
+        for eid in eids:
+            fee = self.lz_fee_for_broadcast(1)
+            fn = self.oapp.functions.broadcastWhitelist([eid], wallet, int(score), options)
+            tx_hash = self.send_tx(fn, value=fee)
+            chain_key = "arbitrum" if eid == int(os.environ.get("LZ_EID_ARBITRUM", "40231")) else "base"
+            txs.append({"chain_key": chain_key, "eid": eid, "tx_hash": tx_hash, "type": "whitelist"})
+            logger.info("broadcastWhitelist eid=%s tx=%s", eid, tx_hash)
+        return txs
+
 
 SPOKE_CONFIG: dict[str, dict[str, str]] = {
     "arbitrum": {

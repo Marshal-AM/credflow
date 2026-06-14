@@ -13,6 +13,7 @@ import {
   robinhoodTestnet,
   type ChainKey,
 } from "@/lib/chains";
+import { isHubWalletBlacklisted, isSpokeWalletBlacklisted } from "@/lib/wallet-blacklist";
 import {
   contractsByChain,
   LENDING_ABI,
@@ -106,16 +107,24 @@ export async function readChainLoanSummary(
   let blacklisted = false;
 
   if (cfg.scoreSource === "sbt" && cfg.sbt) {
-    const profile = await client.readContract({
-      address: cfg.sbt as `0x${string}`,
-      abi: SBT_ABI,
-      functionName: "getProfile",
-      args: [wallet],
-    });
+    const [profile, hubExplicitBlacklisted] = await Promise.all([
+      client.readContract({
+        address: cfg.sbt as `0x${string}`,
+        abi: SBT_ABI,
+        functionName: "getProfile",
+        args: [wallet],
+      }),
+      client.readContract({
+        address: cfg.sbt as `0x${string}`,
+        abi: SBT_ABI,
+        functionName: "isBlacklisted",
+        args: [wallet],
+      }),
+    ]);
     score = Number(profile.score);
     loanActive = profile.loanActive;
     lzLoanActive = profile.loanActive;
-    blacklisted = profile.defaultCount > 0;
+    blacklisted = isHubWalletBlacklisted(profile.defaultCount, hubExplicitBlacklisted);
   } else if (cfg.oapp) {
     score = Number(
       await client.readContract({
@@ -132,12 +141,13 @@ export async function readChainLoanSummary(
       args: [wallet],
     });
     loanActive = lzLoanActive;
-    blacklisted = await client.readContract({
+    const spokeExplicitBlacklisted = await client.readContract({
       address: cfg.oapp as `0x${string}`,
       abi: OAPP_ABI,
       functionName: "isBlacklisted",
       args: [wallet],
     });
+    blacklisted = isSpokeWalletBlacklisted(spokeExplicitBlacklisted);
   }
 
   const activeLoanId = cfg.lending
@@ -172,7 +182,10 @@ export async function readChainLoanSummary(
         ? "Complete Account score and mint SBT first"
         : "Score not synced — complete Account score first";
   } else if (blacklisted) {
-    eligibilityReason = "Wallet blacklisted";
+    eligibilityReason =
+      chainKey === "hub"
+        ? "Wallet blacklisted or prior default on hub"
+        : "Wallet blacklisted on this spoke (LayerZero default)";
   } else if (loan?.active || resolvedLoanId > 0n) {
     eligibilityReason = "Active loan on this chain";
   } else if (chainKey === "hub" && loanActive) {

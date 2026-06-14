@@ -1,4 +1,4 @@
-"""Test-default helpers — oracle crash, health warning, grace, unblacklist."""
+"""Test-default helpers — oracle crash, health warning, grace, whitelist."""
 
 from __future__ import annotations
 
@@ -9,8 +9,7 @@ from typing import Any
 
 from web3 import Web3
 
-from agents.base import CredFlowAgent
-from agents.state import expire_grace_for_test, grace_state, start_grace
+from agents.base import CredFlowAgent, SpokeAgent
 
 logger = logging.getLogger(__name__)
 
@@ -128,26 +127,170 @@ def emit_health_warning(loan_id: int, agent: CredFlowAgent | None = None) -> dic
 
 def start_covenant_grace(loan_id: int) -> dict[str, Any]:
     """Soft recovery — covenant breach / 48h grace (user story alternate ending)."""
+    from agents.state import grace_state, start_grace
+
     start_grace(loan_id)
     return {"loan_id": loan_id, "grace": grace_state().get(str(loan_id)), "status": "grace_started"}
 
 
 def force_expire_grace(loan_id: int) -> dict[str, Any]:
     """Test-only: end grace immediately so liquidation can proceed."""
+    from agents.state import expire_grace_for_test, grace_state
+
     expire_grace_for_test(loan_id)
     return {"loan_id": loan_id, "grace": grace_state().get(str(loan_id)), "status": "grace_expired"}
 
 
-def unblacklist_wallet(wallet: str, agent: CredFlowAgent | None = None) -> dict[str, Any]:
+def _hub_whitelist_tx(
+    agent: CredFlowAgent,
+    wallet: str,
+    *,
+    was_blacklisted: bool,
+    default_count_before: int,
+) -> tuple[str | None, bool]:
+    """Returns (tx_hash, full_reset). full_reset False if only explicit blacklist cleared."""
+    if not was_blacklisted and default_count_before <= 0:
+        return None, True
+    try:
+        tx = agent.send_tx(agent.sbt.functions.whitelistWallet(wallet))
+        return tx, True
+    except Exception as exc:
+        logger.warning("whitelistWallet failed (%s)", exc)
+        if was_blacklisted:
+            tx = agent.send_tx(agent.sbt.functions.removeFromBlacklist(wallet))
+            if default_count_before > 0:
+                raise RuntimeError(
+                    "Cleared hub blacklist but defaultCount remains — upgrade CredScoreSBT "
+                    "with whitelistWallet and retry"
+                ) from exc
+            return tx, True
+        raise RuntimeError(
+            "Hub defaultCount > 0 but whitelistWallet unavailable — upgrade CredScoreSBT"
+        ) from exc
+
+
+def _clear_spoke_blacklist(wallet: str, score: int) -> list[dict[str, Any]]:
+    """Direct spoke OApp clear (fallback when LZ whitelist is in flight)."""
+    spoke_txs: list[dict[str, Any]] = []
+    for chain in ("arbitrum", "base"):
+        try:
+            spoke = SpokeAgent(chain)
+            if not spoke.oapp.functions.isBlacklisted(wallet).call():
+                continue
+            try:
+                tx = spoke.send_tx(spoke.oapp.functions.clearDefaultBlacklist(wallet, int(score)))
+            except Exception as exc:
+                logger.warning(
+                    "clearDefaultBlacklist unavailable on %s (%s) — upgrade spoke OApp",
+                    chain,
+                    exc,
+                )
+                continue
+            spoke_txs.append({"chain_key": chain, "tx_hash": tx, "type": "spoke_clear"})
+            logger.info("clearDefaultBlacklist %s tx=%s", chain, tx)
+        except Exception as exc:
+            logger.warning("Spoke whitelist clear failed on %s: %s", chain, exc)
+    return spoke_txs
+
+
+def whitelist_wallet(wallet: str, agent: CredFlowAgent | None = None) -> dict[str, Any]:
+    """Full test recovery: hub SBT blacklist + defaultCount, then spoke LZ/direct clear."""
     agent = agent or CredFlowAgent()
     wallet = Web3.to_checksum_address(wallet)
-    was = agent.sbt.functions.isBlacklisted(wallet).call()
-    if not was:
-        return {"wallet": wallet, "was_blacklisted": False, "status": "not_blacklisted"}
-    tx = agent.send_tx(agent.sbt.functions.removeFromBlacklist(wallet))
+
+    was_blacklisted = bool(agent.sbt.functions.isBlacklisted(wallet).call())
+    spoke_blacklisted = False
+    for chain in ("arbitrum", "base"):
+        try:
+            spoke = SpokeAgent(chain)
+            if spoke.oapp.functions.isBlacklisted(wallet).call():
+                spoke_blacklisted = True
+                break
+        except Exception:
+            continue
+
+    profile = agent.sbt.functions.getProfile(wallet).call()
+    if not bool(profile[8]):
+        if was_blacklisted:
+            tx = agent.send_tx(agent.sbt.functions.removeFromBlacklist(wallet))
+            spoke_txs = _clear_spoke_blacklist(wallet, 0)
+            lz_txs = agent.broadcast_whitelist(wallet, 0) if spoke_blacklisted else []
+            return {
+                "wallet": wallet,
+                "status": "whitelisted",
+                "whitelist_tx": tx,
+                "unblacklist_tx": tx,
+                "was_blacklisted": True,
+                "default_count_before": 0,
+                "default_count_after": 0,
+                "is_blacklisted": False,
+                "lz_whitelist_tx": lz_txs,
+                "spoke_clear_tx": spoke_txs,
+            }
+        if spoke_blacklisted:
+            spoke_txs = _clear_spoke_blacklist(wallet, 0)
+            lz_txs = agent.broadcast_whitelist(wallet, 0)
+            return {
+                "wallet": wallet,
+                "status": "whitelisted",
+                "whitelist_tx": None,
+                "unblacklist_tx": None,
+                "was_blacklisted": False,
+                "default_count_before": 0,
+                "default_count_after": 0,
+                "is_blacklisted": False,
+                "lz_whitelist_tx": lz_txs,
+                "spoke_clear_tx": spoke_txs,
+            }
+        return {"wallet": wallet, "status": "no_profile"}
+
+    default_count_before = int(profile[5])
+    score = int(profile[0])
+
+    hub_needs_clear = was_blacklisted or default_count_before > 0
+
+    if not hub_needs_clear and not spoke_blacklisted:
+        return {
+            "wallet": wallet,
+            "status": "already_whitelisted",
+            "was_blacklisted": was_blacklisted,
+            "default_count_before": default_count_before,
+            "is_blacklisted": False,
+            "default_count_after": default_count_before,
+        }
+
+    whitelist_tx: str | None = None
+    if hub_needs_clear:
+        whitelist_tx, _full = _hub_whitelist_tx(
+            agent,
+            wallet,
+            was_blacklisted=was_blacklisted,
+            default_count_before=default_count_before,
+        )
+
+    lz_txs: list[dict] = []
+    if spoke_blacklisted or hub_needs_clear:
+        try:
+            lz_txs = agent.broadcast_whitelist(wallet, score)
+        except Exception as exc:
+            logger.warning("broadcastWhitelist failed (%s) — using direct spoke clear only", exc)
+    spoke_txs = _clear_spoke_blacklist(wallet, score)
+
+    profile_after = agent.sbt.functions.getProfile(wallet).call()
     return {
         "wallet": wallet,
-        "was_blacklisted": True,
-        "unblacklist_tx": tx,
-        "is_blacklisted": agent.sbt.functions.isBlacklisted(wallet).call(),
+        "status": "whitelisted",
+        "whitelist_tx": whitelist_tx,
+        "unblacklist_tx": whitelist_tx,
+        "was_blacklisted": was_blacklisted,
+        "default_count_before": default_count_before,
+        "default_count_after": int(profile_after[5]),
+        "is_blacklisted": bool(agent.sbt.functions.isBlacklisted(wallet).call()),
+        "lz_whitelist_tx": lz_txs,
+        "spoke_clear_tx": spoke_txs,
     }
+
+
+def unblacklist_wallet(wallet: str, agent: CredFlowAgent | None = None) -> dict[str, Any]:
+    """Backward-compatible alias — performs full whitelist sync."""
+    return whitelist_wallet(wallet, agent=agent)

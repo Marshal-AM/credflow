@@ -24,13 +24,13 @@ Source of truth: `docs/addresses.json`, `docs/spoke-arbitrum-addresses.json`, `d
 
 | Contract | Role | Address |
 |----------|------|---------|
-| CredScoreSBT | ERC721 soulbound credit profile (score, sub-scores, loan status, SHAP CID) | [0x068B83C96F59b3C6ff5AcF94B2f656948D736F73](https://explorer.testnet.chain.robinhood.com/address/0x068B83C96F59b3C6ff5AcF94B2f656948D736F73) |
-| CredScoreEngine | On-chain score formula + Reclaim attestation → mint/update SBT | [0xC89591b5e4A71267BA4DB92197AD430F17e4E411](https://explorer.testnet.chain.robinhood.com/address/0xC89591b5e4A71267BA4DB92197AD430F17e4E411) |
-| CredFlowLending | Hub borrow / repay / liquidate; reads SBT for LTV tiers | [0x4A109093E406107C1b5AE0Ec02e387C46EAefd4f](https://explorer.testnet.chain.robinhood.com/address/0x4A109093E406107C1b5AE0Ec02e387C46EAefd4f) |
-| CredFlowLP | USDG liquidity pool; tracks utilization for rate optimizer | [0x487154E39cEa79945aFff89F58FD83DD8c8a7Ff4](https://explorer.testnet.chain.robinhood.com/address/0x487154E39cEa79945aFff89F58FD83DD8c8a7Ff4) |
-| CredFlowOApp | LayerZero hub — broadcasts score / loan / default / repaid to spokes | [0x082cd48325327f683f1005652D649C951118b7F2](https://explorer.testnet.chain.robinhood.com/address/0x082cd48325327f683f1005652D649C951118b7F2) |
-| ChainlinkOracle | WETH/USD pricing for hub collateral checks | [0xafAB22fB0D7848aa799C5d36A85A2C3C263dc977](https://explorer.testnet.chain.robinhood.com/address/0xafAB22fB0D7848aa799C5d36A85A2C3C263dc977) |
-| MockChainlinkFeed (WETH/USD) | Testnet price feed wired to hub oracle | [0xDec6788d0a1182CE421A1cF5C64746dE4dEBd66b](https://explorer.testnet.chain.robinhood.com/address/0xDec6788d0a1182CE421A1cF5C64746dE4dEBd66b) |
+| CredScoreSBT | ERC721 soulbound credit profile (score, sub-scores, loan status, SHAP CID) | [0x941380a70Be9322fE1bCa65D13343323c5824359](https://explorer.testnet.chain.robinhood.com/address/0x941380a70Be9322fE1bCa65D13343323c5824359) |
+| CredScoreEngine | On-chain score formula + Reclaim attestation → mint/update SBT | [0xD8Eeb09C86b6A910DbBcB1D83020Bd4a8dBdAEEb](https://explorer.testnet.chain.robinhood.com/address/0xD8Eeb09C86b6A910DbBcB1D83020Bd4a8dBdAEEb) |
+| CredFlowLending | Hub borrow / repay / liquidate; reads SBT for LTV tiers | [0xe7B1D8BeCE6D3F1F33a65f2534d1AB7E61a7382A](https://explorer.testnet.chain.robinhood.com/address/0xe7B1D8BeCE6D3F1F33a65f2534d1AB7E61a7382A) |
+| CredFlowLP | USDG liquidity pool; tracks utilization for rate optimizer | [0x571DD8F69798BaE3b442077F566e83719F6827aa](https://explorer.testnet.chain.robinhood.com/address/0x571DD8F69798BaE3b442077F566e83719F6827aa) |
+| CredFlowOApp | LayerZero hub — broadcasts score / loan / default / repaid to spokes | [0x3E39e65fAb3DBbD506c34c6c3a0e8e64994583b4](https://explorer.testnet.chain.robinhood.com/address/0x3E39e65fAb3DBbD506c34c6c3a0e8e64994583b4) |
+| ChainlinkOracle | WETH/USD pricing for hub collateral checks | [0x0733e87b12c0466460c2eC99ade11C4e0ce542c3](https://explorer.testnet.chain.robinhood.com/address/0x0733e87b12c0466460c2eC99ade11C4e0ce542c3) |
+| MockChainlinkFeed (WETH/USD) | Testnet price feed wired to hub oracle | [0xDE969d906510F98EDA7AFFA3F8D248169a74c2A4](https://explorer.testnet.chain.robinhood.com/address/0xDE969d906510F98EDA7AFFA3F8D248169a74c2A4) |
 | USDG | Hub borrow asset (Robinhood testnet stablecoin) | [0x7E955252E15c84f5768B83c41a71F9eba181802F](https://explorer.testnet.chain.robinhood.com/address/0x7E955252E15c84f5768B83c41a71F9eba181802F) |
 | WETH | Hub collateral token | [0x7943e237c7F95DA44E0301572D358911207852Fa](https://explorer.testnet.chain.robinhood.com/address/0x7943e237c7F95DA44E0301572D358911207852Fa) |
 | LayerZero EndpointV2 | Official LZ endpoint on Robinhood testnet | [0x3aCAAf60502791D199a5a5F0B173D78229eBFe32](https://explorer.testnet.chain.robinhood.com/address/0x3aCAAf60502791D199a5a5F0B173D78229eBFe32) |
@@ -39,11 +39,11 @@ Source of truth: `docs/addresses.json`, `docs/spoke-arbitrum-addresses.json`, `d
 
 | Contract | Role | Address |
 |----------|------|---------|
-| CredFlowOApp | LZ spoke — mirrors score, loan lock, blacklist from hub | [0x1AA44a1b2ed8634d76cc7B4BFfBd2DaE44A3B7A6](https://sepolia.arbiscan.io/address/0x1AA44a1b2ed8634d76cc7B4BFfBd2DaE44A3B7A6) |
-| CredFlowSpokeLending | Spoke borrow / repay; uses OApp as credit registry | [0x7F9D7362ad621B3EDC9b77370855a6f4AcA9cDd2](https://sepolia.arbiscan.io/address/0x7F9D7362ad621B3EDC9b77370855a6f4AcA9cDd2) |
-| CredFlowLP | USDC liquidity pool on Arbitrum Sepolia | [0x59F6273309D6068391FB1377Dd13C5F5a50c1fD1](https://sepolia.arbiscan.io/address/0x59F6273309D6068391FB1377Dd13C5F5a50c1fD1) |
-| ChainlinkOracle | Spoke collateral pricing wrapper | [0x7028668D935346637224d4AfA31964dF3C0eac76](https://sepolia.arbiscan.io/address/0x7028668D935346637224d4AfA31964dF3C0eac76) |
-| ChainlinkMirrorFeed (WETH/USD) | Mainnet ETH/USD mirrored to testnet | [0x1FF8a14765D7c4ae0c62f88D649a9Fe66DfFcf54](https://sepolia.arbiscan.io/address/0x1FF8a14765D7c4ae0c62f88D649a9Fe66DfFcf54) |
+| CredFlowOApp | LZ spoke — mirrors score, loan lock, blacklist from hub | [0xebE2fDe0781ea6f57c1F5EDd775Fe8D41b9C6830](https://sepolia.arbiscan.io/address/0xebE2fDe0781ea6f57c1F5EDd775Fe8D41b9C6830) |
+| CredFlowSpokeLending | Spoke borrow / repay; uses OApp as credit registry | [0xd834854Eb7d064EBb74cED270eb3431f7e816728](https://sepolia.arbiscan.io/address/0xd834854Eb7d064EBb74cED270eb3431f7e816728) |
+| CredFlowLP | USDC liquidity pool on Arbitrum Sepolia | [0x60BD7ca901f6F23ac0A4D640B3DEeCEDc9135483](https://sepolia.arbiscan.io/address/0x60BD7ca901f6F23ac0A4D640B3DEeCEDc9135483) |
+| ChainlinkOracle | Spoke collateral pricing wrapper | [0x08f18d1257C8665fe6DAD689B8E1Acd9120C374b](https://sepolia.arbiscan.io/address/0x08f18d1257C8665fe6DAD689B8E1Acd9120C374b) |
+| ChainlinkMirrorFeed (WETH/USD) | Mainnet ETH/USD mirrored to testnet | [0xb0cc4Fbe99f7426b5b345008944a23F0db54Bdd6](https://sepolia.arbiscan.io/address/0xb0cc4Fbe99f7426b5b345008944a23F0db54Bdd6) |
 | WETH | Spoke collateral token | [0x1dF462e2712496373A347f8ad10802a5E95f053D](https://sepolia.arbiscan.io/address/0x1dF462e2712496373A347f8ad10802a5E95f053D) |
 | USDC | Spoke borrow asset | [0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d](https://sepolia.arbiscan.io/address/0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d) |
 | Mainnet Chainlink ETH/USD (mirror source) | Price source pushed to spoke feed | [0x639Fe6ab55C921f74e7fac1ee960C0B6293ba612](https://arbiscan.io/address/0x639Fe6ab55C921f74e7fac1ee960C0B6293ba612) |
@@ -53,11 +53,11 @@ Source of truth: `docs/addresses.json`, `docs/spoke-arbitrum-addresses.json`, `d
 
 | Contract | Role | Address |
 |----------|------|---------|
-| CredFlowOApp | LZ spoke — mirrors score, loan lock, blacklist from hub | [0x3D0514395cBa1b0EdD4a6151009455A556A4a76d](https://sepolia.basescan.org/address/0x3D0514395cBa1b0EdD4a6151009455A556A4a76d) |
-| CredFlowSpokeLending | Spoke borrow / repay; uses OApp as credit registry | [0xA65C187C9Dc1e8636CE23E7efEcC18Abfc861113](https://sepolia.basescan.org/address/0xA65C187C9Dc1e8636CE23E7efEcC18Abfc861113) |
-| CredFlowLP | USDC liquidity pool on Base Sepolia | [0x4B4925b07815Dc145aC3B5a4f5c3671fa9105136](https://sepolia.basescan.org/address/0x4B4925b07815Dc145aC3B5a4f5c3671fa9105136) |
-| ChainlinkOracle | Spoke collateral pricing wrapper | [0xD2f5946b51A2DB677BC8b7A3Fea3295AD12148cc](https://sepolia.basescan.org/address/0xD2f5946b51A2DB677BC8b7A3Fea3295AD12148cc) |
-| ChainlinkMirrorFeed (WETH/USD) | Mainnet ETH/USD mirrored to testnet | [0xbEaC2B2312095e3538e0B63C23B63D05ed1a71bD](https://sepolia.basescan.org/address/0xbEaC2B2312095e3538e0B63C23B63D05ed1a71bD) |
+| CredFlowOApp | LZ spoke — mirrors score, loan lock, blacklist from hub | [0xB830EC92c606f3ECF03d9fE223F873dA2dbd2620](https://sepolia.basescan.org/address/0xB830EC92c606f3ECF03d9fE223F873dA2dbd2620) |
+| CredFlowSpokeLending | Spoke borrow / repay; uses OApp as credit registry | [0x99269E64c4Dfb227648E079Bf34E6857B6c300A4](https://sepolia.basescan.org/address/0x99269E64c4Dfb227648E079Bf34E6857B6c300A4) |
+| CredFlowLP | USDC liquidity pool on Base Sepolia | [0x48F669f0AA0271Ef56471841a0BfDED2A71aAc13](https://sepolia.basescan.org/address/0x48F669f0AA0271Ef56471841a0BfDED2A71aAc13) |
+| ChainlinkOracle | Spoke collateral pricing wrapper | [0xFed19b2508ac23dDadAE680C005152FC4DE73368](https://sepolia.basescan.org/address/0xFed19b2508ac23dDadAE680C005152FC4DE73368) |
+| ChainlinkMirrorFeed (WETH/USD) | Mainnet ETH/USD mirrored to testnet | [0x76B27936a660C9BC0b25Cb0dF86F394F0dd840F2](https://sepolia.basescan.org/address/0x76B27936a660C9BC0b25Cb0dF86F394F0dd840F2) |
 | WETH | Canonical Base Sepolia WETH | [0x4200000000000000000000000000000000000006](https://sepolia.basescan.org/address/0x4200000000000000000000000000000000000006) |
 | USDC | Spoke borrow asset | [0x036CbD53842c5426634e7929541eC2318f3dCF7e](https://sepolia.basescan.org/address/0x036CbD53842c5426634e7929541eC2318f3dCF7e) |
 | Mainnet Chainlink ETH/USD (mirror source) | Price source pushed to spoke feed | [0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70](https://basescan.org/address/0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70) |

@@ -1,7 +1,10 @@
+import type { ReactNode } from "react";
+
 type Props = {
   reason: string;
   hint?: string;
   loading?: boolean;
+  action?: ReactNode;
 };
 
 function BlockedIcon() {
@@ -23,7 +26,7 @@ function BlockedIcon() {
   );
 }
 
-export function DefaultScenarioBlocked({ reason, hint, loading }: Props) {
+export function DefaultScenarioBlocked({ reason, hint, loading, action }: Props) {
   return (
     <div
       className="td-scenario-blocked flex min-h-[17rem] flex-col items-center justify-center rounded-xl border border-border/60 bg-card/30 px-6 py-10 text-center"
@@ -50,6 +53,7 @@ export function DefaultScenarioBlocked({ reason, hint, loading }: Props) {
           {hint ? (
             <p className="text-sm leading-relaxed text-muted-foreground">{hint}</p>
           ) : null}
+          {action ? <div className="mt-2">{action}</div> : null}
         </div>
       )}
     </div>

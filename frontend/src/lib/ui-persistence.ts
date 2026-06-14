@@ -1,6 +1,6 @@
 export type AppTab = "account" | "loans" | "agents" | "test-default" | "prep-wallet";
 
-const APP_TABS: AppTab[] = ["loans", "account", "agents", "prep-wallet", "test-default"];
+const APP_TABS: AppTab[] = ["account", "loans", "agents", "prep-wallet", "test-default"];
 
 export const STORAGE_KEYS = {
   tab: "credflow-tab",
@@ -40,7 +40,7 @@ export function writeStorage(key: string, value: string): void {
 
 export function readAppTab(): AppTab {
   const saved = readStorage(STORAGE_KEYS.tab);
-  return isAppTab(saved) ? saved : "loans";
+  return isAppTab(saved) ? saved : "account";
 }
 
 export function readLoanSubTab(): LoanSubTab {
