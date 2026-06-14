@@ -47,10 +47,14 @@ The deploy script:
 
 | Contract | Address |
 |---|---|
-| CredScoreSBT | `0x3EA6D1c84481f89aac255a7ABC375fe761653cdA` |
-| CredFlowLending | `0x14d42947929F1ECf882aA6a07dd4279ADb49345d` |
-| CredFlowLP | `0x1E491de1a08843079AAb4cFA516C717597344e50` |
-| ChainlinkOracle | `0x26D215752f68bc2254186F9f6FF068b8C4BdFd37` |
+| CredScoreSBT | `0x068B83C96F59b3C6ff5AcF94B2f656948D736F73` |
+| CredScoreEngine | `0xC89591b5e4A71267BA4DB92197AD430F17e4E411` |
+| CredFlowLending | `0x4A109093E406107C1b5AE0Ec02e387C46EAefd4f` |
+| CredFlowLP | `0x487154E39cEa79945aFff89F58FD83DD8c8a7Ff4` |
+| CredFlowOApp | `0x082cd48325327f683f1005652D649C951118b7F2` |
+| ChainlinkOracle | `0xafAB22fB0D7848aa799C5d36A85A2C3C263dc977` |
+
+Spoke addresses live in `docs/spoke-arbitrum-addresses.json` and `docs/spoke-base-addresses.json`. After redeploy, run `node scripts/sync-addresses.js` to refresh `.env` and `frontend/src/lib/*.json`.
 
 After deploy, set `CHAINLINK_ETH_USD_FEED` and call `oracle.setPriceFeed(WETH_ROBINHOOD, feed, 18)` so live borrows can price WETH collateral.
 
@@ -72,6 +76,8 @@ pip install -r requirements.txt
 pip install torch --index-url https://download.pytorch.org/whl/cpu
 pip install torch-geometric
 ```
+
+On **macOS**, XGBoost also requires OpenMP: `brew install libomp`
 
 ## ML pipeline (Phase 2)
 

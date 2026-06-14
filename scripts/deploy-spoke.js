@@ -46,6 +46,10 @@ async function main() {
   fs.writeFileSync(outPath, JSON.stringify(payload, null, 2));
   console.log("Saved", outPath);
 
+  const frontendPath = path.join(__dirname, "..", "frontend", "src", "lib", `spoke-${spokeArg}-addresses.json`);
+  fs.mkdirSync(path.dirname(frontendPath), { recursive: true });
+  fs.copyFileSync(outPath, frontendPath);
+
   const agentWallet = process.env.AGENT_WALLET_ADDRESS || deployer.address;
   for (let attempt = 1; attempt <= 5; attempt++) {
     try {

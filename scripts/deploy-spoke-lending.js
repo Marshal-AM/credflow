@@ -39,8 +39,18 @@ async function wireWethFeed(oracle, weth, feedAddress) {
   if (existing.toLowerCase() !== feedAddress.toLowerCase()) {
     await (await oracle.setPriceFeed(weth, feedAddress, 18)).wait();
     console.log("setPriceFeed(WETH):", feedAddress);
+    await new Promise((r) => setTimeout(r, 3000));
   }
-  const valueUsd = await oracle.getValueUSD(weth, ethers.parseEther("0.01"));
+  let valueUsd;
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    try {
+      valueUsd = await oracle.getValueUSD(weth, ethers.parseEther("0.01"));
+      break;
+    } catch (err) {
+      if (attempt === 5) throw err;
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+  }
   console.log("Oracle check: 0.01 WETH =", ethers.formatUnits(valueUsd, 6), "USD");
 }
 
@@ -67,8 +77,10 @@ async function main() {
   const Oracle = await ethers.getContractFactory("ChainlinkOracle");
   const oracle = await Oracle.deploy(deployer.address);
   await oracle.waitForDeployment();
-  console.log("ChainlinkOracle:", await oracle.getAddress());
-  await wireWethFeed(oracle, cfg.weth, feedAddress);
+  const oracleAddress = await oracle.getAddress();
+  console.log("ChainlinkOracle:", oracleAddress);
+  await new Promise((r) => setTimeout(r, 5000));
+  await wireWethFeed(await ethers.getContractAt("ChainlinkOracle", oracleAddress), cfg.weth, feedAddress);
 
   const Pool = await ethers.getContractFactory("CredFlowLP");
   const pool = await Pool.deploy(cfg.usdc);
@@ -78,7 +90,7 @@ async function main() {
   const Lending = await ethers.getContractFactory("CredFlowSpokeLending");
   const lending = await Lending.deploy(
     addresses.oapp,
-    await oracle.getAddress(),
+    oracleAddress,
     cfg.usdc,
     deployer.address
   );
@@ -112,7 +124,7 @@ async function main() {
     chain: key,
     weth: cfg.weth,
     usdc: cfg.usdc,
-    oracle: await oracle.getAddress(),
+    oracle: oracleAddress,
     pool: await pool.getAddress(),
     lending: await lending.getAddress(),
     wethPriceFeed: feedAddress,
