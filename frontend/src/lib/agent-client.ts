@@ -1,6 +1,6 @@
 import { getSupabaseAdmin, profileFromScoreResponse } from "@/lib/supabase-server";
 import type { ChainKey } from "@/lib/chains";
-import { isHubTxSuccessful } from "@/lib/lz-broadcast";
+import { isChainTxSuccessful } from "@/lib/lz-broadcast";
 
 const SCORING_API = process.env.SCORING_API_URL || "http://localhost:8000";
 
@@ -276,14 +276,20 @@ export async function triggerClearSpokeLoanActive(
   }
 }
 
-export async function triggerSyncLoanCreated(wallet: string, relatedTx: string) {
-  if (!(await isHubTxSuccessful(relatedTx))) {
+export async function triggerSyncLoanCreated(
+  wallet: string,
+  relatedTx: string,
+  chainKey: ChainKey = "hub"
+) {
+  if (!(await isChainTxSuccessful(chainKey, relatedTx))) {
     return {
       ok: false,
-      error: "Borrow tx reverted on hub — LayerZero loan_active sync skipped",
+      error: `Borrow tx reverted on ${chainKey} — LayerZero loan_active sync skipped`,
     };
   }
-  return triggerSyncHubLoanActive(wallet, relatedTx, "loan_created");
+  const triggerEvent =
+    chainKey === "hub" ? "loan_created" : `loan_created_${chainKey}`;
+  return triggerSyncHubLoanActive(wallet, relatedTx, triggerEvent);
 }
 
 /** Re-broadcast hub loan_active to spokes (e.g. Base missed LZ while Arbitrum received it). */
@@ -322,12 +328,13 @@ async function triggerSyncHubLoanActive(
 export async function triggerSyncLoanRepaid(
   wallet: string,
   relatedTx: string,
-  score?: number
+  score?: number,
+  chainKey: ChainKey = "hub"
 ) {
-  if (!(await isHubTxSuccessful(relatedTx))) {
+  if (!(await isChainTxSuccessful(chainKey, relatedTx))) {
     return {
       ok: false,
-      error: "Repay tx reverted on hub — LayerZero repaid sync skipped",
+      error: `Repay tx reverted on ${chainKey} — LayerZero repaid sync skipped`,
     };
   }
   const body: Record<string, unknown> = {
@@ -604,7 +611,8 @@ export async function runPostRepayPipeline(params: {
   let lz_sync = await triggerSyncLoanRepaid(
     wallet,
     repayTx,
-    typeof lzScore === "number" ? lzScore : undefined
+    typeof lzScore === "number" ? lzScore : undefined,
+    chainKey
   );
   if (!lz_sync.ok) {
     errors.push(`lz_sync: ${lz_sync.error}`);

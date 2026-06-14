@@ -43,24 +43,24 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    const hubHasLoan = Boolean(
-      hub && (hub.activeLoanId > 0n || hub.loan?.active)
+    const anyChainHasLoan = summaries.some(
+      (s) => s.activeLoanId > 0n || s.loan?.active || s.hasLocalLoan
     );
     const spokeMissingLzLock = summaries.some(
       (s) =>
         s.chainKey !== "hub" &&
         !s.hasLocalLoan &&
-        hubHasLoan &&
+        anyChainHasLoan &&
         !s.lzLoanActive
     );
-    if (hubHasLoan && spokeMissingLzLock) {
+    if (anyChainHasLoan && spokeMissingLzLock) {
       void triggerRepairHubLoanLock(wallet).catch(() => {
         /* repair LZ loan_active to spokes missing mirror */
       });
     }
 
     const spokeNeedsLzUnlock = summaries.some(
-      (s) => s.chainKey !== "hub" && !s.hasLocalLoan && !hubHasLoan && s.lzLoanActive
+      (s) => s.chainKey !== "hub" && !s.hasLocalLoan && !anyChainHasLoan && s.lzLoanActive
     );
     if (spokeNeedsLzUnlock) {
       void triggerClearSpokeLoanActive(wallet, { force: true }).catch(() => {

@@ -1,5 +1,6 @@
 import {
   createPublicClient,
+  fallback,
   formatEther,
   formatUnits,
   http,
@@ -24,6 +25,15 @@ import {
 } from "@/lib/contracts";
 import { collateralWeiForBorrow, maxLtvPercent } from "@/lib/loan-collateral";
 
+const RPC_TIMEOUT_MS = 12_000;
+
+/** Public endpoints used when primary Alchemy/custom RPC stalls or errors. */
+const PUBLIC_RPC_FALLBACKS: Record<ChainKey, string[]> = {
+  hub: [],
+  arbitrum: ["https://sepolia-rollup.arbitrum.io/rpc"],
+  base: ["https://sepolia.base.org"],
+};
+
 function rpcForChain(chainKey: ChainKey): string {
   switch (chainKey) {
     case "hub":
@@ -47,6 +57,12 @@ function rpcForChain(chainKey: ChainKey): string {
   }
 }
 
+function rpcUrlsForChain(chainKey: ChainKey): string[] {
+  const primary = rpcForChain(chainKey);
+  const fallbacks = PUBLIC_RPC_FALLBACKS[chainKey].filter((url) => url !== primary);
+  return [...new Set([primary, ...fallbacks])];
+}
+
 function chainForKey(chainKey: ChainKey) {
   switch (chainKey) {
     case "hub":
@@ -59,9 +75,15 @@ function chainForKey(chainKey: ChainKey) {
 }
 
 export function getPublicClient(chainKey: ChainKey): PublicClient {
+  const urls = rpcUrlsForChain(chainKey);
+  const transport =
+    urls.length > 1
+      ? fallback(urls.map((url) => http(url, { timeout: RPC_TIMEOUT_MS })))
+      : http(urls[0], { timeout: RPC_TIMEOUT_MS });
+
   return createPublicClient({
     chain: chainForKey(chainKey),
-    transport: http(rpcForChain(chainKey)),
+    transport,
   }) as PublicClient;
 }
 

@@ -101,8 +101,8 @@ export async function POST(req: NextRequest) {
     });
 
     let lzSync: Awaited<ReturnType<typeof triggerSyncLoanCreated>> | null = null;
-    if (chainKey === "hub" && loanId > 0n) {
-      lzSync = await triggerSyncLoanCreated(wallet, txHash);
+    if (loanId > 0n) {
+      lzSync = await triggerSyncLoanCreated(wallet, txHash, chainKey);
     }
 
     return NextResponse.json({
@@ -112,11 +112,9 @@ export async function POST(req: NextRequest) {
       loan_id: loanId.toString(),
       collateral_eth: collateralEth ?? null,
       lz_sync: lzSync,
-      agents_triggered: chainKey === "hub" ? ["crosschain_sync"] : [],
+      agents_triggered: ["crosschain_sync"],
       note:
-        chainKey === "hub"
-          ? "Hub borrow triggers crosschain_sync (not underwriter). Underwriter runs on score/mint/rescore only."
-          : undefined,
+        "Borrow triggers crosschain_sync (score + loan_active LZ to spokes). Underwriter runs on score/mint/rescore only.",
     });
   } catch (err) {
     return NextResponse.json(

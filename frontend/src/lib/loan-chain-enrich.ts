@@ -7,13 +7,12 @@ export type EnrichedChainLoan = ChainLoanSummary & {
   hasLocalLoan: boolean;
 };
 
-/** Clarify spoke LZ flags: hub borrow mirrors loan_active; hub repay clears via LZ repaid broadcast. */
+/** Clarify spoke LZ flags: any-chain borrow mirrors loan_active; repay clears via LZ repaid broadcast. */
 export function enrichChainSummaries(
   summaries: ChainLoanSummary[]
 ): EnrichedChainLoan[] {
-  const hub = summaries.find((s) => s.chainKey === "hub");
-  const hubHasLoan = Boolean(
-    hub && (hub.activeLoanId > 0n || hub.loan?.active)
+  const anyChainHasLoan = summaries.some(
+    (s) => s.activeLoanId > 0n || s.loan?.active || s.loanActive
   );
 
   return summaries.map((s) => {
@@ -25,18 +24,18 @@ export function enrichChainSummaries(
     let eligible = s.eligible;
 
     if (s.chainKey !== "hub" && !hasLocalLoan) {
-      if (hubHasLoan) {
-        // Hub loan locks all spokes — do not rely on per-spoke LZ delivery (Base may lag Arbitrum).
+      if (anyChainHasLoan) {
+        // Any-chain loan locks other spokes — do not rely on per-spoke LZ delivery (Base may lag Arbitrum).
         lzLockKind = "hub_mirror";
         eligibilityReason = s.lzLoanActive
-          ? "No loan on this chain. Your Robinhood hub loan locks spoke borrowing via LayerZero until you repay there."
-          : "No loan on this chain. Hub loan is active — spoke borrow locked (LayerZero sync may still be in flight to this chain).";
+          ? "No loan on this chain. An active loan on another chain locks spoke borrowing via LayerZero until you repay there."
+          : "No loan on this chain. Active loan elsewhere — spoke borrow locked (LayerZero sync may still be in flight to this chain).";
         eligible = false;
       } else if (s.lzLoanActive) {
-        // Hub lending is clear; spoke mirror lags until LZ repaid delivers (hub tx ≠ instant spoke clear).
+        // All lending clear on-chain; spoke mirror lags until LZ repaid delivers.
         lzLockKind = "lz_clear_pending";
         eligibilityReason =
-          "Hub loan repaid — LayerZero unlock submitted; borrow will wait for spoke delivery (refresh or try borrow).";
+          "Loan repaid — LayerZero unlock submitted; borrow will wait for spoke delivery (refresh or try borrow).";
       }
     }
 

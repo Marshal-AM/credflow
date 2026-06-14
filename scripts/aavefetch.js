@@ -3,7 +3,7 @@
 //  Run: node aave_activity.js
 // ============================================================
 
-const API_KEY  = "NMsHzNgJ7XUYtzNyFpEJ8yT4muQ_lkRF";   // <-- paste your Alchemy key
+const API_KEY  = process.env.ALCHEMY_API_KEY || "c5Zu5NC-feTdpw7zIq0eX";
 const WALLET   = "0x2514844F312c02Ae3C9d4fEb40db4eC8830b6844";    // <-- paste your 0x address
 
 // ── constants ───────────────────────────────────────────────
