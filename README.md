@@ -452,7 +452,6 @@ Which agent runs at each system event — contracts only execute what agents (or
 | Hub repay | scoring API, `underwriter`, `crosschain_sync` | `updateScore`, `broadcastScore`, `broadcastRepaid` | `MSG_SCORE_UPDATE`, `MSG_REPAID` |
 | Every 300s | `portfolio_monitor` → maybe `liquidation_agent` | `emitHealthWarning`, `liquidate`, `blacklistLinkedWallets` | `MSG_DEFAULT` on liquidation |
 | Every 3600s | `rate_optimizer`, `crosschain_sync` batch | `setBaseRate`, catch-up syncs | varies |
-| Spoke borrow | None | User-signed `requestLoan` only | None |
 
 ### Groq LLM Decision Layer
 
@@ -915,15 +914,12 @@ Below 500: no LTV tier — borrow rejected at contract level.
 - Reads `creditRegistry.getScore()` from local `CredFlowOApp`.
 - Checks `!creditRegistry.isLoanActive()` (LZ mirror), `!isBlacklisted()`.
 - Same collateral/LTV math; borrows **USDC**.
-- Does **not** touch hub SBT.
 
 ### Post-Borrow LayerZero Sync
 
-**Hub borrow only** — spoke borrows do not invoke any agent. Full LayerZero architecture, message types, and stale-lock behavior: [LayerZero Cross-Chain Messaging](#layerzero-cross-chain-messaging).
-
 After `requestLoan()` succeeds on the hub, `frontend/src/lib/agent-client.ts` calls `triggerSyncLoanCreated()`, which hits `POST /agents/sync-loan` with `event: created`. The **crosschain_sync agent** (`agents/sync_service.py` → `sync_wallet_loan_active()`) then:
 
-1. **Verifies hub loan exists** — reads `lending.activeLoanId(wallet)`. If zero (edge case), broadcasts repaid-clear instead of loan-active.
+1. **Verifies loan exists** — reads `lending.activeLoanId(wallet)`. If zero (edge case), broadcasts repaid-clear instead of loan-active.
 2. **Reads current SBT score** — `sbt.getProfile(wallet).score`.
 3. **Signs two LZ txs per spoke** using `AGENT_PRIVATE_KEY`:
    - `CredFlowOApp.broadcastScore([40231], wallet, score, lzOptions)` — Arbitrum
@@ -934,8 +930,6 @@ After `requestLoan()` succeeds on the hub, `frontend/src/lib/agent-client.ts` ca
 5. **Logs run** to `AgentRunLogger` with hub tx hashes per EID.
 
 On each spoke, `_lzReceive` sets `loanActiveMirror[borrower] = true`. `CredFlowSpokeLending.requestLoan()` then rejects that wallet with `"Cross-chain loan active"` until hub repay delivers `MSG_REPAID`.
-
-The **underwriter does not run on borrow** — only **cross-chain sync**.
 
 ---
 
@@ -979,7 +973,7 @@ Repayment is a **positive credit event** — improved `repay_ratio` and complete
 
 ### LayerZero Unlock
 
-Hub repay triggers **`sync_wallet_repaid_with_score()`** in `agents/sync_service.py`. The **cross-chain sync agent** signs `broadcastScore` and `broadcastRepaid` to Arbitrum and Base; spokes set `loanActiveMirror[wallet] = false`. If LZ delivery lags, `triggerClearSpokeLoanActive()` sends a repaid-only broadcast as fallback. Full message spec: [LayerZero Cross-Chain Messaging](#layerzero-cross-chain-messaging).
+Hub or spoke repay triggers **`sync_wallet_repaid_with_score()`** in `agents/sync_service.py`. The **cross-chain sync agent** signs `broadcastScore` and `broadcastRepaid` to Arbitrum and Base; spokes set `loanActiveMirror[wallet] = false`. If LZ delivery lags, `triggerClearSpokeLoanActive()` sends a repaid-only broadcast as fallback. Full message spec: [LayerZero Cross-Chain Messaging](#layerzero-cross-chain-messaging).
 
 ---
 
@@ -1179,8 +1173,6 @@ flowchart TB
   EP -->|_lzReceive| AOApp2
 ```
 
-**Direction:** Robinhood testnet → Arbitrum and Base only. Remote chains never broadcast back. All credit mutations originate where the SBT lives (underwriter agent); other markets are synchronized read replicas updated by the cross-chain sync agent via LayerZero.
-
 ### Chain and Endpoint Reference
 
 From `layerzero/config.json` and deployed addresses in [Contracts](#contracts):
@@ -1242,7 +1234,6 @@ Fee splitting: `msg.value` is divided evenly across `dstChainIds.length` inside 
 | Score complete (no mint yet) | `triggerSyncScore()` | `crosschain_sync` | `MSG_SCORE_UPDATE` to both spokes | Score available for spoke LTV/rate tiers |
 | SBT mint / underwrite | After `underwriter` writes SBT | `crosschain_sync` | `MSG_SCORE_UPDATE` | Same |
 | Hub `requestLoan()` | `triggerSyncLoanCreated()` | `crosschain_sync` | `MSG_SCORE_UPDATE` + `MSG_LOAN_ACTIVE` | Spoke borrow **blocked** (`isLoanActive`) |
-| Spoke `requestLoan()` | **None** | — | No LZ | Local loan only; hub SBT unchanged |
 | Hub `repayLoan()` | `runPostRepayPipeline()` | `underwriter` + `crosschain_sync` | `MSG_SCORE_UPDATE` + `MSG_REPAID` | Spoke borrow **unblocked** |
 | Liquidation / default | Post-liquidation | `liquidation_agent` | `MSG_DEFAULT` per defaulter + linked wallets | Blacklisted; score crushed to 310 |
 | Rate optimizer batch | Scheduler catch-up | `crosschain_sync` | Stale `MSG_SCORE_UPDATE` only | Keeps spoke scores fresh |
@@ -1320,17 +1311,6 @@ LayerZero delivery is **asynchronous**. A hub `broadcastRepaid` tx succeeding do
 - `npm run lz:status` — pathway health check
 
 **Batch catch-up:** `crosschain_sync` scheduler can replay stale scores (Groq `review_sync_priority()` ranks wallets) so spoke `spokeScores` do not drift far from hub SBT after missed events.
-
-### LayerZero vs Hub SBT — Source of Truth
-
-| Data | Authoritative source | Spoke copy |
-|------|---------------------|------------|
-| Credit score | `CredScoreSBT.score` on hub | `CredFlowOApp.spokeScores` via `MSG_SCORE_UPDATE` |
-| Loan active | `CredScoreSBT.loanActive` on hub | `CredFlowOApp.loanActiveMirror` via `MSG_LOAN_ACTIVE` / `MSG_REPAID` |
-| Default / blacklist | `CredScoreSBT.blacklisted` on hub | `CredFlowOApp.defaultBlacklist` via `MSG_DEFAULT` |
-| Open loan collateral/LTV | Hub `CredFlowLending` loans mapping | Spoke local loans only |
-
-If LZ fails silently, hub and spoke **diverge**. The UI treats hub loan existence as the hard lock on spokes (`hub_mirror`) to avoid double-borrow even when LZ is slow. After repay, spokes depend on `MSG_REPAID` — hence `lz_clear_pending` and manual clear routes.
 
 ---
 
