@@ -1,21 +1,26 @@
+<div align="center">
+
+<!-- Replace src below with your logo path or URL -->
+<img src="docs/assets/credflow-logo.png" alt="CredFlow" width="120" />
+
 # CredFlow
 
-**An undercollateralized lending protocol powered by cross-chain credit scores.**
+**Undercollateralized lending powered by cross-chain credit scores and five autonomous agents.**
+
+[![demo](https://img.shields.io/badge/demo-HackQuest-22d3ee)](https://www.hackquest.io/projects/CredFlow)
+[![live app](https://img.shields.io/badge/live%20app-credflow--tau.vercel.app-22d3ee)](https://credflow-tau.vercel.app)
+[![dashboard](https://img.shields.io/badge/dashboard-credflow--dashboard--three.vercel.app-22d3ee)](https://credflow-dashboard-three.vercel.app)
+[![pitch deck](https://img.shields.io/badge/pitch%20deck-Canva-fbbf24)](https://canva.link/uze7wmvnpxxwnwk)
+[![chain](https://img.shields.io/badge/chain-Robinhood%20testnet%20%2346630-fbbf24)](https://explorer.testnet.chain.robinhood.com)
+[![layerzero](https://img.shields.io/badge/layerzero-V2%20EID%2040451-aab2c5)](https://layerzero.network)
+
+</div>
 
 CredFlow turns rich financial signals into a portable **CredScore** (300–850) that unlocks **undercollateralized loans**. Connect a wallet and we reconstruct your full DeFi footprint — Aave and Morpho repay history, Alchemy transfer graphs, sybil-risk analysis, and **37 ML features** — in minutes. No on-chain history yet? Link a bank account via **Reclaim zkTLS** and get an accurate score from verified balance and capacity.
 
 **Five autonomous agents power every part of the live experience** — they are not optional infrastructure; they *are* how CredFlow operates after scoring. The **underwriter** mints and updates on-chain credit; **cross-chain sync** keeps every borrow market aligned via LayerZero; the **portfolio monitor** watches loan health every five minutes; the **liquidation agent** enforces defaults and sybil blacklists; and the **rate optimizer** adjusts pool pricing from utilization. Scoring produces a number; the agents make it a product.
 
 Once approved, you mint a soulbound **CredScore SBT** and borrow with less collateral than standard over-collateralized DeFi. Borrowing is available on **Robinhood Chain testnet**, **Arbitrum Sepolia**, and **Base Sepolia**. Credit state travels cross-chain via **LayerZero V2** so one underwritten identity cannot double-borrow across markets.
-
-## Important Links
-
-| Resource | Link |
-|----------|------|
-| Demo video | [HackQuest — CredFlow](https://www.hackquest.io/projects/CredFlow) |
-| Live app | [credflow-tau.vercel.app](https://credflow-tau.vercel.app) |
-| Dashboard | [credflow-dashboard-three.vercel.app](https://credflow-dashboard-three.vercel.app) |
-| Pitch deck | [Canva pitch deck](https://canva.link/uze7wmvnpxxwnwk) |
 
 ---
 
@@ -76,7 +81,6 @@ Live deployment addresses. Click any address to open the chain explorer.
 
 ## Table of Contents
 
-0. [Important Links](#important-links)
 1. [Introduction](#introduction)
    - [Why Robinhood Chain Testnet](#why-robinhood-chain-testnet)
    - [Current Scenario](#current-scenario)
