@@ -1,18 +1,18 @@
 <div align="center">
 
 <!-- Replace src below with your logo path or URL -->
-<img src="docs/assets/credflow-logo.png" alt="CredFlow" width="120" />
+<img width="120" height="120" alt="CredFlow Logo" src="https://github.com/user-attachments/assets/c5ccab9f-5c87-475d-a39b-82f3b3841248" />
 
 # CredFlow
 
 **Undercollateralized lending powered by cross-chain credit scores and five autonomous agents.**
 
-[![demo](https://img.shields.io/badge/demo-HackQuest-22d3ee)](https://www.hackquest.io/projects/CredFlow)
-[![live app](https://img.shields.io/badge/live%20app-credflow--tau.vercel.app-22d3ee)](https://credflow-tau.vercel.app)
-[![dashboard](https://img.shields.io/badge/dashboard-credflow--dashboard--three.vercel.app-22d3ee)](https://credflow-dashboard-three.vercel.app)
-[![pitch deck](https://img.shields.io/badge/pitch%20deck-Canva-fbbf24)](https://canva.link/uze7wmvnpxxwnwk)
-[![chain](https://img.shields.io/badge/chain-Robinhood%20testnet%20%2346630-fbbf24)](https://explorer.testnet.chain.robinhood.com)
-[![layerzero](https://img.shields.io/badge/layerzero-V2%20EID%2040451-aab2c5)](https://layerzero.network)
+[![demo](https://img.shields.io/badge/demo-HackQuest-404040?labelColor=2D2D2D&style=flat)](https://www.hackquest.io/projects/CredFlow)
+[![live app](https://img.shields.io/badge/live%20app-credflow--tau.vercel.app-404040?labelColor=2D2D2D&style=flat)](https://credflow-tau.vercel.app)
+[![dashboard](https://img.shields.io/badge/dashboard-credflow--dashboard--three.vercel.app-404040?labelColor=2D2D2D&style=flat)](https://credflow-dashboard-three.vercel.app)
+[![pitch deck](https://img.shields.io/badge/pitch%20deck-Canva-6E6054?labelColor=363636&style=flat)](https://canva.link/uze7wmvnpxxwnwk)
+[![chain](https://img.shields.io/badge/chain-Robinhood%20testnet%20%2346630-6E6054?labelColor=363636&style=flat)](https://explorer.testnet.chain.robinhood.com)
+[![layerzero](https://img.shields.io/badge/layerzero-V2%20EID%2040451-514C47?labelColor=2D2D2D&style=flat)](https://layerzero.network)
 
 </div>
 
