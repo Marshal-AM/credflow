@@ -15,7 +15,7 @@
  *   ARBITRUM_SEPOLIA_MIN_ETH=0.0005         minimum balance to run txs
  *   ARBITRUM_SEPOLIA_WETH_DEPOSIT_ETH=0.00001 optional WETH deposit (tx 4)
  *   ARBITRUM_SEPOLIA_DRY_RUN=1              log only, no broadcasts
- *   PREP_TX_DELAY_MS / TX_DELAY_MS          pause after each confirmed tx (default 10000)
+ *   PREP_TX_DELAY_MS / TX_DELAY_MS          pause after each confirmed tx (default 2000)
  */
 
 const hre = require("hardhat");

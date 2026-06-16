@@ -37,7 +37,7 @@ export const PREP_WALLET_STEPS: PrepWalletStep[] = [
   { id: "morpho", order: 5, label: "Base Morpho", description: "Collateral, borrow, repay, withdraw", network: "base" },
 ];
 
-const TX_DELAY_MS = 10_000;
+const TX_DELAY_MS = 1_000;
 const VARIABLE_RATE_MODE = 2;
 
 const ACTIVITY_RECIPIENTS = [
@@ -439,20 +439,6 @@ async function runAave(
     throw new Error(`Need at least 0.001 ETH for gas on ${network}`);
   }
 
-  const wethBal = (await runner.publicClient.readContract({
-    address: cfg.weth,
-    abi: ERC20_ABI,
-    functionName: "balanceOf",
-    args: [runner.address],
-  })) as bigint;
-
-  const aWethBal = (await runner.publicClient.readContract({
-    address: cfg.aWeth,
-    abi: ERC20_ABI,
-    functionName: "balanceOf",
-    args: [runner.address],
-  })) as bigint;
-
   let account: readonly [bigint, bigint, bigint, bigint, bigint, bigint] | null = null;
   try {
     account = await runner.publicClient.readContract({
@@ -465,22 +451,18 @@ async function runAave(
     account = null;
   }
 
-  const hasCollateral = aWethBal >= supplyWei || (account?.[0] ?? 0n) > 0n;
+  const hasCollateral = (account?.[0] ?? 0n) > 0n;
 
-  if (!hasCollateral && wethBal < supplyWei) {
-    const wrapAmount = supplyWei - wethBal;
-    if (ethBal < wrapAmount) throw new Error("Insufficient ETH to wrap WETH");
+  if (!hasCollateral) {
+    if (ethBal < supplyWei) throw new Error("Insufficient ETH to wrap and supply WETH");
     txs.push(
       await writeAndWait(runner, chainId, {
         address: cfg.weth,
         abi: WETH_ABI,
         functionName: "deposit",
-        value: wrapAmount,
+        value: supplyWei,
       })
     );
-  }
-
-  if (!hasCollateral) {
     await ensureAllowance(runner, chainId, cfg.weth, cfg.aavePool, supplyWei, txs);
     txs.push(
       await writeAndWait(runner, chainId, {
@@ -577,23 +559,14 @@ async function runMorpho(runner: PrepRunner): Promise<PrepStepResult> {
     );
   }
 
-  const wethBal = (await runner.publicClient.readContract({
-    address: BASE.weth,
-    abi: ERC20_ABI,
-    functionName: "balanceOf",
-    args: [runner.address],
-  })) as bigint;
-
-  if (wethBal < supplyWei) {
-    txs.push(
-      await writeAndWait(runner, chainId, {
-        address: BASE.weth,
-        abi: WETH_ABI,
-        functionName: "deposit",
-        value: supplyWei - wethBal,
-      })
-    );
-  }
+  txs.push(
+    await writeAndWait(runner, chainId, {
+      address: BASE.weth,
+      abi: WETH_ABI,
+      functionName: "deposit",
+      value: supplyWei,
+    })
+  );
 
   await ensureAllowance(runner, chainId, BASE.weth, BASE.morpho, supplyWei, txs);
   txs.push(
@@ -604,38 +577,6 @@ async function runMorpho(runner: PrepRunner): Promise<PrepStepResult> {
       args: [params, supplyWei, runner.address, "0x"],
     })
   );
-
-  const mkt = await runner.publicClient.readContract({
-    address: BASE.morpho,
-    abi: MORPHO_ABI,
-    functionName: "market",
-    args: [marketId],
-  });
-  const available =
-    mkt[0] >= mkt[2] ? mkt[0] - mkt[2] : 0n;
-  if (available < borrowUnits) {
-    const seedAmt = parseUnits("1", 6) > (borrowUnits * 110n) / 100n
-      ? parseUnits("1", 6)
-      : (borrowUnits * 110n) / 100n;
-    const usdcBal = (await runner.publicClient.readContract({
-      address: BASE.usdc,
-      abi: ERC20_ABI,
-      functionName: "balanceOf",
-      args: [runner.address],
-    })) as bigint;
-    if (usdcBal < seedAmt) {
-      throw new Error("Not enough USDC to seed Morpho liquidity — get testnet USDC first");
-    }
-    await ensureAllowance(runner, chainId, BASE.usdc, BASE.morpho, seedAmt, txs);
-    txs.push(
-      await writeAndWait(runner, chainId, {
-        address: BASE.morpho,
-        abi: MORPHO_ABI,
-        functionName: "supply",
-        args: [params, seedAmt, 0n, runner.address, "0x"],
-      })
-    );
-  }
 
   txs.push(
     await writeAndWait(runner, chainId, {

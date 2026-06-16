@@ -2,12 +2,12 @@
  * Pause between on-chain txs to avoid RPC "in-flight transaction limit" errors
  * (common with delegated / smart-account signers).
  *
- * Env: PREP_TX_DELAY_MS or TX_DELAY_MS (default 10000 ms)
+ * Env: PREP_TX_DELAY_MS or TX_DELAY_MS (default 2000 ms)
  */
 
 function txDelayMs() {
   return parseInt(
-    process.env.PREP_TX_DELAY_MS || process.env.TX_DELAY_MS || "10000",
+    process.env.PREP_TX_DELAY_MS || process.env.TX_DELAY_MS || "2000",
     10
   );
 }
